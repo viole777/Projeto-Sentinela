@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atendimento</title>
+</head>
+<body>
+    <div class="container">
+    <h2>atendimentos</h2>
+
+    <input id="nome" placeholder="Nome">
+     <input id="cpf" placeholder="CPF">
+
+     <select id="tipo">
+        <option>Convenio</option>
+        <option>Particular</option>
+     </select>
+     <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+        <label for="foto" style="cursor:pointer; border:1px dashed #ccc; padding:10px; border-radius:10px; text-align:center; background:#f8fafc;">
+            Enviar imagem do paciente (clique aqui)
+        </label>
+        <input type="file" id="foto" accept="image/*" style="display:none;">
+        <img id="fotoPreview" alt="Prévia" style="display:none; max-width: 240px; border-radius:12px; border:1px solid #e5e7eb;" />
+     </div>
+
+     <button style="margin-top:12px;" onclick="cadastrar()">Enviar para triagem</button>
+
+     <script>
+        const fotoEl = document.getElementById('foto');
+        const previewEl = document.getElementById('fotoPreview');
+
+        fotoEl?.addEventListener('change', () => {
+            const file = fotoEl.files && fotoEl.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            previewEl.style.display = 'block';
+            previewEl.src = url;
+        });
+
+        function cadastrar(){
+            const form = new FormData();
+            form.append('nome', nome.value);
+            form.append('cpf', cpf.value);
+            form.append('tipo', tipo.value);
+
+            const file = fotoEl.files && fotoEl.files[0];
+            if (file) form.append('foto', file);
+
+            fetch("http://localhost:3000/atendimento", {
+                method: "POST",
+                body: form
+            })
+            .then(r => {
+                if(!r.ok) return r.json().then(e => Promise.reject(new Error(e.erro || 'Erro no atendimento')));
+                return r.json();
+            })
+            .then(paciente => {
+                sessionStorage.setItem('pacienteCpf', paciente.cpf);
+                sessionStorage.setItem('pacienteId', paciente.id);
+                alert("Atendimento enviado para triagem");
+                location.href = "triagem.html";
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Erro ao enviar atendimento: ' + err.message);
+            })
+        }
+     </script>
+</div>
+</body>
+</html>

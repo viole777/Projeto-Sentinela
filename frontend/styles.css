@@ -1,0 +1,175 @@
+/* Sistema Hospitalar - estilo base */
+
+:root{
+  --bg: #0b1220;
+  --panel: rgba(255,255,255,.06);
+  --panel2: rgba(255,255,255,.09);
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --brand: #2563eb;
+  --brand2: #1d4ed8;
+  --success: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,255,255,.12);
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+  background: radial-gradient(1200px 600px at 10% 0%, rgba(37,99,235,.25), transparent 60%),
+              radial-gradient(900px 500px at 90% 20%, rgba(34,197,94,.16), transparent 55%),
+              var(--bg);
+  color: var(--text);
+}
+
+header{
+  padding: 20px;
+}
+
+.container{
+  max-width: 1100px;
+  margin: 28px auto;
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+h2,h3{
+  margin: 0 0 12px 0;
+}
+
+hr{
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.12);
+  margin: 18px 0;
+}
+
+input, select{
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(0,0,0,.18);
+  color: var(--text);
+  outline: none;
+}
+
+input::placeholder{ color: rgba(229,231,235,.65); }
+
+input:focus, select:focus{
+  border-color: rgba(37,99,235,.6);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.25);
+}
+
+button{
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  background: linear-gradient(180deg, var(--brand), var(--brand2));
+  color: white;
+}
+
+button:hover{ filter: brightness(1.05); }
+button:active{ transform: translateY(1px); }
+
+.card{
+  background: var(--panel2);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.badge{
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #fff;
+  display:inline-block;
+}
+
+.badge.normal{ background: rgba(34,197,94,.95); }
+.badge.febre{ background: rgba(245,158,11,.95); }
+.badge.alta{ background: rgba(239,68,68,.95); }
+.badge.critica{ background: rgba(127,29,29,.95); }
+.badge.hipotermia{ background: rgba(239,68,68,.95); }
+
+/* ======================================================================
+   SISTEMA DE CORES HOSPITALAR (baseado em sinalização clínica)
+   Regra geral: Verde (ok), Amarelo (atenção), Vermelho (risco)
+   + variações para hipotermia/febre/critico
+   ====================================================================== */
+
+:root{
+  /* Verde */
+  --c-ok-900:  #14532d; /* fundo escuro */
+  --c-ok-500:  #22c55e; /* padrão */
+  --c-ok-100:  rgba(34,197,94,.18);
+
+  /* Amarelo */
+  --c-att-900: #713f12;
+  --c-att-500: #f59e0b;
+  --c-att-100: rgba(245,158,11,.18);
+
+  /* Vermelho */
+  --c-risk-900:#7f1d1d;
+  --c-risk-500:#ef4444;
+  --c-risk-100: rgba(239,68,68,.18);
+
+  /* Critico (vermelho mais profundo) */
+  --c-critical-900:#450a0a;
+  --c-critical-500:#b91c1c;
+  --c-critical-100: rgba(185,28,28,.18);
+
+  /* Azul (neutro/administrativo/fluxo) */
+  --c-info-500: #2563eb;
+  --c-info-100: rgba(37,99,235,.18);
+}
+
+.badge.normal{ background: rgba(34,197,94,.95); }
+.badge.febre{ background: rgba(245,158,11,.95); }
+.badge.alta{ background: rgba(239,68,68,.95); }
+.badge.critica{ background: rgba(127,29,29,.95); }
+.badge.hipotermia{ background: rgba(239,68,68,.95); }
+
+/* Cores para o input de temperatura (usado em triagem) */
+input#temp.hipotermia { background: var(--c-risk-100); border: 2px solid rgba(239,68,68,.95); }
+input#temp.normal { background: var(--c-ok-100); border: 2px solid rgba(34,197,94,.95); }
+input#temp.febre { background: var(--c-att-100); border: 2px solid rgba(245,158,11,.95); }
+input#temp.alta { background: var(--c-risk-100); border: 2px solid rgba(239,68,68,.95); }
+input#temp.critica { background: var(--c-critical-100); border: 2px solid rgba(185,28,28,.95); }
+
+/* Acessibilidade: foco visível para teclado */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.35);
+}
+
+
+
+.grid{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+
+.subpanel{
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+@media (max-width: 860px){
+  .container{ margin: 16px; }
+}
+

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triagem</title>
+    <style>
+        .btn-tv{
+            background: #28a745 ;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+        .btn-tv:hover{background: #1e7e342f;}
+        .pacientes-fila{
+            margin-bottom: 30px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #d0d8f0;
+        }
+
+        .pacientes-fila h3{
+            margin-top: 0;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            
+        }
+        .pacients-fila h3 span{
+            font-size: 13px;
+            font-weight: normal;
+            color: #666;
+        }
+        .fila-item{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: white;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border: 1px solid #dce4ff;
+        }
+        .fila-item strong{ font-size: 14px;}
+        .fila-item small{ color: #888; font-size: 12px;}
+        .btn-abrir-tv{
+            display: inline-block;
+            background: #17a2b8;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 5px;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-abrir-tv:hover{
+            background: #117a8b
+        }
+
+
+    </style>
+</head>
+<body>
+    <!-- estilos de cores reaproveitam o global styles.css -->
+    <style>
+        .badge { padding: 6px 10px; border-radius: 10px; color: #fff; display: inline-block; }
+    </style>
+
+
+    <div class="container">
+    <h2>Triagem</h2>
+<!-- botão da TV -->
+ <div style="display: flex; justify-content: space-between;
+ align-items: center; margin-bottom: 20px;">
+ <h2 style="margin: 0;">Triagem Hospi</h2>
+<button class="btn-abrir-tv" onclick="window.open('tv.html' , '_blank')">Abrir Tela da TV</button></div>
+<!-- chamar um paciente na TV -->
+ <div class:"pacientes-fila";>
+    <h3>
+        Pacientes Cadastrados no atendimento
+        <span>Clique em "Chamar na TV" para chamar ao guiche</span>
+    </h3>
+    <div id="fila-pacientes">
+        <p style="color: #888; text-align:center;">Carregando...</p>
+    </div>
+    <button onclick="carregarPacientes()" style="margin-top: 8px; background: #6c757d; color: white;
+    border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;">Atualizar Lista</button>
+ </div>
+<!-- parte triagem -->
+    <div id="dadosAtendimento" style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; margin: 14px 0;">
+        <div style="min-width:220px; flex:1;">
+            <h3 style="margin:0 0 10px 0;">Dados do atendimento</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <tbody>
+                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Paciente</td><td id="tbPaciente" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">CPF</td><td id="tbCpf" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Tipo</td><td id="tbTipo" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Imagem</td><td style="padding:8px; border:1px solid #e5e7eb;" id="tbImagem">-</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="width:240px;">
+            <h3 style="margin:0 0 10px 0;">Prévia</h3>
+            <img id="imgAtendimento" alt="Imagem" style="display:block; width:240px; max-width:100%; border-radius:12px; border:1px solid #e5e7eb; background:#f8fafc;" />
+        </div>
+    </div>
+
+    <div class="triForm" style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
+        <input id="nome" placeholder="Nome">
+        <input id="sintomas" placeholder="Sintomas">
+        <input id="temp" placeholder="Temperatura">
+
+        <select id="risco">
+           <option value="verde">Verde</option>
+           <option value="amarelo">Amarelo</option>
+           <option value="vermelho">Vermelho</option>
+        </select>
+
+        <input id="alergia" placeholder="Alergias">
+
+        <button onclick="salvar()">Salvar e enviar para Médico</button>
+    </div>
+    </div>
+
+
+    <script>
+        function calcularSituacaoPorTemperatura(t) {
+            const temp = Number(t);
+            if (Number.isNaN(temp)) return { situacao: "Normal", classe: "normal" };
+
+            // Regras pedidas:
+            // Hipotermia grave: < 35°C
+            // Normal: 36°C – 37,5°C
+            // Febre: >= 37,8°C
+            // Febre alta: >= 39°C
+            // Hipertermia crítica: >= 40°C
+            if (temp < 35) return { situacao: "Hipotermia grave", classe: "hipotermia" };
+            if (temp >= 40) return { situacao: "Hipertermia crítica", classe: "critica" };
+            if (temp >= 39) return { situacao: "Febre alta", classe: "alta" };
+            if (temp >= 37.8) return { situacao: "Febre", classe: "febre" };
+            if (temp >= 36 && temp <= 37.5) return { situacao: "Normal", classe: "normal" };
+
+            // Fallback (ex.: 35-36 ou 37.5-37.8)
+            return { situacao: "Normal", classe: "normal" };
+        }
+
+        function aplicarCoresPeloCalor() {
+            const tempStr = temp.value;
+            const { classe, situacao } = calcularSituacaoPorTemperatura(tempStr);
+
+            // Atualiza uma cor base no campo de temperatura
+            temp.classList.remove("hipotermia", "normal", "febre", "alta", "critica");
+            temp.classList.add(classe);
+
+            // Sugestão de risco pelo padrão de cores
+            // (Mantém compatível com seu select de risco existente.)
+            if (classe === "hipotermia") risco.value = "verde";
+            if (classe === "normal") risco.value = "verde";
+            if (classe === "febre") risco.value = "amarelo";
+            if (classe === "alta") risco.value = "vermelho";
+            if (classe === "critica") risco.value = "vermelho";
+
+            // Mostra feedback rápido
+            let badge = document.getElementById("tempBadge");
+            if (!badge) {
+                badge = document.createElement("div");
+                badge.id = "tempBadge";
+                badge.style.marginTop = "8px";
+                badge.style.fontWeight = "bold";
+                document.querySelector(".container").appendChild(badge);
+            }
+            badge.textContent = `Situação: ${situacao} (${Number(tempStr).toFixed(1)}°C)`;
+            badge.className = `badge ${classe}`;
+        }
+
+        function salvar(){
+            aplicarCoresPeloCalor();
+            const pacienteCpf = sessionStorage.getItem('pacienteCpf');
+            const pacienteId = sessionStorage.getItem('pacienteId');
+
+            fetch("http://localhost:3000/triagem", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    pacienteCpf: pacienteCpf,
+                    pacienteId: pacienteId ? Number(pacienteId) : undefined,
+                    nome: nome.value,
+                    sintomas: sintomas.value,
+                    temperatura: temp.value,
+                    risco: risco.value,
+                    alergia: alergia.value
+                })
+            })
+            .then(r => r.json())
+            .then(() => {
+                alert("Triagem salva!");
+                location.href = "medico.html";
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Erro ao salvar triagem: ' + err.message);
+            });
+        }
+
+        async function carregarAtendimentoTabela() {
+            const pacienteCpf = sessionStorage.getItem('pacienteCpf') || '';
+            if (!pacienteCpf) return;
+
+            const r = await fetch(`http://localhost:3000/atendimentos?cpf=${encodeURIComponent(pacienteCpf)}`);
+            const list = await r.json();
+
+            const a = Array.isArray(list) ? list[list.length - 1] : null;
+
+            const tbPaciente = document.getElementById('tbPaciente');
+            const tbCpf = document.getElementById('tbCpf');
+            const tbTipo = document.getElementById('tbTipo');
+            const tbImagem = document.getElementById('tbImagem');
+            const imgAtendimento = document.getElementById('imgAtendimento');
+
+            tbPaciente.textContent = a?.pacienteNome || '-';
+            tbCpf.textContent = a?.pacienteCpf || pacienteCpf;
+            tbTipo.textContent = a?.tipo || '-';
+
+            if (a?.imagem) {
+                tbImagem.textContent = 'OK';
+                imgAtendimento.src = `http://localhost:3000${a.imagem}`;
+            } else {
+                tbImagem.textContent = 'Sem imagem';
+                imgAtendimento.src = '';
+            }
+
+            // preenche nome no formulário
+            if (a?.pacienteNome && !document.getElementById('nome').value) {
+                document.getElementById('nome').value = a.pacienteNome;
+            }
+        }
+
+        // Inicializa e atualiza conforme digita
+        temp.addEventListener("input", aplicarCoresPeloCalor);
+        window.addEventListener("DOMContentLoaded", () => {
+            aplicarCoresPeloCalor();
+            carregarAtendimentoTabela();
+        });
+    </script>
+</body>
+</html>

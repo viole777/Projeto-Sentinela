@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finalizar Atendimento</title>
+</head>
+<body>
+  <div class="container">
+    <h2>Finalizar atendimento</h2>
+    <div class="subpanel" style="margin-bottom:14px;">
+      <b>Paciente</b>
+      <div style="margin-top:6px; color:rgba(229,231,235,.85);">
+        <div>Nome: <span id="pacienteNome">-</span></div>
+        <div>CPF: <span id="pacienteCpf">-</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12);">
+      <h3 style="margin-bottom:10px;">Próximas ações</h3>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button onclick="irAlta()">Dar alta</button>
+        <button style="background:rgba(37,99,235,.20); border:1px solid rgba(37,99,235,.35);" onclick="irInternar()">Internar</button>
+      </div>
+      <div style="margin-top:10px; color:rgba(229,231,235,.75); font-size:13px;">
+        Preencha a documentação obrigatória em <b>alta</b> ou <b>internação</b>.
+      </div>
+    </div>
+  </div>
+
+    <script>
+    function carregarPaciente() {
+      document.getElementById('pacienteNome').textContent = sessionStorage.getItem('pacienteNome') || '-';
+      document.getElementById('pacienteCpf').textContent = sessionStorage.getItem('pacienteCpf') || '-';
+    }
+
+    function irAlta() {
+      // marca que a documentação de alta deve ser feita
+      sessionStorage.setItem('acaoFinalizacao', 'alta');
+      location.href = 'alta.html';
+    }
+
+    function irInternar() {
+      sessionStorage.setItem('acaoFinalizacao', 'internar');
+      location.href = 'internacao.html';
+    }
+
+    carregarPaciente();
+  </script>
+
+</body>
+</html>
+

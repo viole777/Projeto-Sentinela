@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medico</title>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Painel do Medico</h2>
+        <div id="triagens"></div>
+        <hr>
+        <h3>Consulta</h3>
+        <input id="paciente" placeholder="Paciente">
+        <input id="diagnostico" placeholder="Diagnostico">
+        <input id="medicacao" placeholder="Medicação">
+        <input id="obs" placeholder="Observações">
+
+        <button onclick="salvar()">Salvar</button>
+
+        <script>
+            // garante que esses elementos existam antes de salvar
+            const diagnostico = document.getElementById('diagnostico');
+            const medicacao = document.getElementById('medicacao');
+            const obs = document.getElementById('obs');
+        </script>
+    </div>
+
+    <script>
+        function carregar() {
+            fetch("/triagem")
+                .then(r => r.json())
+                .then(data => {
+                    const div = document.getElementById("triagens");
+                    div.innerHTML = "";
+
+                    const rows = Array.isArray(data) ? data : [];
+
+                    // tabela melhorada (layout tipo prontuário / fila)
+                    div.innerHTML = `
+                        <div class="subpanel" style="margin-bottom:14px;">
+                            <b>Fila de triagem</b>
+                            <span style="color:rgba(229,231,235,.75); margin-left:10px;">(${rows.length} paciente(s))</span>
+                        </div>
+                        <div style="overflow-x:auto;">
+                          <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:14px;">
+                            <thead>
+                              <tr>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Paciente</th>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">CPF</th>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Temp</th>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Risco</th>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Sintomas</th>
+                                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Alergias</th>
+                                <th style="text-align:right; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); color:rgba(229,231,235,.9);">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody id="triagemRows"></tbody>
+                          </table>
+                        </div>
+                    `;
+
+                    const body = document.getElementById("triagemRows");
+
+                    rows.forEach(t => {
+                        const nomePaciente = t.pacienteNome || t.nome || t?.atendimento?.pacienteNome || "Paciente";
+                        const atendimento = t.atendimento || {};
+                        const imagem = atendimento.imagem ? `http://localhost:3000${atendimento.imagem}` : '';
+
+                        // classes de badge para padronizar
+                        const riscoClasse = t.risco === 'amarelo' ? 'febre'
+                            : (t.risco === 'vermelho' ? 'alta'
+                            : (t.risco === 'verde' ? 'normal' : t.risco));
+
+                        const badgeText = t.risco || '-';
+
+                        const alergiaTxt = t.alergia || 'nenhuma';
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
+                            <div style="display:flex; align-items:center; gap:12px;">
+                              <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                                ${imagem ? `<img src="${imagem}" alt="" style="width:42px; height:42px; object-fit:cover;" />` : `<span style="font-weight:800; color:rgba(229,231,235,.75);">IMG</span>`}
+                              </div>
+                              <div>
+                                <div style="font-weight:800;">${nomePaciente}</div>
+                                <div style="font-size:12px; color:rgba(229,231,235,.7); margin-top:2px;">Tipo: ${atendimento.tipo || '-'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${t.pacienteCpf || '-'}</td>
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${t.temperatura || '-'}°C</td>
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
+                            <span class="badge ${riscoClasse}" style="white-space:nowrap;">${badgeText}</span>
+                          </td>
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); max-width:360px;">${t.sintomas || '-'}</td>
+                          <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
+                            ${(() => {
+                                const has = (t.alergia ?? '').toString().trim().toLowerCase();
+                                const isSim = has && has !== 'nenhuma' && has !== 'nao' && has !== 'não' && has !== '0';
+                                if (!isSim) return `<span style="color:rgba(229,231,235,.7); font-weight:700;">Alergia: Não</span>`;
+                                return `<span class="badge febre" style="background:rgba(239,68,68,.95);">Alergia: Sim</span><div style="margin-top:6px; color:rgba(229,231,235,.85); font-size:12px;">${t.alergia}</div>`;
+                            })()}
+                          </td>
+
+                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); text-align:right;">
+                            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                              <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(37,99,235,.95); color:#fff; cursor:pointer;" 
+                                onclick='selecionar(${JSON.stringify(t.pacienteId)}, "${t.alergia}", ${JSON.stringify(t.pacienteCpf)}, ${JSON.stringify(nomePaciente)})'>
+                                Atender
+                              </button>
+                              <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(239,68,68,.20); border:1px solid rgba(239,68,68,.35); color:#fff; cursor:pointer;"
+                                onclick='apagar(${JSON.stringify(t.id)})'>
+                                Deletar
+                              </button>
+                            </div>
+                          </td>
+
+
+                        `;
+
+                        body.appendChild(tr);
+                    });
+                });
+        }
+
+        function selecionar(pacienteId, alergia, pacienteCpf, nomePaciente) {
+            document.getElementById("paciente").value = nomePaciente || "Paciente";
+            sessionStorage.setItem('pacienteId', pacienteId);
+            sessionStorage.setItem('pacienteCpf', pacienteCpf);
+            sessionStorage.setItem('pacienteNome', nomePaciente || '');
+
+            if (alergia && alergia !== "nenhuma") {
+                alert("Alerta: paciente possui alergia!\n\nConfirme o atendimento e depois finalize (alta/internação)." );
+            }
+        }
+
+
+
+        async function apagar(triagemId) {
+            if (!triagemId) return;
+            const ok = confirm('Apagar triagem do paciente?');
+            if (!ok) return;
+
+            const r = await fetch(`/triagem?id=${encodeURIComponent(triagemId)}`, { method: 'DELETE' });
+            if (!r.ok) {
+                const t = await r.text().catch(() => '');
+                alert('Falha ao apagar: ' + t);
+                return;
+            }
+            alert('Triagem apagada.');
+            location.reload();
+        }
+
+        function salvar() {
+            const pacienteId = sessionStorage.getItem('pacienteId');
+            const pacienteCpf = sessionStorage.getItem('pacienteCpf');
+
+            fetch("/consulta", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    pacienteId: pacienteId ? Number(pacienteId) : undefined,
+                    pacienteCpf: pacienteCpf,
+                    diagnostico: diagnostico.value,
+                    medicacao: medicacao.value,
+                    obs: obs.value
+                })
+            })
+                .then(r => r.json())
+                .then(() => {
+                    alert("Consulta salva! Finalize o atendimento.");
+                    location.href = 'finalizar_atendimento.html';
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Erro ao salvar consulta: ' + err.message);
+                });
+        }
+
+        carregar();
+    </script>
+</body>
+
+</html>

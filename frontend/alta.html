@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alta</title>
+</head>
+<body>
+  <div class="container">
+    <h2>Documentação de Alta</h2>
+
+    <div class="subpanel" style="margin-bottom:14px;">
+      <b>Paciente</b>
+      <div style="margin-top:6px; color:rgba(229,231,235,.85);">
+        <div>Nome: <span id="pacienteNome">-</span></div>
+        <div>CPF: <span id="pacienteCpf">-</span></div>
+        <div>ID (triagem/consulta): <span id="pacienteChave">-</span></div>
+      </div>
+    </div>
+
+    <h3>Dados para alta</h3>
+
+    <div style="margin-top:10px;">
+      <label style="display:block; font-weight:700; margin-bottom:8px;">Diagnóstico de alta</label>
+      <input id="diagAlta" placeholder="Ex.: melhora clínica / diagnóstico...">
+    </div>
+
+    <div style="margin-top:10px;">
+      <label style="display:block; font-weight:700; margin-bottom:8px;">Prescrições / orientações</label>
+      <input id="orientacoes" placeholder="Orientações gerais, medicação, retorno...">
+    </div>
+
+    <div style="margin-top:10px;">
+      <label style="display:block; font-weight:700; margin-bottom:8px;">Destino</label>
+      <select id="destino">
+        <option value="">Selecione...</option>
+        <option value="casa">Casa</option>
+        <option value="domicilio">Domicílio</option>
+        <option value="cuidado_ambulatorial">Acompanhamento ambulatorial</option>
+      </select>
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button onclick="confirmarAlta()">Confirmar alta</button>
+      <button style="background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.15);" onclick="voltar()">Voltar</button>
+    </div>
+
+    <div id="status" style="margin-top:12px; color:rgba(229,231,235,.85);"></div>
+  </div>
+
+  <script>
+    function carregarPaciente() {
+      const nome = sessionStorage.getItem('pacienteNome') || '-';
+      const cpf = sessionStorage.getItem('pacienteCpf') || '-';
+      const chave = sessionStorage.getItem('pacienteChave') || '-';
+
+      document.getElementById('pacienteNome').textContent = nome;
+      document.getElementById('pacienteCpf').textContent = cpf;
+      document.getElementById('pacienteChave').textContent = chave;
+    }
+
+    function voltar() {
+      location.href = 'medico.html';
+    }
+
+    async function confirmarAlta() {
+      const acao = sessionStorage.getItem('acaoFinalizacao');
+      if (acao !== 'alta') {
+        alert('Fluxo inválido: a alta deve ser feita a partir de "Finalizar atendimento".');
+        return;
+      }
+
+      const diagAlta = document.getElementById('diagAlta').value.trim();
+      const orientacoes = document.getElementById('orientacoes').value.trim();
+      const destino = document.getElementById('destino').value;
+
+      if (!diagAlta) return alert('Informe o diagnóstico de alta.');
+      if (!orientacoes) return alert('Informe orientações/prescrições para alta.');
+      if (!destino) return alert('Selecione o destino.');
+
+      const altaDoc = {
+        diagAlta,
+        orientacoes,
+        destino,
+        altaAt: new Date().toISOString()
+      };
+
+      const pacienteCpf = sessionStorage.getItem('pacienteCpf') || '';
+      const pacienteId = sessionStorage.getItem('pacienteId');
+
+      // também guarda no sessionStorage para possível uso futuro
+      sessionStorage.setItem('altaDoc', JSON.stringify(altaDoc));
+
+      const r = await fetch('/finalizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acao: 'alta',
+          pacienteCpf,
+          pacienteId: pacienteId ? Number(pacienteId) : undefined,
+          altaDoc
+        })
+      });
+
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        alert('Falha ao finalizar alta: ' + txt);
+        return;
+      }
+
+      sessionStorage.removeItem('acaoFinalizacao');
+      alert('Alta registrada e paciente removido do painel.');
+      location.href = 'medicacoes.html';
+    }
+
+    carregarPaciente();
+  </script>
+
+</body>
+</html>
+

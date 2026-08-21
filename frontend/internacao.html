@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internação</title>
+</head>
+<body>
+  <div class="container">
+    <h2>Internação</h2>
+
+    <div class="subpanel" style="margin-bottom:14px;">
+      <b>Paciente</b>
+      <div style="margin-top:6px; color:rgba(229,231,235,.85);">
+        <div>Nome: <span id="pacienteNome">-</span></div>
+        <div>CPF: <span id="pacienteCpf">-</span></div>
+        <div>ID (triagem/consulta): <span id="pacienteChave">-</span></div>
+      </div>
+    </div>
+
+    <h3>Selecionar leito</h3>
+    <div style="margin-top:8px;">
+      <label style="display:block; font-weight:700; margin-bottom:8px;">Leitos disponíveis (mock)</label>
+      <select id="leito">
+        <option value="">Selecione...</option>
+      </select>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label style="display:block; font-weight:700; margin-bottom:8px;">Motivo da internação</label>
+      <input id="motivo" placeholder="Ex.: acompanhamento, risco, procedimentos...">
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button onclick="confirmarInternacao()">Confirmar internação</button>
+      <button style="background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.15);" onclick="voltar()">Voltar</button>
+    </div>
+
+    <div id="status" style="margin-top:12px; color:rgba(229,231,235,.85);"></div>
+  </div>
+
+  <script>
+    // Mock simples (sem backend para leitos/internações neste momento)
+    // Armazenamos a documentação em sessionStorage e redirecionamos.
+
+    function carregarPaciente() {
+      const nome = sessionStorage.getItem('pacienteNome') || '-';
+      const cpf = sessionStorage.getItem('pacienteCpf') || '-';
+      const chave = sessionStorage.getItem('pacienteChave') || '-';
+
+      document.getElementById('pacienteNome').textContent = nome;
+      document.getElementById('pacienteCpf').textContent = cpf;
+      document.getElementById('pacienteChave').textContent = chave;
+
+      // Leitos mock
+      const leitoEl = document.getElementById('leito');
+      const motivos = [
+        { value: 'ENF-101', label: 'Enfermaria ENF-101' },
+        { value: 'ENF-102', label: 'Enfermaria ENF-102' },
+        { value: 'UTI-201', label: 'UTI UTI-201' },
+        { value: 'UTI-202', label: 'UTI UTI-202' }
+      ];
+
+      motivos.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.value;
+        opt.textContent = m.label;
+        leitoEl.appendChild(opt);
+      });
+    }
+
+    function voltar() {
+      location.href = 'medico.html';
+    }
+
+    async function confirmarInternacao() {
+      const acao = sessionStorage.getItem('acaoFinalizacao');
+      if (acao !== 'internar') {
+        alert('Fluxo inválido: a internação deve ser feita a partir de "Finalizar atendimento".');
+        return;
+      }
+
+      const leito = document.getElementById('leito').value;
+      const motivo = document.getElementById('motivo').value.trim();
+
+      if (!leito) {
+        alert('Selecione um leito.');
+        return;
+      }
+      if (!motivo) {
+        alert('Informe o motivo da internação.');
+        return;
+      }
+
+      const internacaoDoc = {
+        leito,
+        motivo,
+        confirmadoAt: new Date().toISOString()
+      };
+
+      sessionStorage.setItem('internacaoDoc', JSON.stringify(internacaoDoc));
+
+      const pacienteCpf = sessionStorage.getItem('pacienteCpf') || '';
+      const pacienteId = sessionStorage.getItem('pacienteId');
+
+      const r = await fetch('/finalizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acao: 'internar',
+          pacienteCpf,
+          pacienteId: pacienteId ? Number(pacienteId) : undefined,
+          internacaoDoc
+        })
+      });
+
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        alert('Falha ao finalizar internação: ' + txt);
+        return;
+      }
+
+      sessionStorage.removeItem('acaoFinalizacao');
+      alert('Internação registrada e paciente removido do painel.');
+      location.href = 'medicacoes.html';
+    }
+
+    carregarPaciente();
+  </script>
+
+</body>
+</html>
+

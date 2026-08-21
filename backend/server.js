@@ -333,7 +333,7 @@ app.get("/medicacoes", (req, res) => {
 });
 
 //start
-app.listen(3000, () => {
-    console.log("hospital rodando em http://localhost:3000");
+app.listen(PORT, () => {
+    console.log(`Porta ${PORT}`);
 });
 

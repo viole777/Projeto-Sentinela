@@ -148,7 +148,7 @@
         </div>
     </div>
     <script>
-     let ulimoId = null;
+     let ultimoId = null;
      
      function atualizar(){
         fetch("/tv/chamada")
@@ -157,24 +157,26 @@
             const chamada = data.chamada;
             const historico = data.historico || [];
             if (chamada) {
-                document.getElementById("local-tipo").innerText = chamada.localType || "GUICHE";
-                document.getElementById("local-numero").innerText = chamada.localType || "--";
-                document.getElementById("patient-name").innerText = chamada.pacient || "AGUARDANDO";
+                document.getElementById("local-tipo").innerText = chamada.localType || chamada.guiche || "GUICHE";
+                document.getElementById("local-numero").innerText = chamada.localNumber || chamada.guiche || "--";
+                document.getElementById("pattient-name").innerText = (chamada.paciente || chamada.pacient || "AGUARDANDO").toUpperCase();
             
             if (chamada.id !== ultimoId) {
              ultimoId = chamada.id;
-             const patientBox = chamada.id;
-             patientBox.classList.remove("flash");
-             void patientBox.offsetWidth;
-             patientBox.classList.add("flash");
+             const patientBox = document.querySelector(".pattient-box");
+             if (patientBox) {
+               patientBox.classList.remove("flash");
+               void patientBox.offsetWidth;
+               patientBox.classList.add("flash");
+             }
             }}
 
-            const list = document.getElementById("histoty-list");
+            const list = document.getElementById("history-list");
             list.innerHTML = "";
             historico.slice(0, 4).forEach(h => {
                 const li = document.createElement("li");
-                const tipo = h.localType ? h.localType.substring(0, 4) : "GUIC";
-                li.innerText = `${tipo}. ${h.localNumber} - ${h.pacient}`;
+                const tipo = (h.localType || h.guiche || "GUICHE").substring(0, 12);
+                li.innerText = `${tipo} - ${h.paciente || h.pacient || "-"}`;
                 list.appendChild(li);
             });
         })

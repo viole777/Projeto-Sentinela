@@ -30,6 +30,7 @@ O Sentinela reúne os principais fluxos de um hospital de cardiologia:
 
 ### Fase 3
 - Fluxos de exames, farmácia, alertas e Safety Engine preservados
+- Modo claro/escuro por usuário (botão no cabeçalho, preferência salva na conta)
 - Melhorias de UX e visual institucional
 - Expansão para atendimento domiciliar
 - Estoque organizado por categoria clínica

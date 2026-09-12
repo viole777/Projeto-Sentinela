@@ -18,16 +18,49 @@
   --radius-sm: 4px;
 }
 
+body[data-theme="dark"] {
+  --bg: #0b1220;
+  --panel: #111b2d;
+  --panel-alt: #172438;
+  --panel-soft: #0f1728;
+  --text: #e7edf7;
+  --muted: #a7b4c6;
+  --border: #243650;
+  --brand: #7ec5ff;
+  --brand-strong: #9bd8ff;
+  --brand-soft: #10263e;
+  --success: #53d59a;
+  --warning: #f4c96d;
+  --danger: #ff8d8d;
+  --critical: #ff9d9d;
+  --info: #8ec7ff;
+}
+
 *{ box-sizing: border-box; }
 
 html{ font-size: 16px; }
 
 body{
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.45;
+  line-height: 1.6;
+  font-size: 15.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color-scheme: light;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* En modo escuro los acentos claros necesitan texto oscuro para mantener contraste */
+body[data-theme="dark"] button,
+body[data-theme="dark"] .brand-mark {
+  color: #0b1220;
 }
 
 header{ padding: 0; }
@@ -87,7 +120,7 @@ input, select, textarea{
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: var(--panel);
   color: var(--text);
   font-size: 14px;
   outline: none;
@@ -116,7 +149,7 @@ button:hover{ background: var(--brand-strong); }
 button:active{ transform: translateY(0); }
 
 button.secondary{
-  background: #ffffff;
+  background: var(--panel);
   color: var(--text);
   border-color: var(--border);
 }
@@ -181,7 +214,7 @@ textarea:focus-visible{
 
 .kpi{
   padding: 14px;
-  background: #ffffff;
+  background: var(--panel);
 }
 
 .kpi b{
@@ -291,7 +324,7 @@ table.tbl tbody tr:hover{ background: rgba(31, 74, 115, 0.02); }
 
 .list-item{
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--panel);
 }
 
 .list-item strong{ display: block; margin-bottom: 2px; }

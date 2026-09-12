@@ -56,10 +56,16 @@ window.Sentinela = {
       return visibleItems ? '<div class="nav-group"><div class="nav-label">' + label + '</div>' + visibleItems + '</div>' : "";
     }).join("");
 
+    const storedTheme = (me.theme === "light" || me.theme === "dark") ? me.theme : (localStorage.getItem("sentinela-theme") || "light");
+    document.body.dataset.theme = storedTheme;
+    localStorage.setItem("sentinela-theme", storedTheme);
+
     document.body.innerHTML =
       '<style>' +
       '.shell{display:flex;min-height:100vh;background:var(--bg);color:var(--text)}' +
-      '.side{width:240px;background:#f7f9fb;border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}' +
+      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 10px;border-radius:4px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-width:110px;justify-content:center;}' +
+      '.theme-toggle:hover{background:var(--panel-alt)}' +
+      '.side{width:240px;background:var(--panel-soft);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}' +
       '.brand{display:flex;align-items:center;gap:10px;padding:8px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}' +
       '.brand-mark{width:28px;height:28px;border-radius:4px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}' +
       '.brand-name{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--text)}' +
@@ -67,18 +73,18 @@ window.Sentinela = {
       '.nav-group{margin-bottom:12px}' +
       '.nav-label{padding:8px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}' +
       '.nav-link{display:block;padding:8px 10px;border-radius:4px;color:var(--text);font-size:14px;border:1px solid transparent;}' +
-      '.nav-link:hover{background:#edf3f8;border-color:var(--border)}' +
+      '.nav-link:hover{background:var(--panel-alt);border-color:var(--border)}' +
       '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#cfe0f6;font-weight:700}' +
       '.nav-spacer{flex:1}' +
-      '.nav-logout{display:block;padding:8px 10px;border-radius:4px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
+      '.nav-logout{display:block;padding:8px 10px;border-radius:4px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
       '.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}' +
-      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:#f7f9fb;position:sticky;top:0;z-index:5}' +
+      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel-soft);position:sticky;top:0;z-index:5}' +
       '.page-meta{flex:1;min-width:0}' +
       '.page-path{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:700}' +
       '.page-title{font-size:18px;font-weight:800;color:var(--text);margin-top:2px}' +
       '.top-search{max-width:360px;width:100%}' +
-      '.top-search input{background:#fff;border:1px solid var(--border);border-radius:4px;padding:9px 10px;color:var(--text)}' +
-      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:#fff}' +
+      '.top-search input{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:9px 10px;color:var(--text)}' +
+      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:var(--panel)}' +
       '.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}' +
       '.user-text{display:flex;flex-direction:column;gap:2px;line-height:1.1}' +
       '.user-name{font-size:13px;font-weight:700}' +
@@ -103,6 +109,7 @@ window.Sentinela = {
               '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
             '</div>' +
             '<div class="top-search"><input id="buscaGlobal" placeholder="Buscar paciente por nome ou CPF"></div>' +
+            '<button class="theme-toggle" id="themeToggle" type="button">' + (storedTheme === 'dark' ? '☀️ Modo claro' : '🌙 Modo escuro') + '</button>' +
             '<div class="user-badge">' +
               '<div class="user-avatar">' + ((me.nome || me.usuario || 'U').charAt(0).toUpperCase()) + '</div>' +
               '<div class="user-text"><span class="user-name">' + (me.nome || me.usuario) + '</span><span class="user-role">' + (me.role || '').toUpperCase() + '</span></div>' +
@@ -113,6 +120,31 @@ window.Sentinela = {
       '</div>';
 
     document.getElementById("app").innerHTML = contentHTML;
+
+    const themeToggle = document.getElementById("themeToggle");
+    const applyTheme = (theme) => {
+      document.body.dataset.theme = theme;
+      localStorage.setItem("sentinela-theme", theme);
+      me.theme = theme; // el login de la próxima vez usará esta preferencia
+      if (themeToggle) {
+        themeToggle.textContent = theme === 'dark' ? '☀️ Modo claro' : '🌙 Modo escuro';
+      }
+      // Persiste por usuario en el servidor (vale en todos los dispositivos)
+      try {
+        fetch("/me/tema", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tema: theme })
+        }).catch(() => {});
+      } catch (_) { /* la preferencia local sigue funcionando */ }
+    };
+
+    if (themeToggle) {
+      themeToggle.addEventListener("click", () => {
+        const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme);
+      });
+    }
 
     document.getElementById("btnSair").onclick = () => {
       fetch("/logout", { method: "POST" }).then(() => location.href = "index.html");

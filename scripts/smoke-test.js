@@ -66,6 +66,32 @@ async function main() {
   assertCondition(meResult.response.ok, `GET /me falhou: ${JSON.stringify(meResult.body)}`);
   assertCondition(meResult.body.role === 'admin', `GET /me retornou role inesperada: ${JSON.stringify(meResult.body)}`);
 
+  // Modo claro/escuro: el usuario guarda su preferencia y /me la devuelve
+  const themeSetResult = await request('/me/tema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ tema: 'dark' }),
+  });
+  assertCondition(themeSetResult.response.ok, `POST /me/tema falhou: ${JSON.stringify(themeSetResult.body)}`);
+  assertCondition(themeSetResult.body.tema === 'dark', `POST /me/tema não devolviu tema=dark: ${JSON.stringify(themeSetResult.body)}`);
+
+  const meThemeResult = await request('/me', { headers: { Cookie: sessionCookie } });
+  assertCondition(meThemeResult.body.theme === 'dark', `GET /me não devolviu theme=dark: ${JSON.stringify(meThemeResult.body)}`);
+
+  const themeInvalidResult = await request('/me/tema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ tema: 'neon' }),
+  });
+  assertCondition(!themeInvalidResult.response.ok, 'POST /me/tema deveria rejeitar um tema inválido');
+
+  // Restaura o tema claro para não deixar o usuário demo em modo escuro
+  await request('/me/tema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ tema: 'light' }),
+  });
+
   const dashboardResult = await request('/dashboard', {
     headers: {
       Cookie: sessionCookie,

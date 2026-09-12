@@ -199,7 +199,7 @@ const store = {
       pool.query(`SELECT * FROM audit_logs ORDER BY id DESC LIMIT 200`)
     ]);
     return {
-      usuarios: users.rows.map(u => ({ id: u.id, usuario: u.username, nome: u.name, email: u.email, role: u.role_name || u.role, tipo: u.role_name || u.role, senha: u.password_hash, setor: u.unit, mustChangePassword: u.must_change_password })),
+      usuarios: users.rows.map(u => ({ id: u.id, usuario: u.username, nome: u.name, email: u.email, role: u.role_name || u.role, tipo: u.role_name || u.role, senha: u.password_hash, setor: u.unit, theme: u.theme || 'light', mustChangePassword: u.must_change_password })),
       pacientes: patients.rows.map(p => ({ id: p.id, nome: p.name, cpf: p.cpf, tipo: p.patient_type, perfil: p.perfil || {}, status: p.status, createdAt: p.created_at, updatedAt: p.updated_at })),
       leitos: beds.rows.map(b => ({ id: b.code, ala: b.ala, status: b.status === 'free' ? 'livre' : 'ocupado', pacienteCpf: b.patient_cpf, pacienteNome: b.patient_name })),
       internacoes: hospitalizations.rows.map(h => ({ id: h.id, pacienteCpf: h.patient_cpf, pacienteNome: h.patient_name, leito: h.bed_code, motivo: h.reason, entradaEm: h.admitted_at, altaEm: h.discharged_at })),

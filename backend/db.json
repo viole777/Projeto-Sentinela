@@ -11,7 +11,8 @@
         "*"
       ],
       "mustChangePassword": false,
-      "ativo": true
+      "ativo": true,
+      "theme": "light"
     },
     {
       "usuario": "triagem",

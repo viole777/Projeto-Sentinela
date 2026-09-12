@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   role_id INT REFERENCES roles(id),
   role TEXT,
   unit TEXT,
+  theme TEXT DEFAULT 'light',
   active BOOLEAN DEFAULT TRUE,
   must_change_password BOOLEAN DEFAULT FALSE,
   reset_token TEXT,

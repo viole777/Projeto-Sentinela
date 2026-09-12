@@ -24,10 +24,10 @@ async function main() {
   for (const u of db.usuarios || []) {
     const role = u.role || u.tipo || 'atendimento';
     await pool.query(
-      `INSERT INTO users (username, email, name, password_hash, role, must_change_password, unit)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name`,
-      [String(u.usuario), u.email || null, u.nome || String(u.usuario), String(u.senha), role, !!u.mustChangePassword, u.setor || null]
+      `INSERT INTO users (username, email, name, password_hash, role, must_change_password, unit, theme)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name, theme = EXCLUDED.theme`,
+      [String(u.usuario), u.email || null, u.nome || String(u.usuario), String(u.senha), role, !!u.mustChangePassword, u.setor || null, u.theme || 'light']
     );
     const r = await pool.query(`SELECT id FROM roles WHERE name = $1`, [role]);
     if (r.rows[0]) {

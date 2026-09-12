@@ -105,14 +105,14 @@ function requireAuth(roles = []) {
             try {
                 const pool = getPool();
                 const r = await pool.query(
-                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, r.name AS role
+                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
                      FROM sessions s JOIN users u ON u.id = s.user_id
                      LEFT JOIN roles r ON r.id = u.role_id
                      WHERE s.token = $1 LIMIT 1`, [token]);
                 const row = r.rows[0];
                 if (row && new Date(row.expires_at).getTime() > Date.now()) {
                     const perms = await permissionsForRole(row.role);
-                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, permissions: perms, expiresAt: new Date(row.expires_at).getTime(), pg: true };
+                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, theme: row.theme || "light", permissions: perms, expiresAt: new Date(row.expires_at).getTime(), pg: true };
                     sessions.set(token, session);
                 }
             } catch (_) { /* cai para 401 abaixo */ }
@@ -190,13 +190,13 @@ function requirePermission(...perms) {
             try {
                 const pool = getPool();
                 const r = await pool.query(
-                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, r.name AS role
+                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
                      FROM sessions s JOIN users u ON u.id = s.user_id
                      LEFT JOIN roles r ON r.id = u.role_id
                      WHERE s.token = $1 LIMIT 1`, [token]);
                 const row = r.rows[0];
                 if (row && new Date(row.expires_at).getTime() > Date.now()) {
-                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, permissions: await permissionsForRole(row.role), expiresAt: new Date(row.expires_at).getTime(), pg: true };
+                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, theme: row.theme || "light", permissions: await permissionsForRole(row.role), expiresAt: new Date(row.expires_at).getTime(), pg: true };
                     sessions.set(token, session);
                 }
             } catch (_) {}
@@ -236,6 +236,7 @@ function mapUserRecord(user) {
         tipo: role,
         setor: user.setor || null,
         ativo: user.ativo !== false,
+        theme: user.theme || "light",
         mustChangePassword: !!user.mustChangePassword,
         permissions: Array.isArray(user.permissions) ? user.permissions : permissionsFor(role)
     };
@@ -541,6 +542,7 @@ app.post("/login", async (req, res) => {
         email: user.email || null,
         tipo: role, role, permissions,
         setor: user.setor || null,
+        theme: user.theme || "light",
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
     };
@@ -565,8 +567,42 @@ app.get("/me", (req, res) => {
         usuario: session.usuario, nome: session.nome || session.usuario,
         email: session.email || null, role, tipo: role,
         setor: session.setor || null,
+        theme: session.theme || "light",
         permissions: session.permissions || permissionsFor(role)
     });
+});
+
+// Preferência de tema claro/escuro por usuário (vale em todos os dispositivos)
+app.post("/me/tema", requireAuth(), async (req, res) => {
+    const tema = String(req.body?.tema || "").trim().toLowerCase();
+    if (!["light", "dark"].includes(tema)) {
+        return res.status(400).json({ erro: "Tema inválido. Use \"light\" ou \"dark\"." });
+    }
+
+    req.user.theme = tema;
+
+    // Persiste no JSON local (dev)
+    try {
+        const db = readDB();
+        const user = (db.usuarios || []).find(u =>
+            String(u.usuario || "").trim().toLowerCase() === String(req.user.usuario || "").trim().toLowerCase() ||
+            (u.email && String(u.email).trim().toLowerCase() === String(req.user.email || "").trim().toLowerCase())
+        );
+        if (user) { user.theme = tema; writeDB(db); }
+    } catch (_) { /* nunca deve quebrar o fluxo */ }
+
+    // Persiste também no PostgreSQL (produção/Render)
+    if (usingPostgres()) {
+        try {
+            await getPool().query(
+                `UPDATE users SET theme = $2 WHERE LOWER(username) = LOWER($1) OR (email IS NOT NULL AND LOWER(email) = LOWER($1))`,
+                [String(req.user.usuario), tema]
+            );
+        } catch (_) { /* idem */ }
+    }
+
+    audit(req, "tema_atualizado", { tema });
+    res.json({ ok: true, tema });
 });
 
 // Recuperação de senha (fluxo com token — sem e-mail real nesta versão: devolve o token)

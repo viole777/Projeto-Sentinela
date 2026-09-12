@@ -1,67 +1,215 @@
 # Projeto Sentinela
 
-O Projeto Sentinela é um sistema hospitalar de cardiologia com foco em fluxo clínico integrado, gestão de pacientes e apoio ao atendimento. A base atual já continha um núcleo funcional, e a refatoração da Fase 1 foi feita para corrigir a arquitetura, a navegação e o controle de acesso sem remover módulos existentes.
+O Projeto Sentinela é um sistema hospitalar de cardiologia para gestão clínica, operacional e de acompanhamento de pacientes. Ele foi mantido funcional, mas passou por uma refatoração para corrigir arquitetura, navegação, controle de acesso e consistência de dados.
 
-## Estado da refatoração
+## Visão geral
 
-### Fase 1 concluída
-- Corrigida a arquitetura de navegação e sessão.
-- Ajustadas rotas e permissões para refletir o cargo real da conta.
-- Padronizada a leitura do layout global e do menu lateral por perfil.
-- Melhorados os fluxos de login, recuperação de senha e primeiro acesso.
-- Adicionado exemplo de configuração de ambiente e script de teste não quebrado.
+O Sentinela reúne os principais fluxos de um hospital de cardiologia:
 
-### Fase 2 concluída
-- Expandidos endpoints de usuários, cargos, permissões e setores.
-- Adicionado suporte a `setor` no cadastro de profissionais.
-- Melhorada a visão de perfis e acesso ao painel administrativo.
+- Atendimento inicial do paciente
+- Triagem clínica com priorização
+- Consultas médicas
+- Exames e laudos
+- Prescrições e farmácia
+- Estoque categorizado de medicamentos cardiológicos
+- Atendimento domiciliar / acompanhamento em casa
+- Alertas, auditoria, relatórios e apoio da IA
 
-### Fase 3 concluída
-- Validados e preservados os fluxos de exames, farmácia, alertas e Safety Engine.
-- Ajustada a tela de regras do Safety Engine para edição e persistência.
-- Mantido o fluxo clínico principal e o suporte operacional sem remover módulos existentes.
+## Estado atual do projeto
 
-### Base SQL principal concluída
-- Preenchido o arquivo [database.sql](database.sql) com esquema principal, seed inicial e estrutura de apoio para PostgreSQL.
+### Fase 1
+- Correção de arquitetura, sessão e navegação
+- Ajuste de permissões e perfis reais por conta
+- Padronização do layout global e menu lateral
+- Fluxos de login, recuperação de senha e primeiro acesso revisados
 
-## Fluxo principal
+### Fase 2
+- Endpoints de usuários, cargos, permissões e setores
+- Suporte a setor no cadastro de profissionais
+- Melhor organização da gestão administrativa
 
-1. Login por e-mail institucional.
-2. Sessão autenticada em cookie HttpOnly.
-3. Carregamento do dashboard conforme permissões do perfil.
-4. Atendimento → triagem → consulta cardíaca → exames → prescrições → farmácia → internação → alta.
-5. Central de alertas, auditoria e segurança clínica com apoio do Safety Engine.
+### Fase 3
+- Fluxos de exames, farmácia, alertas e Safety Engine preservados
+- Melhorias de UX e visual institucional
+- Expansão para atendimento domiciliar
+- Estoque organizado por categoria clínica
 
-## Segurança e autenticação
-
-- Login com e-mail institucional e senha.
-- Sessão apoiada por cookie `HttpOnly` e validação no backend.
-- Cargos e permissões validadas no servidor, nunca dependentes do frontend.
-- Compatibilidade com JSON local e PostgreSQL (`DATABASE_URL`) quando disponível.
-- Arquivos de ambiente protegidos por `.env` e `.env.example`.
-
-## Estrutura principal
-
-- `backend/server.js`: autenticação, autorização, APIs e fluxo clínico.
-- `backend/src/db.js`: camada de persistência e mapa de permissões.
-- `frontend/layout.js`: layout global e sidebar por permissão.
-- `frontend/styles.css`: identidade visual hospitalar do projeto.
-- `database.sql`: esquema principal e seed inicial para PostgreSQL.
-- `database/schema.sql`, `database/schema2.sql`, `database/seeds.sql`: arquivos complementares do PostgreSQL sugerido.
-- `database/migrate-json-to-postgres.js`: migração do JSON atual para PostgreSQL.
-
-## Execução local
+## Como rodar localmente
 
 ```bash
 npm install
 npm start
 ```
 
-A aplicação fica disponível em `http://localhost:3000`.
+A aplicação fica disponível em:
 
-## Observações
+```text
+http://localhost:3000
+```
 
-- O projeto foi mantido funcional e não substituído por uma implementação nova.
-- Não foram removidas funcionalidades já existentes; a mudança foi focada na correção da arquitetura e na consistência de segurança.
-- O projeto foi expandido até a Fase 3 com foco em segurança, organização de perfis e suporte clínico/operacional.
-- A manutenção futura pode seguir em novas melhorias de UX, integração real com banco e refinamento de relatórios.
+## Estrutura principal
+
+- `backend/server.js` — autenticação, autorização, APIs e fluxo clínico
+- `backend/src/db.js` — camada de persistência e permissões RBAC
+- `backend/db.json` — dados locais de demonstração
+- `frontend/layout.js` — layout global e menu lateral
+- `frontend/styles.css` — identidade visual do sistema
+- `frontend/atendimento-casa.html` — módulo de atendimento domiciliar
+- `database.sql` — esquema principal para PostgreSQL
+- `database/schema.sql`, `database/schema2.sql`, `database/seeds.sql` — arquivos complementares do PostgreSQL
+- `database/migrate-json-to-postgres.js` — migração do JSON para PostgreSQL
+
+## Usuários de demonstração
+
+O ambiente local atual utiliza o arquivo `backend/db.json` e já contém usuários testes.
+
+### Usuários ativos
+
+| Usuário | Senha | Perfil |
+|---|---|---|
+| `admin` | `123` | administrador |
+| `atendimento` | `123` | atendimento |
+| `triagem` | `123` | triagem |
+| `medico` | `123` | médico |
+| `novo.setor` | `trocar_no_primeiro_acesso` | triagem (setor UTI) |
+
+> O usuário `novo.setor` é um exemplo de primeiro acesso: ele precisa trocar a senha ao entrar pela primeira vez.
+
+## Fluxo principal do sistema
+
+1. Faça login com um usuário demo
+2. O dashboard carrega conforme o perfil da conta
+3. Use o módulo de atendimento para registrar o paciente
+4. A triagem avalia sinais e prioridade
+5. O médico realiza a consulta e finaliza o atendimento
+6. Os exames, prescrições, farmácia e alertas seguem o fluxo clínico
+7. O setor administrativo pode consultar relatórios e auditoria
+
+## Tutorial completo de uso do Sentinela
+
+### 1. Acessar o sistema
+
+- Abra o navegador em `http://localhost:3000`
+- Use um usuário demo da tabela acima
+- Exemplo: `admin / 123`
+
+### 2. Fazer login
+
+- No campo `usuario`, informe o login do usuário
+- No campo `senha`, informe a senha correspondente
+- A sessão é validada pelo backend e o menu lateral é montado conforme as permissões do perfil
+
+### 3. Navegar pela interface
+
+O sistema tem uma navegação por módulos:
+
+- Dashboard
+- Pacientes
+- Atendimento
+- Atendimento Domiciliar
+- Triagem
+- Consultas
+- Prontuários
+- Exames
+- Farmácia
+- Estoque
+- Alertas
+- Safety Engine
+- Relatórios
+- Auditoria
+
+### 4. Fluxo de atendimento hospitalar
+
+#### Atendimento inicial
+- Acesse `Atendimento`
+- Preencha nome, CPF, dados complementares e perfil cardiovascular
+- Envie a foto, se necessário
+- Clique em `Enviar para triagem`
+
+#### Triagem
+- Acesse `Triagem`
+- Informe sinais vitais, sintomas e níveis de risco
+- O sistema calcula prioridade e pode gerar alertas clínicos
+
+#### Consulta médica
+- Acesse `Consultas`
+- Selecione o paciente
+- Registre diagnóstico, medicação e observações
+- O Safety Engine valida prescrições e aponta inconsistências
+
+#### Exames e laudos
+- Acesse `Exames`
+- Solicite exames e acompanhe laudos
+- O resultado pode ser consultado pelo médico e pelo time clínico
+
+### 5. Fluxo de farmácia e estoque
+
+- Acesse `Farmácia` para visualizar prescrições pendentes
+- Acesse `Estoque` para acompanhar medicamentos e insumos
+- O estoque já vem organizado por categoria clínica, como:
+  - Antiagregantes plaquetários
+  - Antiarrítmicos
+  - Anticoagulantes
+  - Betabloqueadores
+  - Diuréticos
+  - Estatinas
+  - Nitratos
+
+### 6. Fluxo de atendimento domiciliar
+
+O Sentinela agora também oferece suporte para acompanhamento em casa.
+
+#### Como usar
+- Acesse `Atend. Domiciliar`
+- Informe o CPF do paciente
+- Preencha endereço, motivo, observações e data
+- Salve o agendamento
+- O registro fica listado para acompanhamento
+- Quando o atendimento for concluído, o status pode ser marcado como concluído
+
+#### Caso prático
+
+1. O paciente recebe alta hospitalar
+2. O time de atendimento cadastra o acompanhamento domiciliar
+3. A equipe registra execução do atendimento em casa
+4. O módulo mantém histórico clínico e operacional do acompanhamento
+
+### 7. Alertas e segurança clínica
+
+- Acesse `Alertas` para visualizar eventos críticos
+- O Safety Engine aponta riscos e inconsistências clínico-operacionais
+- A auditoria registra ações e acessos importantes
+
+### 8. IA do Sentinela
+
+- Acesse `Sentinela AI`
+- O sistema gera um resumo do prontuário para apoio à decisão
+- A IA não substitui avaliação clínica; apenas auxilia a revisão do profissional
+
+## Segurança e autenticação
+
+- O backend valida usuário, sessão, perfil e permissões
+- O login não depende do frontend para decidir o cargo
+- Sessões são controladas em cookie HTTP-only
+- A aplicação aceita JSON local e também pode operar com PostgreSQL quando `DATABASE_URL` estiver configurado
+
+## Observações importantes
+
+- O sistema foi mantido funcional e não substituído por uma implementação nova
+- O foco foi em correção de arquitetura, segurança e consistência operacional
+- O projeto pode continuar evoluindo com melhorias de UX, relatórios e integrações reais
+
+## Dicas de uso em demonstração
+
+- Use `admin` para explorar todos os módulos
+- Use `triagem` para testar priorização e alertas
+- Use `medico` para consultar e registrar prescrições
+- Use `atendimento` para registrar pacientes e agendamentos
+- Use `novo.setor` para testar o primeiro acesso e redefinição de senha
+
+## Próximos passos sugeridos
+
+- Integrar autenticação real com e-mail institucional
+- Conectar o sistema a um banco PostgreSQL em produção
+- Expandir relatórios de indicadores cardiológicos
+- Evoluir o módulo domiciliar com escalas, vídeos e coleta de sinais

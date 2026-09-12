@@ -116,7 +116,7 @@
                               <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); text-align:right;">
                                 <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
                                   <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(37,99,235,.95); color:#fff; cursor:pointer;" 
-                                    onclick='selecionar(${JSON.stringify(t.pacienteId)}, "${t.alergia}", ${JSON.stringify(t.pacienteCpf)}, ${JSON.stringify(nomePaciente)})'>
+                                    onclick='selecionar(${JSON.stringify(t.pacienteId)}, ${JSON.stringify(t.alergia || "nenhuma")}, ${JSON.stringify(t.pacienteCpf)}, ${JSON.stringify(nomePaciente)}, ${JSON.stringify(t)})'>
                                     Atender
                                   </button>
                                   <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(239,68,68,.20); border:1px solid rgba(239,68,68,.35); color:#fff; cursor:pointer;"
@@ -132,11 +132,44 @@
                     });
             }
 
-            function selecionar(pacienteId, alergia, pacienteCpf, nomePaciente) {
-                document.getElementById("paciente").value = nomePaciente || "Paciente";
+            function preencherCamposComTriagem(triagem) {
+                const nomePaciente = triagem?.pacienteNome || triagem?.nome || "Paciente";
+                const pacienteInput = document.getElementById('paciente');
+                const diagnosticoInput = document.getElementById('diagnostico');
+                const obsInput = document.getElementById('obs');
+
+                if (pacienteInput && nomePaciente) pacienteInput.value = nomePaciente;
+
+                if (diagnosticoInput && !diagnosticoInput.value.trim() && triagem?.sintomas) {
+                    diagnosticoInput.value = triagem.sintomas;
+                }
+
+                if (obsInput && !obsInput.value.trim()) {
+                    const linhaResumo = [
+                        triagem?.sintomas ? `Sintomas: ${triagem.sintomas}` : '',
+                        triagem?.temperatura != null && triagem?.temperatura !== '' ? `Temperatura: ${triagem.temperatura}°C` : '',
+                        triagem?.pas != null || triagem?.pad != null || triagem?.fc != null || triagem?.spo2 != null || triagem?.fr != null
+                            ? `Sinais vitais: PA ${triagem?.pas ?? '-'} / ${triagem?.pad ?? '-'}; FC ${triagem?.fc ?? '-'}; SpO2 ${triagem?.spo2 ?? '-'}%; FR ${triagem?.fr ?? '-'}`
+                            : '',
+                        triagem?.alergia && triagem.alergia !== 'nenhuma' ? `Alergia: ${triagem.alergia}` : '',
+                        triagem?.risco ? `Risco: ${triagem.risco}` : ''
+                    ].filter(Boolean).join(' • ');
+
+                    if (linhaResumo) {
+                        obsInput.value = linhaResumo;
+                    }
+                }
+            }
+
+            function selecionar(pacienteId, alergia, pacienteCpf, nomePaciente, triagem = {}) {
+                const nome = nomePaciente || triagem?.pacienteNome || triagem?.nome || 'Paciente';
+                document.getElementById("paciente").value = nome;
                 sessionStorage.setItem('pacienteId', pacienteId);
                 sessionStorage.setItem('pacienteCpf', pacienteCpf);
-                sessionStorage.setItem('pacienteNome', nomePaciente || '');
+                sessionStorage.setItem('pacienteNome', nome || '');
+                sessionStorage.setItem('triagemAtual', JSON.stringify(triagem || {}));
+
+                preencherCamposComTriagem(triagem);
 
                 if (alergia && alergia !== "nenhuma") {
                     alert("Alerta: paciente possui alergia!\n\nConfirme o atendimento e depois finalize (alta/internação)." );
@@ -258,6 +291,16 @@
                         alert('Erro ao salvar consulta: ' + err.message);
                     });
             }
+
+            window.selecionar = selecionar;
+            window.apagar = apagar;
+            window.prever = prever;
+            window.renderSafety = renderSafety;
+            window.resumoIA = resumoIA;
+            window.carregarAlertas = carregarAlertas;
+            window.resolverAlerta = resolverAlerta;
+            window.carregarAuditoria = carregarAuditoria;
+            window.salvar = salvar;
 
             carregar();
             carregarAlertas();

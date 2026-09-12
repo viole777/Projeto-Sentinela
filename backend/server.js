@@ -5,6 +5,11 @@ const crypto = require("crypto");
 
 const multer = require("multer");
 
+// Carrega variáveis de ambiente locais do arquivo .env (não é usado no Render —
+// lá as variáveis são definidas nas Environment Variables do serviço).
+// O arquivo .env é ignorado pelo Git; nunca insira chaves reais no código.
+require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
+
 const app = express();
 app.disable("x-powered-by");
 app.use((req, res, next) => {
@@ -347,7 +352,7 @@ function safetyCheck({ paciente, triagem, prescricao }) {
 }
 
 // ── Assistente IA (baseado em regras + prontuário; sem diagnóstico) ──
-function resumoIA(paciente, triagens, consultas, atendimentos) {
+function buildLocalClinicalSummary(paciente, triagens, consultas, atendimentos) {
     const nome = paciente?.nome || "Paciente";
     const alergia = (triagens.slice(-1)[0]?.alergia) || "não informada";
     const nConsultas = consultas.length;
@@ -371,6 +376,94 @@ function resumoIA(paciente, triagens, consultas, atendimentos) {
     if (ultConsulta) texto += `Último registro: ${ultConsulta.diagnostico || "sem diagnóstico"} em ${new Date(ultConsulta.createdAt).toLocaleDateString("pt-BR")}. `;
     texto += `Fonte: prontuário do paciente. Esta análise é um apoio e não substitui avaliação clínica.`;
     return { resumo: texto, inconsistencias, geradoEm: new Date().toISOString() };
+}
+
+function normalizeAiPayload(content) {
+    try {
+        const parsed = JSON.parse(String(content || "").trim());
+        if (parsed && typeof parsed === "object" && parsed.resumo) {
+            return {
+                resumo: parsed.resumo,
+                inconsistencias: Array.isArray(parsed.inconsistencias) ? parsed.inconsistencias : [],
+                geradoEm: parsed.geradoEm || new Date().toISOString()
+            };
+        }
+    } catch (_) {}
+
+    return {
+        resumo: String(content || "").trim() || "Resumo não disponível no momento.",
+        inconsistencias: [],
+        geradoEm: new Date().toISOString()
+    };
+}
+
+async function resumoIA(paciente, triagens, consultas, atendimentos) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const apiUrl = process.env.AI_API_URL || "https://api.aimlapi.com/chat/completions";
+    const model = process.env.AI_MODEL || "gpt-4o-mini";
+
+    const localSummary = buildLocalClinicalSummary(paciente, triagens, consultas, atendimentos);
+
+    if (!apiKey) {
+        return localSummary;
+    }
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    {
+                        role: "system",
+                        content: "Você é o Sentinela AI, um assistente clínico de apoio para cardiologia. Sua tarefa é resumir o prontuário do paciente de forma objetiva, sem diagnosticar, sem substituir avaliação médica, e apontar apenas inconsistências relevantes. Responda em português do Brasil e, se possível, em JSON com as chaves resumo e inconsistencias."
+                    },
+                    {
+                        role: "user",
+                        content: JSON.stringify({
+                            paciente: {
+                                nome: paciente?.nome || "Paciente",
+                                cpf: paciente?.cpf || "-",
+                                status: paciente?.status || "-"
+                            },
+                            triagens: triagens.slice(-6),
+                            consultas: consultas.slice(-8),
+                            atendimentos: atendimentos.slice(-5)
+                        }, null, 2)
+                    }
+                ],
+                temperature: 0.35,
+                max_tokens: 600
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`AI request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const aiContent = payload.choices?.[0]?.message?.content
+            || payload.output_text
+            || payload.content
+            || payload.message?.content
+            || "";
+
+        const parsed = normalizeAiPayload(aiContent);
+        return {
+            resumo: parsed.resumo || localSummary.resumo,
+            inconsistencias: Array.isArray(parsed.inconsistencias) && parsed.inconsistencias.length
+                ? parsed.inconsistencias
+                : localSummary.inconsistencias,
+            geradoEm: parsed.geradoEm || new Date().toISOString()
+        };
+    } catch (error) {
+        console.warn("Resumo IA falhou, usando resumo local:", error.message);
+        return localSummary;
+    }
 }
 
 function ensureTVShape(db) {
@@ -994,7 +1087,7 @@ app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendim
 
 // ── IA assistente: resumo do prontuário + possíveis inconsistências ──
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
-app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), async (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -1002,7 +1095,7 @@ app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), (req, res) =
     const triagens = (db.triagens || []).filter(t => String(t.pacienteCpf) === cpf);
     const consultas = (db.consultas || []).filter(c => String(c.pacienteCpf) === cpf);
     const atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === cpf);
-    const out = resumoIA(paciente, triagens, consultas, atendimentos);
+    const out = await resumoIA(paciente, triagens, consultas, atendimentos);
     audit(req, "ia_resumo", { pacienteCpf: cpf });
     res.json({ pacienteCpf: cpf, pacienteNome: paciente.nome, ...out, aviso: "Apoio à decisão. Não substitui avaliação clínica." });
 });
@@ -1424,6 +1517,10 @@ app.get("/health", async (req, res) => {
 });
 
 //start
+if (!process.env.GEMINI_API_KEY) {
+    console.warn("Gemini API key não configurada. Configure GEMINI_API_KEY no ambiente. A integração de IA usará apenas o resumo local.");
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Porta ${PORT}`);

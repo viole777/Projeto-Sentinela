@@ -1409,6 +1409,20 @@ app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) =>
     res.json(db.safetyRules);
 });
 
+app.get("/health", async (req, res) => {
+    if (!usingPostgres()) {
+        return res.status(503).json({ status: "error", database: "disconnected" });
+    }
+
+    try {
+        const pool = getPool();
+        await pool.query("SELECT 1");
+        return res.status(200).json({ status: "ok", database: "connected" });
+    } catch (error) {
+        return res.status(503).json({ status: "error", database: "disconnected" });
+    }
+});
+
 //start
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

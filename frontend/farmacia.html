@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Farmácia</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("farmacia", `
+  <h2>💊 Farmácia</h2><div class="cards" id="kpis"></div>
+  <h3>Prescrições pendentes</h3><div id="lista"></div>
+`).then(() => {
+  async function carregar() {
+    const list = await fetch("/farmacia/prescricoes").then(r => r.json());
+    const crit = list.filter(p => (p.safety || []).some(s => s.nivel === "CRITICO")).length;
+    document.getElementById("kpis").innerHTML =
+      `<div class="card kpi"><b>${list.length}</b>pendentes</div><div class="card kpi"><b>🔴 ${crit}</b>com alerta crítico</div>`;
+    document.getElementById("lista").innerHTML = list.map(p => `
+      <div class="card" style="margin-bottom:8px;"><b>${p.pacienteNome}</b> (${p.pacienteCpf})<br>
+      💊 ${p.medicacao}<br><small>${p.diagnostico || ""}</small><br>
+      ${(p.safety || []).map(s => `<small>⚠️ [${s.nivel}] ${s.mensagem}</small><br>`).join("")}
+      <button style="margin-top:6px;" onclick="dispensar(${p.consultaId})">Dispensar</button></div>`).join("") || "<p>Nenhuma prescrição pendente. ✅</p>";
+  }
+  window.dispensar = async (id) => {
+    const r = await fetch("/farmacia/dispensar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consultaId: id }) });
+    if (r.status === 409) { const e = await r.json(); alert("🛑 " + e.erro); return; }
+    if (!r.ok) { alert("Falha ao dispensar"); return; }
+    carregar();
+  };
+  carregar(); setInterval(carregar, 10000);
+});
+</script>
+</body>
+</html>

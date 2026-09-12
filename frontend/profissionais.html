@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Profissionais</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("profissionais", `
+  <h2>Profissionais</h2>
+  <div class="card"><h3>+ Novo profissional</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input id="usuario" placeholder="Usuário" style="max-width:160px;"><input id="nome" placeholder="Nome" style="max-width:200px;">
+      <input id="email" placeholder="E-mail institucional" style="max-width:220px;">
+      <select id="role" style="max-width:180px;">
+        <option value="cardiologist">Cardiologista</option><option value="enfermagem">Enfermagem</option>
+        <option value="farmacia">Farmácia</option><option value="triagem">Triagem</option>
+        <option value="atendimento">Atendimento</option><option value="direcao">Direção</option><option value="admin">Admin</option>
+      </select>
+      <button onclick="criar()">Criar (primeiro acesso)</button>
+    </div></div>
+  <div class="card" style="margin-top:12px;"><table class="tbl"><thead><tr><th>Nome</th><th>Cargo</th><th>E-mail</th></tr></thead><tbody id="tb"></tbody></table></div>
+`).then(() => {
+  window.criar = async () => {
+    const r = await fetch("/profissionais", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario: document.getElementById("usuario").value, nome: document.getElementById("nome").value, email: document.getElementById("email").value, role: document.getElementById("role").value }) });
+    if (!r.ok) { alert("Falha: " + await r.text()); return; }
+    alert("Criado! O profissional define a senha no Primeiro acesso.");
+    carregar();
+  };
+  async function carregar() {
+    const list = await fetch("/profissionais").then(r => r.json());
+    document.getElementById("tb").innerHTML = list.map(p => `<tr><td>${p.nome}</td><td>${p.role}</td><td>${p.email || "-"}</td></tr>`).join("");
+  }
+  carregar();
+});
+</script>
+</body>
+</html>

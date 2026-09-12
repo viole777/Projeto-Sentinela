@@ -81,7 +81,7 @@
                     rows.forEach(t => {
                         const nomePaciente = t.pacienteNome || t.nome || t?.atendimento?.pacienteNome || "Paciente";
                         const atendimento = t.atendimento || {};
-                        const imagem = atendimento.imagem ? `http://localhost:3000${atendimento.imagem}` : '';
+                        const imagem = atendimento.imagem ? `${atendimento.imagem}` : '';
 
                         // classes de badge para padronizar
                         const riscoClasse = t.risco === 'amarelo' ? 'febre'

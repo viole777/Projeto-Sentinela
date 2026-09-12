@@ -25,11 +25,22 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 // camada de persistência (db.json) reutilizada
-const { readDB, writeDB } = require("./src/db");
+const { readDB, writeDB, ROLE_PERMISSIONS } = require("./src/db");
 
 const sessions = new Map();
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const PASSWORD_KEY_LENGTH = 64;
+
+function permissionsFor(role) {
+    if (ROLE_PERMISSIONS[role]) return ROLE_PERMISSIONS[role];
+    return ROLE_PERMISSIONS[role?.toLowerCase()] || [];
+}
+
+function sessionCan(session, perm) {
+    if (!session) return false;
+    const perms = session.permissions || permissionsFor(session.role || session.tipo);
+    return perms.includes("*") || perms.includes(perm);
+}
 
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString("hex");
@@ -67,8 +78,33 @@ function requireAuth(roles = []) {
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
-        if (roles.length && !roles.includes(session.tipo)) {
+        // compat: papéis legados (medico/triagem/atendimento) continuam valendo
+        const role = session.role || session.tipo;
+        if (roles.length && !roles.includes(role) && !roles.includes(session.tipo)) {
             return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
+        }
+
+        session.expiresAt = Date.now() + SESSION_TTL_MS;
+        req.user = session;
+        next();
+    };
+}
+
+// ── RBAC novo: requirePermission("prescriptions.write") ──
+// O cargo vem da conta (role), o usuário NÃO escolhe no login.
+function requirePermission(...perms) {
+    return (req, res, next) => {
+        const token = parseCookies(req.headers.cookie).sentinela_session;
+        const session = token && sessions.get(token);
+
+        if (!session || session.expiresAt <= Date.now()) {
+            if (token) sessions.delete(token);
+            return res.status(401).json({ erro: "Autenticação necessária" });
+        }
+
+        const ok = perms.every(p => sessionCan(session, p));
+        if (!ok) {
+            return res.status(403).json({ erro: "Sem permissão para esta operação" });
         }
 
         session.expiresAt = Date.now() + SESSION_TTL_MS;
@@ -250,41 +286,124 @@ function registrarAlerta(req, { paciente, nivel, regra, mensagem, contexto }) {
     return alerta;
 }
 
-//Login (aceita senha como number ou string numérica)
+//Login por e-mail institucional (novo) com compat para usuário legado.
+// O backend identifica: usuário → cargo (role) → permissões → dashboard.
 app.post("/login", (req, res) => {
     const db = readDB();
 
-    const usuario = String(req.body.usuario ?? '').trim();
+    const identificador = String(req.body.email || req.body.usuario || "").trim().toLowerCase();
     const senhaEnviada = req.body.senha;
-    const senhaEnviadaNum = Number(senhaEnviada);
 
-    if (!usuario || senhaEnviada === undefined || senhaEnviada === null || String(senhaEnviada).length > 128) {
+    if (!identificador || senhaEnviada === undefined || senhaEnviada === null || String(senhaEnviada).length > 128) {
         return res.status(401).json({ erro: "Login inválido" });
     }
 
-    const user = db.usuarios.find(u => String(u.usuario).trim() === usuario && passwordMatches(senhaEnviada, u.senha));
+    const user = db.usuarios.find(u =>
+        String(u.email || u.usuario || "").trim().toLowerCase() === identificador &&
+        passwordMatches(senhaEnviada, u.senha)
+    );
 
     if (!user) return res.status(401).json({ erro: "Login inválido" });
+
+    // primeiro acesso: força criação de senha
+    if (user.mustChangePassword) {
+        return res.status(403).json({ erro: "primeiro_acesso", usuarioId: user.id || user.usuario });
+    }
 
     if (!String(user.senha).startsWith("scrypt$")) {
         user.senha = hashPassword(senhaEnviada);
         writeDB(db);
     }
 
+    const role = user.role || user.tipo || "atendimento";
+    const permissions = user.permissions || permissionsFor(role);
+
     const token = crypto.randomBytes(32).toString("hex");
-    sessions.set(token, { usuario: String(user.usuario), tipo: user.tipo, expiresAt: Date.now() + SESSION_TTL_MS });
+    sessions.set(token, {
+        usuario: String(user.usuario || user.email),
+        nome: user.nome || String(user.usuario || ""),
+        email: user.email || null,
+        tipo: role, role, permissions,
+        mustChangePassword: false,
+        expiresAt: Date.now() + SESSION_TTL_MS
+    });
+    audit({ user: { usuario: String(user.usuario || user.email), tipo: role } }, "login", { role });
     const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
     res.setHeader("Set-Cookie", `sentinela_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}; Path=/${secure}`);
-    res.json({ usuario: user.usuario, tipo: user.tipo });
+    res.json({ usuario: String(user.usuario || user.email), nome: user.nome || "", email: user.email || null, role, tipo: role, permissions });
 });
 
-//atendimento (cria paciente por CPF; evita duplicados) + salva imagem
-app.post("/atendimento", requireAuth(["atendimento"]), uploadFoto.single("foto"), (req, res) => {
+// Sessão atual → o frontend decide o dashboard pelo cargo (sem escolher perfil)
+app.get("/me", (req, res) => {
+    const token = parseCookies(req.headers.cookie).sentinela_session;
+    const session = token && sessions.get(token);
+    if (!session || session.expiresAt <= Date.now()) {
+        if (token) sessions.delete(token);
+        return res.status(401).json({ erro: "Autenticação necessária" });
+    }
+    const role = session.role || session.tipo;
+    res.json({
+        usuario: session.usuario, nome: session.nome || session.usuario,
+        email: session.email || null, role, tipo: role,
+        permissions: session.permissions || permissionsFor(role)
+    });
+});
+
+// Recuperação de senha (fluxo com token — sem e-mail real nesta versão: devolve o token)
+app.post("/recuperar-senha", (req, res) => {
+    const db = readDB();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const user = db.usuarios.find(u => String(u.email || "").trim().toLowerCase() === email);
+    // resposta genérica (não revela se o e-mail existe)
+    if (!user) return res.json({ ok: true });
+    user.resetToken = crypto.randomBytes(24).toString("hex");
+    user.resetExpires = Date.now() + 60 * 60 * 1000;
+    writeDB(db);
+    audit({ user: { usuario: user.usuario, tipo: user.role || user.tipo } }, "recuperar_senha_solicitada", { email });
+    // Em produção: enviar por e-mail. Aqui retornamos flag + token apenas se ?debug=1
+    if (String(req.query.debug || "") === "1") return res.json({ ok: true, resetToken: user.resetToken });
+    res.json({ ok: true });
+});
+
+app.post("/redefinir-senha", (req, res) => {
+    const db = readDB();
+    const { token, novaSenha, confirmar } = req.body || {};
+    if (!token || !novaSenha || novaSenha !== confirmar || String(novaSenha).length < 6) {
+        return res.status(400).json({ erro: "Dados inválidos. Confira token e senhas (mín. 6 caracteres)." });
+    }
+    const user = db.usuarios.find(u => u.resetToken === token && u.resetExpires > Date.now());
+    if (!user) return res.status(400).json({ erro: "Token inválido ou expirado" });
+    user.senha = hashPassword(novaSenha);
+    user.resetToken = null; user.resetExpires = null; user.mustChangePassword = false;
+    writeDB(db);
+    audit({ user: { usuario: user.usuario, tipo: user.role || user.tipo } }, "senha_redefinida", {});
+    res.json({ ok: true });
+});
+
+// Primeiro acesso (funcionário novo define a senha)
+app.post("/primeiro-acesso", (req, res) => {
+    const db = readDB();
+    const { usuarioId, novaSenha, confirmar } = req.body || {};
+    const user = db.usuarios.find(u => String(u.id || u.usuario) === String(usuarioId));
+    if (!user) return res.status(404).json({ erro: "Conta não encontrada" });
+    if (!novaSenha || novaSenha !== confirmar || String(novaSenha).length < 6) {
+        return res.status(400).json({ erro: "Senha inválida (mín. 6 caracteres e confirmação igual)." });
+    }
+    user.senha = hashPassword(novaSenha);
+    user.mustChangePassword = false;
+    user.resetToken = null; user.resetExpires = null;
+    writeDB(db);
+    res.json({ ok: true, role: user.role || user.tipo });
+});
+
+//atendimento/admissão (cria paciente por CPF; evita duplicados) + salva imagem
+// Perfil cardiovascular estendido (item 1 da spec de cardiologia).
+app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.single("foto"), (req, res) => {
     const db = readDB();
 
-    const nome = (req.body.nome || "").trim();
+    const nome = String(req.body.nome || "").trim();
     const cpf = String(req.body.cpf || "").replace(/\D/g, "");
-    const tipo = (req.body.tipo || "").trim();
+    const tipo = String(req.body.tipo || "").trim();
 
     if (!nome || nome.length > 120 || !validateCpf(cpf)) {
         return res.status(400).json({ erro: "Nome e CPF são obrigatórios" });
@@ -293,6 +412,36 @@ app.post("/atendimento", requireAuth(["atendimento"]), uploadFoto.single("foto")
     const file = req.file;
     const imagemCaminho = file ? `/uploads/${file.filename}` : null;
 
+    // perfil cardiovascular + contatos (merge com o que já existir)
+    const perfil = {
+        dataNascimento: String(req.body.dataNascimento || "").slice(0, 10) || null,
+        sexo: String(req.body.sexo || "").slice(0, 20) || null,
+        telefone: String(req.body.telefone || "").slice(0, 30) || null,
+        email: String(req.body.email || "").slice(0, 80) || null,
+        endereco: String(req.body.endereco || "").slice(0, 200) || null,
+        nomeMae: String(req.body.nomeMae || "").slice(0, 120) || null,
+        estadoCivil: String(req.body.estadoCivil || "").slice(0, 30) || null,
+        contatoEmergencia: String(req.body.contatoEmergencia || "").slice(0, 120) || null,
+        hipertensao: req.body.hipertensao === "SIM",
+        diabetes: req.body.diabetes === "SIM",
+        dislipidemia: req.body.dislipidemia === "SIM",
+        tabagismo: req.body.tabagismo === "SIM",
+        sedentarismo: req.body.sedentarismo === "SIM",
+        obesidade: req.body.obesidade === "SIM",
+        infartoPrevio: req.body.infartoPrevio === "SIM",
+        avcPrevio: req.body.avcPrevio === "SIM",
+        arritmias: req.body.arritmias === "SIM",
+        insuficienciaCardiaca: req.body.insuficienciaCardiaca === "SIM",
+        doencaCoronariana: req.body.doencaCoronariana === "SIM",
+        cirurgiasCardiacas: String(req.body.cirurgiasCardiacas || "").slice(0, 300) || null,
+        alergias: String(req.body.alergias || "").slice(0, 300) || null,
+        medicamentosAtuais: String(req.body.medicamentosAtuais || "").slice(0, 500) || null,
+        marcapasso: req.body.marcapasso === "SIM",
+        desfibrilador: req.body.desfibrilador === "SIM",
+        proteses: String(req.body.proteses || "").slice(0, 300) || null,
+        historicoFamiliar: String(req.body.historicoFamiliar || "").slice(0, 500) || null
+    };
+
     let paciente = db.pacientes.find(p => String(p.cpf) === cpf);
     if (!paciente) {
         paciente = {
@@ -300,6 +449,7 @@ app.post("/atendimento", requireAuth(["atendimento"]), uploadFoto.single("foto")
             nome,
             cpf,
             tipo,
+            perfil,
             status: "triagem",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -308,6 +458,8 @@ app.post("/atendimento", requireAuth(["atendimento"]), uploadFoto.single("foto")
     } else {
         paciente.nome = nome;
         paciente.tipo = tipo || paciente.tipo;
+        paciente.perfil = { ...(paciente.perfil || {}), ...Object.fromEntries(Object.entries(perfil).filter(([, v]) => v !== null && v !== "")) };
+        if (perfil.alergias) paciente.perfil.alergias = perfil.alergias;
         paciente.status = "triagem";
         paciente.updatedAt = new Date().toISOString();
     }
@@ -737,10 +889,243 @@ app.post("/logout", (req, res) => {
     res.json({ ok: true });
 });
 
-//medicações
-app.get("/medicacoes", requireAuth(["medico"]), (req, res) => {
+// ── Dashboard por cargo (o backend monta os números; o front só exibe) ──
+app.get("/dashboard", requireAuth([]), (req, res) => {
+    const db = ensureTVShape(readDB());
+    const role = req.user.role || req.user.tipo;
+    const hoje = new Date().toISOString().slice(0, 10);
+    const consultasHoje = (db.consultas || []).filter(c => String(c.createdAt || "").slice(0, 10) === hoje).length;
+    const alertasAbertos = (db.alertas || []).filter(a => !a.resolvido);
+    audit(req, "dashboard", { role });
+    res.json({
+        role, nome: req.user.nome || req.user.usuario,
+        consultasHoje, triagensAbertas: (db.triagens || []).length,
+        alertasAbertos: alertasAbertos.length,
+        criticos: alertasAbertos.filter(a => a.nivel === "CRITICO").length,
+        altos: alertasAbertos.filter(a => a.nivel === "ALTO").length,
+        prescPendentes: (db.consultas || []).filter(c => c.medicacao && !c.dispensado).length,
+        estoqueCritico: (db.estoque || []).filter(e => Number(e.quantidade) <= Number(e.minimo)).length,
+        internados: (db.internacoes || []).filter(i => !i.altaEm).length,
+        leitosLivres: (db.leitos || []).filter(l => l.status === "livre").length,
+        examesPendentes: (db.exames || []).filter(e => e.status === "pendente").length,
+        proximos: (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt })),
+        alertas: alertasAbertos.slice(0, 5)
+    });
+});
+
+//medicações (legado)
+app.get("/medicacoes", requireAuth(["medico", "cardiologist", "farmacia"]), (req, res) => {
     const db = readDB();
     res.json(db.consultas);
+});
+
+// ── EXAMES (solicitar / pendentes / resultados) ──
+const TIPOS_EXAME = ["ECG", "Ecocardiograma", "Holter", "MAPA", "Teste ergométrico", "Cateterismo", "Angiografia", "Laboratorial"];
+
+app.get("/exames/tipos", requireAuth([]), (req, res) => res.json(TIPOS_EXAME));
+
+app.post("/exames", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const cpf = String(req.body.pacienteCpf || "").trim();
+    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
+    const tipo = String(req.body.tipo || "").trim();
+    if (!TIPOS_EXAME.includes(tipo)) return res.status(400).json({ erro: "Tipo de exame inválido" });
+    const exame = {
+        id: Date.now(),
+        pacienteCpf: paciente.cpf, pacienteNome: paciente.nome,
+        tipo, observacao: String(req.body.observacao || "").slice(0, 500),
+        status: "pendente", resultado: null,
+        solicitadoPor: req.user.usuario, solicitadoEm: new Date().toISOString()
+    };
+    db.exames.push(exame);
+    writeDB(db);
+    audit(req, "exame_solicitado", { exameId: exame.id, tipo, pacienteCpf: cpf });
+    res.json(exame);
+});
+
+app.get("/exames", requireAuth(["medico", "cardiologist", "triagem", "enfermagem"]), (req, res) => {
+    const db = readDB();
+    const { status, cpf } = req.query;
+    let list = db.exames || [];
+    if (status) list = list.filter(e => e.status === status);
+    if (cpf) list = list.filter(e => String(e.pacienteCpf) === String(cpf));
+    res.json(list.slice(-100).reverse());
+});
+
+app.post("/exames/:id/resultado", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const exame = (db.exames || []).find(e => Number(e.id) === Number(req.params.id));
+    if (!exame) return res.status(404).json({ erro: "Exame não encontrado" });
+    exame.resultado = {
+        texto: String(req.body.texto || "").slice(0, 2000),
+        fracaoEjecao: req.body.fracaoEjecao ?? null,
+        laudoEm: new Date().toISOString(), laudoPor: req.user.usuario
+    };
+    exame.status = "concluido";
+    writeDB(db);
+    audit(req, "exame_resultado", { exameId: exame.id, tipo: exame.tipo });
+    res.json(exame);
+});
+
+// ── FARMÁCIA + ESTOQUE ──
+app.get("/farmacia/prescricoes", requireAuth(["medico", "cardiologist", "farmacia"]), (req, res) => {
+    const db = readDB();
+    const pendentes = (db.consultas || []).filter(c => c.medicacao && !c.dispensado);
+    res.json(pendentes.slice(-100).reverse().map(c => ({
+        consultaId: c.id, pacienteCpf: c.pacienteCpf, pacienteNome: c.pacienteNome,
+        medicacao: c.medicacao, diagnostico: c.diagnostico,
+        safety: c.safety || [], criadaEm: c.createdAt
+    })));
+});
+
+app.post("/farmacia/dispensar", requireAuth(["farmacia", "medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const consulta = (db.consultas || []).find(c => Number(c.id) === Number(req.body.consultaId));
+    if (!consulta) return res.status(404).json({ erro: "Prescrição não encontrada" });
+    const critico = (consulta.safety || []).find(s => s.nivel === "CRITICO");
+    if (critico && !req.body.revisadoPor) {
+        return res.status(409).json({ erro: "Prescrição com alerta CRÍTICO requer revisão registrada antes da dispensação", alerta: critico });
+    }
+    consulta.dispensado = true;
+    consulta.dispensadoPor = req.user.usuario;
+    consulta.dispensadoEm = new Date().toISOString();
+    writeDB(db);
+    audit(req, "dispensacao", { consultaId: consulta.id, pacienteCpf: consulta.pacienteCpf });
+    res.json({ ok: true, consulta });
+});
+
+app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"]), (req, res) => {
+    const db = readDB();
+    res.json((db.estoque || []).map(e => ({ ...e, critico: Number(e.quantidade) <= Number(e.minimo) })));
+});
+
+app.post("/estoque/entrada", requireAuth(["farmacia"]), (req, res) => {
+    const db = readDB();
+    const { medicamento, qtd } = req.body || {};
+    if (!medicamento || !(Number(qtd) > 0)) return res.status(400).json({ erro: "Medicamento e quantidade válidos são obrigatórios" });
+    let item = (db.estoque || []).find(e => String(e.medicamento).toLowerCase() === String(medicamento).toLowerCase());
+    if (!item) {
+        item = { id: Date.now(), medicamento: String(medicamento).slice(0, 120), quantidade: 0, minimo: 10, updatedAt: new Date().toISOString() };
+        db.estoque.push(item);
+    }
+    item.quantidade = Number(item.quantidade) + Number(qtd);
+    item.updatedAt = new Date().toISOString();
+    db.movimentacoes.unshift({ id: Date.now(), medicamento: item.medicamento, tipo: "entrada", qtd: Number(qtd), por: req.user.usuario, em: new Date().toISOString() });
+    writeDB(db);
+    audit(req, "estoque_entrada", { medicamento: item.medicamento, qtd });
+    res.json(item);
+});
+
+app.get("/compras/sugestao", requireAuth(["farmacia", "direcao"]), (req, res) => {
+    const db = readDB();
+    const criticos = (db.estoque || []).filter(e => Number(e.quantidade) <= Number(e.minimo));
+    res.json({ itens: criticos.map(e => ({ medicamento: e.medicamento, atual: e.quantidade, minimo: e.minimo })), geradoEm: new Date().toISOString() });
+});
+
+// ── INTERNAÇÃO (leitos da ala cardiologia) ──
+app.get("/leitos", requireAuth([]), (req, res) => {
+    const db = readDB();
+    res.json(db.leitos || []);
+});
+
+app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), (req, res) => {
+    const db = readDB();
+    const cpf = String(req.body.pacienteCpf || "").trim();
+    const leitoId = String(req.body.leito || "").trim();
+    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const leito = (db.leitos || []).find(l => String(l.id) === leitoId);
+    if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
+    if (!leito) return res.status(400).json({ erro: "Leito não encontrado" });
+    if (leito.status !== "livre") return res.status(409).json({ erro: "Leito ocupado" });
+    leito.status = "ocupado";
+    leito.pacienteCpf = paciente.cpf;
+    leito.pacienteNome = paciente.nome;
+    leito.desde = new Date().toISOString();
+    const internacao = {
+        id: Date.now(), pacienteCpf: paciente.cpf, pacienteNome: paciente.nome,
+        leito: leito.id, ala: leito.ala,
+        motivo: String(req.body.motivo || "").slice(0, 500),
+        medicoResponsavel: req.user.nome || req.user.usuario,
+        entradaEm: new Date().toISOString(), altaEm: null
+    };
+    db.internacoes.push(internacao);
+    paciente.status = "internado";
+    paciente.updatedAt = new Date().toISOString();
+    writeDB(db);
+    audit(req, "internacao", { pacienteCpf: cpf, leito: leito.id });
+    res.json({ internacao, leito });
+});
+
+// ── PROFISSIONAIS (gestão de contas) ──
+app.get("/profissionais", requireAuth(["medico", "cardiologist", "direcao"]), (req, res) => {
+    const db = readDB();
+    res.json((db.usuarios || []).map(u => ({
+        id: u.id || u.usuario, usuario: u.usuario, nome: u.nome || u.usuario,
+        email: u.email || null, role: u.role || u.tipo, setor: u.setor || null
+    })));
+});
+
+app.post("/profissionais", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const { usuario, nome, email, role, setor } = req.body || {};
+    if (!usuario || !role) return res.status(400).json({ erro: "usuario e role são obrigatórios" });
+    if (db.usuarios.some(u => String(u.usuario).toLowerCase() === String(usuario).toLowerCase())) {
+        return res.status(409).json({ erro: "Usuário já existe" });
+    }
+    const novo = {
+        id: Date.now(), usuario: String(usuario).trim(), nome: String(nome || usuario).trim(),
+        email: email ? String(email).trim().toLowerCase() : null,
+        role: String(role), setor: setor ? String(setor).trim() : null,
+        senha: "trocar_no_primeiro_acesso", mustChangePassword: true, ativo: true
+    };
+    db.usuarios.push(novo);
+    writeDB(db);
+    audit(req, "profissional_criado", { usuario: novo.usuario, role: novo.role });
+    res.json({ ok: true, usuario: novo.usuario, role: novo.role, primeiroAcesso: true });
+});
+
+// ── RELATÓRIOS (direção) ──
+app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmacia"]), (req, res) => {
+    const db = readDB();
+    const { de, ate } = req.query;
+    const inRange = (iso) => {
+        if (!de && !ate) return true;
+        const d = String(iso || "").slice(0, 10);
+        return (!de || d >= String(de)) && (!ate || d <= String(ate));
+    };
+    const alertas = (db.alertas || []).filter(a => inRange(a.quando));
+    const porCondicao = {};
+    (db.pacientes || []).forEach(p => {
+        const perfil = p.perfil || {};
+        ["hipertensao", "diabetes", "arritmias", "insuficienciaCardiaca", "doencaCoronariana", "infartoPrevio"].forEach(k => {
+            if (perfil[k]) porCondicao[k] = (porCondicao[k] || 0) + 1;
+        });
+    });
+    res.json({
+        periodo: { de: de || null, ate: ate || null },
+        atendimentos: (db.triagens || []).filter(t => inRange(t.createdAt)).length,
+        pacientes: (db.pacientes || []).length,
+        internacoes: (db.internacoes || []).filter(i => inRange(i.entradaEm)).length,
+        ocupacao: (db.leitos || []).length ? Math.round(((db.leitos || []).filter(l => l.status !== "livre").length / (db.leitos || []).length) * 100) : 0,
+        alertas: alertas.length,
+        alertasResolvidos: alertas.filter(a => a.resolvido).length,
+        porCondicao
+    });
+});
+
+// ── Regras do Safety Engine (configuráveis) ──
+app.get("/safety/regras", requireAuth([]), (req, res) => {
+    const db = readDB();
+    res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
+});
+
+app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    db.safetyRules = { ...(db.safetyRules || {}), ...(req.body || {}) };
+    writeDB(db);
+    audit(req, "safety_regras_atualizadas", req.body || {});
+    res.json(db.safetyRules);
 });
 
 //start

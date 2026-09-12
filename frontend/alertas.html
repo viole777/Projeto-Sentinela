@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Central de segurança</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("alertas", `
+  <h2>🚨 Central de segurança</h2>
+  <div class="cards" id="kpis"></div>
+  <div style="display:flex;gap:8px;margin:12px 0;" id="filtros">
+    <button data-f="">Todos</button><button data-f="CRITICO">Críticos</button>
+    <button data-f="ALTO">Altos</button><button data-f="abertos">Abertos</button>
+  </div>
+  <div id="lista"></div>
+`).then(() => {
+  let f = "";
+  document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { f = b.dataset.f; carregar(); });
+  async function carregar() {
+    const q = f === "abertos" ? "?abertos=1" : f ? "?nivel=" + f : "";
+    const list = await fetch("/alertas" + q).then(r => r.json());
+    const c = (n) => list.filter(a => a.nivel === n && !a.resolvido).length;
+    document.getElementById("kpis").innerHTML =
+      `<div class="card kpi"><b>🔴 ${c("CRITICO")}</b>críticos</div>
+       <div class="card kpi"><b>🟠 ${list.filter(a => a.nivel === "ALTO" && !a.resolvido).length}</b>altos</div>
+       <div class="card kpi"><b>🟡 ${list.filter(a => a.nivel === "ATENCAO" && !a.resolvido).length}</b>atenção</div>`;
+    document.getElementById("lista").innerHTML = list.map(a => `
+      <div class="card" style="margin-bottom:8px;border:1px solid ${a.nivel === "CRITICO" ? "#ef4444" : "#f59e0b"};">
+        <b>${a.nivel}</b> — ${a.mensagem}<br>
+        <small>${a.pacienteNome || ""} (${a.pacienteCpf || "-"}) · ${new Date(a.quando).toLocaleString("pt-BR")} · regra ${a.regra} · por ${a.geradoPor}${a.resolvido ? " · ✅ resolvido" : ""}</small><br>
+        ${a.resolvido ? "" : `<button style="margin-top:6px;" onclick="resolver(${a.id})">Revisar / resolver</button>`}
+      </div>`).join("") || "<p>Nenhum alerta.</p>";
+  }
+  window.resolver = async (id) => { await fetch("/alertas/" + id + "/resolver", { method: "POST" }); carregar(); };
+  carregar(); setInterval(carregar, 10000);
+});
+</script>
+</body>
+</html>

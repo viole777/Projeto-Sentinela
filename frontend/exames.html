@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Exames</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("exames", `
+  <h2>🧪 Exames</h2>
+  <div class="card"><h3>+ Solicitar exame</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input id="cpf" placeholder="CPF" style="max-width:180px;">
+      <select id="tipo" style="max-width:220px;"></select>
+      <input id="obs" placeholder="Observação...">
+      <button onclick="solicitar()">Solicitar</button>
+    </div></div>
+  <div style="display:flex;gap:8px;margin:12px 0;" id="filtros">
+    <button data-f="">Todos</button><button data-f="pendente">Pendentes</button><button data-f="concluido">Resultados</button>
+  </div>
+  <div id="lista"></div>
+`).then(async () => {
+  const tipos = await fetch("/exames/tipos").then(r => r.json());
+  document.getElementById("tipo").innerHTML = tipos.map(t => `<option>${t}</option>`).join("");
+  let f = "";
+  document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { f = b.dataset.f; carregar(); });
+  window.solicitar = async () => {
+    const r = await fetch("/exames", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pacienteCpf: document.getElementById("cpf").value, tipo: document.getElementById("tipo").value, observacao: document.getElementById("obs").value }) });
+    if (!r.ok) { alert("Falha: " + await r.text()); return; }
+    carregar();
+  };
+  window.laudar = async (id) => {
+    const texto = prompt("Resultado/laudo:");
+    if (texto == null) return;
+    await fetch("/exames/" + id + "/resultado", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }) });
+    carregar();
+  };
+  async function carregar() {
+    const list = await fetch("/exames" + (f ? "?status=" + f : "")).then(r => r.json());
+    document.getElementById("lista").innerHTML = list.map(e => `
+      <div class="card" style="margin-bottom:8px;"><b>${e.tipo}</b> — ${e.pacienteNome} (${e.pacienteCpf}) · ${e.status}<br>
+      <small>Solicitado por ${e.solicitadoPor} em ${new Date(e.solicitadoEm).toLocaleString("pt-BR")}</small>
+      ${e.resultado ? `<br>📄 ${e.resultado.texto}` : `<br><button style="margin-top:6px;" onclick="laudar(${e.id})">Registrar resultado</button>`}</div>`).join("") || "<p>Nenhum exame.</p>";
+  }
+  carregar();
+});
+</script>
+</body>
+</html>

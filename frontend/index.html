@@ -1,61 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="pt-BR">
 <head>
     <link rel="stylesheet" href="styles.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>login</title>
+    <title>Sentinela — Login</title>
+    <style>
+        .login-wrap { max-width: 420px; margin: 8vh auto; text-align: center; }
+        .brand { font-size: 42px; margin-bottom: 4px; }
+        .brand-name { font-size: 28px; font-weight: 800; letter-spacing: 2px; }
+        .brand-sub { color: rgba(229,231,235,.7); margin-bottom: 22px; }
+        .login-card { text-align: left; }
+        .login-card label { display: block; font-size: 13px; margin: 12px 0 6px; color: rgba(229,231,235,.85); }
+        .row-links { display: flex; justify-content: space-between; margin-top: 12px; font-size: 13px; }
+        .row-links a { color: #93c5fd; text-decoration: none; }
+        .secure { margin-top: 18px; font-size: 12px; color: rgba(229,231,235,.6); }
+        .err { color: #fca5a5; font-size: 13px; margin-top: 10px; min-height: 18px; }
+    </style>
 </head>
-
 <body>
-    <div class="container">
-        <h2>Sistema Hospitalar</h2>
-        <input id="usuario" placeholder="Usuario">
-        <input id="senha" type="password" placeholder="Senha">
-        <button onclick="login()">Entrar</button>
+    <div class="container login-wrap">
+        <div class="brand">❤️</div>
+        <div class="brand-name">SENTINELA</div>
+        <div class="brand-sub">Sistema Hospitalar de Cardiologia</div>
+        <div class="card login-card">
+            <label for="email">E-mail institucional</label>
+            <input id="email" type="email" placeholder="usuario@hospital..." autocomplete="username">
+            <label for="senha">Senha</label>
+            <input id="senha" type="password" placeholder="••••••••••••" autocomplete="current-password">
+            <div class="err" id="err"></div>
+            <button style="width:100%; margin-top:6px;" onclick="login()">Entrar</button>
+            <div class="row-links">
+                <a href="recuperar-senha.html">Esqueci minha senha</a>
+                <a href="primeiro-acesso.html">Primeiro acesso</a>
+            </div>
+        </div>
+        <div class="secure">🔒 Ambiente protegido</div>
     </div>
     <script>
-        function login() {
-            const usuarioEl = document.getElementById('usuario');
-            const senhaEl = document.getElementById('senha');
-
-            const payload = {
-                usuario: usuarioEl?.value,
-                senha: senhaEl?.value
-            };
-
-            console.log("login payload", payload);
-
-            if (!payload.usuario || payload.senha === "") {
-                alert("Preencha usuário e senha");
-                return;
-            }
-
-            fetch("/login", {
+        // Se já logado, vai direto ao dashboard do seu cargo
+        fetch("/me").then(r => { if (r.ok) location.href = "dashboard.html"; }).catch(() => {});
+        function dashboardFor(role) {
+            return "dashboard.html"; // dashboard único que se adapta ao cargo
+        }
+        async function login() {
+            const email = document.getElementById('email').value.trim();
+            const senha = document.getElementById('senha').value;
+            const err = document.getElementById('err');
+            err.textContent = "";
+            if (!email || !senha) { err.textContent = "Informe e-mail e senha."; return; }
+            const r = await fetch("/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            })
-                .then(async r => {
-                    if (!r.ok) {
-                        const txt = await r.text().catch(() => '');
-                        throw new Error(`HTTP ${r.status} ${txt}`.trim());
-                    }
-                    return r.json();
-                })
-                .then(data => {
-                    if (data.tipo === "triagem") location.href = "triagem.html";
-                    if (data.tipo === "medico") location.href = "medico.html";
-                    if (data.tipo === "atendimento") location.href = "atendimento.html";
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Falha no login: " + err.message);
-                });
+                body: JSON.stringify({ email, usuario: email, senha })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (r.status === 403 && data.erro === "primeiro_acesso") {
+                sessionStorage.setItem("primeiroAcessoId", data.usuarioId);
+                location.href = "primeiro-acesso.html";
+                return;
+            }
+            if (!r.ok) { err.textContent = "Login inválido. Confira e-mail e senha."; return; }
+            sessionStorage.setItem("sentinelaRole", data.role || data.tipo);
+            sessionStorage.setItem("sentinelaNome", data.nome || data.usuario);
+            location.href = dashboardFor(data.role || data.tipo);
         }
+        document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
     </script>
 </body>
-
 </html>
+
 

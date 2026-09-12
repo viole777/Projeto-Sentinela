@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Auditoria</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("auditoria", `<h2>Auditoria</h2><div id="lista"></div>`).then(async () => {
+  const list = await fetch("/auditoria").then(r => r.json());
+  document.getElementById("lista").innerHTML = list.map(e =>
+    `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;">${new Date(e.quando).toLocaleString("pt-BR")} — <b>${e.usuario}</b> (${e.perfil}): ${e.acao} <small>${JSON.stringify(e.detalhes || {})}</small></div>`).join("") || "<p>Sem eventos.</p>";
+});
+</script>
+</body>
+</html>

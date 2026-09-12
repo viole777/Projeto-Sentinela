@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Dashboard</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("dashboard", `
+  <h2 id="saudacao">Dashboard</h2>
+  <div class="cards" id="kpis"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="card"><h3>Próximos atendimentos</h3><div id="prox"></div></div>
+    <div class="card"><h3>🚨 Atenção</h3><div id="alertas"></div></div>
+  </div>`).then(async () => {
+  const d = await fetch("/dashboard").then(r => r.json());
+  const hora = new Date().getHours();
+  const turno = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  document.getElementById("saudacao").textContent = `${turno}, ${d.nome}.`;
+  const kpi = (v, l) => `<div class="card kpi"><b>${v}</b>${l}</div>`;
+  document.getElementById("kpis").innerHTML =
+    kpi(d.consultasHoje, "Consultas hoje") + kpi(d.triagensAbertas, "Na fila") +
+    kpi(d.alertasAbertos, "Alertas abertos") + kpi(d.examesPendentes, "Exames pendentes") +
+    kpi(d.prescPendentes, "Prescrições pendentes") + kpi(d.estoqueCritico, "Estoque crítico") +
+    kpi(d.internados, "Internados") + kpi(d.leitosLivres, "Leitos livres");
+  document.getElementById("prox").innerHTML = (d.proximos || []).map(p =>
+    `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);">${p.nome} <small>(${p.risco || "-"})</small></div>`).join("") || "<p>Nenhum na fila.</p>";
+  document.getElementById("alertas").innerHTML = (d.alertas || []).map(a =>
+    `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);"><b>${a.nivel}</b> — ${a.mensagem}<br><small>${a.pacienteNome || ""}</small></div>`).join("") || "<p>Nenhum alerta. ✅</p>";
+});
+</script>
+</body>
+</html>

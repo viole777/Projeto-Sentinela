@@ -21,6 +21,28 @@
      <input id="email" type="email" placeholder="E-mail">
      <input id="contatoEmergencia" placeholder="Contato de emergência">
 
+     <h3 style="margin-top:14px;">Perfil cardiovascular</h3>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <select id="hipertensao"><option value="">Hipertensão...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="diabetes"><option value="">Diabetes...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="dislipidemia"><option value="">Dislipidemia...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="tabagismo"><option value="">Tabagismo...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="sedentarismo"><option value="">Sedentarismo...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="obesidade"><option value="">Obesidade...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="infartoPrevio"><option value="">Infarto prévio...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="avcPrevio"><option value="">AVC prévio...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="arritmias"><option value="">Arritmias...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="insuficienciaCardiaca"><option value="">Insuf. cardíaca...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="doencaCoronariana"><option value="">Dça coronariana...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="marcapasso"><option value="">Marcapasso...</option><option>SIM</option><option>NÃO</option></select>
+      <select id="desfibrilador"><option value="">Desfibrilador (CDI)...</option><option>SIM</option><option>NÃO</option></select>
+     </div>
+     <input id="cirurgiasCardiacas" placeholder="Cirurgias cardíacas prévias" style="margin-top:8px;">
+     <input id="alergias" placeholder="Alergias" style="margin-top:8px;">
+     <input id="medicamentosAtuais" placeholder="Medicamentos atuais" style="margin-top:8px;">
+     <input id="proteses" placeholder="Próteses" style="margin-top:8px;">
+     <input id="historicoFamiliar" placeholder="Histórico familiar cardiovascular" style="margin-top:8px;">
+
      <select id="tipo">
         <option>Convenio</option>
         <option>Particular</option>
@@ -49,14 +71,22 @@
 
         function cadastrar(){
             const form = new FormData();
-            form.append('nome', nome.value);
-            form.append('cpf', cpf.value);
-            form.append('tipo', tipo.value);
+            form.append('nome', document.getElementById('nome').value);
+            form.append('cpf', document.getElementById('cpf').value);
+            form.append('tipo', document.getElementById('tipo').value);
+            ["dataNascimento","sexo","nomeMae","estadoCivil","endereco","telefone","email","contatoEmergencia","cirurgiasCardiacas","alergias","medicamentosAtuais","proteses","historicoFamiliar"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value) form.append(id, el.value);
+            });
+            ["hipertensao","diabetes","dislipidemia","tabagismo","sedentarismo","obesidade","infartoPrevio","avcPrevio","arritmias","insuficienciaCardiaca","doencaCoronariana","marcapasso","desfibrilador"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value) form.append(id, el.value);
+            });
 
             const file = fotoEl.files && fotoEl.files[0];
             if (file) form.append('foto', file);
 
-            fetch("http://localhost:3000/atendimento", {
+            fetch("/atendimento", {
                 method: "POST",
                 body: form
             })

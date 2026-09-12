@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Configurações</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("config", `
+  <h2>Configurações</h2>
+  <div class="card"><h3>Regras do Sentinela (Safety Engine)</h3>
+    <div id="regras"></div>
+    <button style="margin-top:8px;" onclick="salvar()">Salvar regras</button>
+  </div>
+  <div class="card" style="margin-top:12px;"><h3>Privacidade e LGPD</h3>
+    <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p></div>
+`).then(async () => {
+  const r = await fetch("/safety/regras").then(r => r.json());
+  const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
+  document.getElementById("regras").innerHTML = keys.map(k =>
+    `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""}> ${k}</label>`).join("");
+  window.salvar = async () => {
+    const body = {};
+    keys.forEach(k => body[k] = document.getElementById("rg_" + k).checked);
+    await fetch("/safety/regras", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    alert("Regras atualizadas.");
+  };
+});
+</script>
+</body>
+</html>

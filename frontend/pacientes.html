@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Pacientes</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("pacientes", `
+  <h2>Pacientes</h2>
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <input id="busca" placeholder="🔍 Buscar paciente (nome/CPF)...">
+    <button onclick="location.href='atendimento.html'">+ Novo paciente</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;" id="filtros">
+    <button data-f="">Todos</button><button data-f="triagem">Em atendimento</button>
+    <button data-f="internado">Internados</button><button data-f="alta">Alta</button>
+  </div>
+  <div class="card"><table class="tbl"><thead><tr><th>Nome</th><th>CPF</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+`).then(() => {
+  let filtro = "";
+  document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { filtro = b.dataset.f; carregar(); });
+  async function carregar() {
+    const q = (document.getElementById("busca").value || sessionStorage.getItem("pacienteBusca") || "").trim();
+    sessionStorage.removeItem("pacienteBusca");
+    const list = await fetch("/pacientes?q=" + encodeURIComponent(q)).then(r => r.json());
+    const rows = (filtro ? list.filter(p => p.status === filtro) : list);
+    const dot = { triagem: "🟡", aguardando_medico: "🟡", em_consulta: "🟠", internado: "🔴", alta: "🟢" };
+    document.getElementById("tb").innerHTML = rows.map(p =>
+      `<tr><td>${p.nome}</td><td>${p.cpf}</td><td>${dot[p.status] || "⚪"} ${p.status || "-"}</td>
+       <td><button onclick="sessionStorage.setItem('pacienteCpf','${p.cpf}');location.href='paciente.html?cpf=${p.cpf}'">Abrir</button></td></tr>`).join("") || "<tr><td colspan=4>Nenhum paciente.</td></tr>";
+  }
+  document.getElementById("busca").addEventListener("input", carregar);
+  window.addEventListener("sentinela:buscar", () => { document.getElementById("busca").value = sessionStorage.getItem("pacienteBusca") || ""; carregar(); });
+  const b = sessionStorage.getItem("pacienteBusca"); if (b) document.getElementById("busca").value = b;
+  carregar();
+});
+</script>
+</body>
+</html>

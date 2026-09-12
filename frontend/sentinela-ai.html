@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela AI</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("ai", `
+  <h2>🤖 Sentinela AI</h2><p style="opacity:.75;">Assistente hospitalar — apoio, nunca diagnóstico.</p>
+  <div style="display:flex;gap:8px;margin:12px 0;">
+    <input id="cpf" placeholder="CPF do paciente...">
+    <button onclick="resumir()">Resumir prontuário</button>
+  </div>
+  <div id="out"></div>
+  <div class="card" style="margin-top:12px;"><h3>Sugestões</h3>
+    • Resumir prontuário<br>• Consultar histórico<br>• Identificar inconsistências<br>• Gerar resumo de atendimento
+    <br><br><small>⚠️ A IA é ferramenta de apoio. Decisões clínicas são do profissional habilitado.</small></div>
+`).then(() => {
+  const cpf = sessionStorage.getItem("pacienteCpf");
+  if (cpf) document.getElementById("cpf").value = cpf;
+  window.resumir = async () => {
+    const c = document.getElementById("cpf").value.trim();
+    if (!c) return alert("Informe o CPF.");
+    const box = document.getElementById("out");
+    box.innerHTML = "<p>Gerando resumo...</p>";
+    const r = await fetch("/ia/resumo/" + encodeURIComponent(c));
+    if (!r.ok) { box.innerHTML = "<p>Paciente não encontrado.</p>"; return; }
+    const d = await r.json();
+    box.innerHTML = `<div class="card" style="border:1px solid rgba(34,197,94,.5);"><b>🤖 Resumo — ${d.pacienteNome}</b><br><br>${d.resumo}<br><br>
+      ${(d.inconsistencias || []).length ? "<b>⚠️ Possíveis inconsistências:</b><br>• " + d.inconsistencias.join("<br>• ") : "✅ Nenhuma inconsistência aparente."}
+      <br><br><small>Fonte: prontuário. ${d.aviso}</small></div>`;
+  };
+});
+</script>
+</body>
+</html>

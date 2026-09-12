@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Recuperar senha</title></head>
+<body>
+<div class="container" style="max-width:420px;text-align:center;">
+  <div style="font-size:42px;">❤️</div><h2>SENTINELA</h2>
+  <p>Esqueceu sua senha? Informe seu e-mail institucional.</p>
+  <input id="email" type="email" placeholder="usuario@hospital...">
+  <button style="width:100%;margin-top:10px;" onclick="enviar()">Enviar link</button>
+  <p><a href="index.html" style="color:#93c5fd;">← Voltar para login</a></p>
+  <div id="msg"></div>
+</div>
+<script>
+async function enviar() {
+  const r = await fetch("/recuperar-senha", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: document.getElementById("email").value }) });
+  document.getElementById("msg").textContent = "Se o e-mail existir, um link foi enviado. (Nesta demo, o token vai por API.)";
+}
+</script>
+</body>
+</html>

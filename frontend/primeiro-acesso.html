@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Primeiro acesso</title></head>
+<body>
+<div class="container" style="max-width:420px;text-align:center;">
+  <div style="font-size:42px;">❤️</div><h2>Bem-vindo ao Sentinela</h2>
+  <p>Você está acessando pela primeira vez. Crie sua senha:</p>
+  <input id="s1" type="password" placeholder="Nova senha">
+  <input id="s2" type="password" placeholder="Confirmar" style="margin-top:8px;">
+  <button style="width:100%;margin-top:10px;" onclick="go()">Continuar</button>
+  <div id="msg"></div>
+</div>
+<script>
+async function go() {
+  const id = sessionStorage.getItem("primeiroAcessoId");
+  if (!id) { document.getElementById("msg").textContent = "Conta não identificada. Peça ao gestor o seu usuário."; return; }
+  const r = await fetch("/primeiro-acesso", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usuarioId: id, novaSenha: document.getElementById("s1").value, confirmar: document.getElementById("s2").value }) });
+  if (!r.ok) { document.getElementById("msg").textContent = await r.text(); return; }
+  location.href = "index.html";
+}
+</script>
+</body>
+</html>

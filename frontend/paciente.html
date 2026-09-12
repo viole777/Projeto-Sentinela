@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Perfil do paciente</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+const cpf = new URLSearchParams(location.search).get("cpf") || sessionStorage.getItem("pacienteCpf");
+Sentinela.mount("pacientes", `
+  <a href="pacientes.html">← Pacientes</a>
+  <h2 id="nome">Paciente</h2>
+  <div id="alerta"></div>
+  <div class="card" id="info"></div>
+  <div class="card" id="cardio" style="margin-top:12px;"></div>
+  <div class="card" id="timeline" style="margin-top:12px;"></div>
+`).then(async () => {
+  if (!cpf) { document.getElementById("nome").textContent = "Paciente não selecionado"; return; }
+  const r = await fetch("/prontuario/" + encodeURIComponent(cpf));
+  if (!r.ok) { document.getElementById("nome").textContent = "Paciente não encontrado"; return; }
+  const d = await r.json();
+  const p = d.paciente, perfil = p.perfil || {};
+  document.getElementById("nome").textContent = `${p.nome}`;
+  const crit = (d.alertas || []).find(a => !a.resolvido && (a.nivel === "CRITICO" || a.nivel === "ALTO"));
+  if (crit) document.getElementById("alerta").innerHTML = `<div class="card" style="border:1px solid #ef4444;margin:12px 0;">⚠️ ALERTA — ${crit.mensagem}</div>`;
+  const sim = (v) => v ? "SIM" : "NÃO";
+  document.getElementById("info").innerHTML = `<h3>Informações</h3>CPF: ${p.cpf}<br>Nascimento: ${perfil.dataNascimento || "-"}<br>Telefone: ${perfil.telefone || "-"}<br>Emergência: ${perfil.contatoEmergencia || "-"}<br>Status: ${p.status || "-"}`;
+  document.getElementById("cardio").innerHTML = `<h3>Cardiovascular</h3>
+    Hipertensão: ${sim(perfil.hipertensao)} · Diabetes: ${sim(perfil.diabetes)} · Arritmia: ${sim(perfil.arritmias)}<br>
+    Infarto prévio: ${sim(perfil.infartoPrevio)} · AVC prévio: ${sim(perfil.avcPrevio)} · ICC: ${sim(perfil.insuficienciaCardiaca)}<br>
+    Tabagismo: ${sim(perfil.tabagismo)} · Marcapasso: ${sim(perfil.marcapasso)} · CDI: ${sim(perfil.desfibrilador)}<br>
+    Alergias: ⚠️ ${perfil.alergias || (d.triagens.slice(-1)[0] || {}).alergia || "-"}<br>
+    Medicamentos: ${(d.consultas || []).map(c => c.medicacao).filter(Boolean).join("; ") || perfil.medicamentosAtuais || "-"}`;
+  const ev = [
+    ...(d.triagens || []).map(t => `${t.createdAt.slice(0, 10)} — Triagem (${t.risco || "-"}) PA ${t.pas || "-"}/${t.pad || "-"} FC ${t.fc || "-"}`),
+    ...(d.consultas || []).map(c => `${c.createdAt.slice(0, 10)} — Consulta: ${c.diagnostico || "-"} | ${c.medicacao || "-"}`)
+  ];
+  document.getElementById("timeline").innerHTML = `<h3>Linha do tempo</h3>` + (ev.map(e => `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);">${e}</div>`).join("") || "<p>Sem registros.</p>");
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Estoque</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("estoque", `
+  <h2>📦 Estoque</h2>
+  <div class="card"><h3>Registrar entrada</h3>
+    <div style="display:flex;gap:8px;"><input id="med" placeholder="Medicamento..."><input id="qtd" type="number" placeholder="Qtd" style="max-width:120px;"><button onclick="entrada()">Registrar</button></div></div>
+  <div style="margin-top:12px;" id="lista"></div>
+  <div class="card" style="margin-top:12px;"><h3>Necessidade de compra</h3><div id="compras"></div></div>
+`).then(() => {
+  window.entrada = async () => {
+    const r = await fetch("/estoque/entrada", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ medicamento: document.getElementById("med").value, qtd: Number(document.getElementById("qtd").value) }) });
+    if (!r.ok) { alert("Falha: " + await r.text()); return; }
+    carregar();
+  };
+  async function carregar() {
+    const list = await fetch("/estoque").then(r => r.json());
+    document.getElementById("lista").innerHTML = `<table class="tbl"><thead><tr><th>Medicamento</th><th>Qtd</th><th>Status</th></tr></thead><tbody>` +
+      list.map(e => `<tr><td>${e.medicamento}</td><td>${e.quantidade}</td><td>${e.critico ? (Number(e.quantidade) === 0 ? "🔴 zerado" : "🟠 abaixo do mínimo") : "🟢 ok"}</td></tr>`).join("") + `</tbody></table>`;
+    const c = await fetch("/compras/sugestao").then(r => r.json()).catch(() => ({ itens: [] }));
+    document.getElementById("compras").innerHTML = (c.itens || []).map(i => `<div>• ${i.medicamento} — atual ${i.atual}, mínimo ${i.minimo}</div>`).join("") || "<p>Nenhuma necessidade. ✅</p>";
+  }
+  carregar();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Relatórios</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("relatorios", `
+  <h2>Relatórios</h2>
+  <div style="display:flex;gap:8px;margin:12px 0;">
+    <input id="de" type="date" style="max-width:180px;"><input id="ate" type="date" style="max-width:180px;">
+    <button onclick="gerar()">Gerar relatório</button>
+  </div>
+  <div class="cards" id="kpis"></div>
+  <div class="card" id="cond"></div>
+`).then(() => {
+  window.gerar = async () => {
+    const de = document.getElementById("de").value, ate = document.getElementById("ate").value;
+    const r = await fetch("/relatorios?de=" + de + "&ate=" + ate).then(r => r.json());
+    document.getElementById("kpis").innerHTML =
+      `<div class="card kpi"><b>${r.atendimentos}</b>atendimentos</div>
+       <div class="card kpi"><b>${r.pacientes}</b>pacientes</div>
+       <div class="card kpi"><b>${r.internacoes}</b>internações</div>
+       <div class="card kpi"><b>${r.ocupacao}%</b>ocupação</div>
+       <div class="card kpi"><b>${r.alertas}</b>alertas</div>
+       <div class="card kpi"><b>${r.alertasResolvidos}</b>resolvidos</div>`;
+    document.getElementById("cond").innerHTML = "<h3>Pacientes por condição registrada</h3>" +
+      Object.entries(r.porCondicao || {}).map(([k, v]) => `<div>${k}: ${"█".repeat(Math.min(v, 20))} ${v}</div>`).join("");
+  };
+  gerar();
+});
+</script>
+</body>
+</html>

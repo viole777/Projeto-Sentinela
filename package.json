@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node backend/server.js",
     "db:migrate": "node database/migrate-json-to-postgres.js",
-    "test": "node -e \"console.log('No automated tests configured yet.')\""
+    "test": "node scripts/smoke-test.js"
   },
   "keywords": [],
   "author": "",

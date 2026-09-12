@@ -1097,6 +1097,15 @@ app.get("/dashboard", requireAuth([]), async (req, res) => {
     const examesPendentes = (db.exames || []).filter(e => e.status === "pendente").length;
     const fila = (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt }));
     const atividade = (db.auditoria || []).slice(-6).reverse();
+    const porCondicao = {};
+    (db.pacientes || []).forEach(paciente => {
+        const perfil = paciente.perfil || {};
+        ["hipertensao", "diabetes", "dislipidemia", "tabagismo", "sedentarismo", "obesidade", "infartoPrevio", "avcPrevio", "arritmias", "insuficienciaCardiaca", "doencaCoronariana"].forEach(condicao => {
+            if (perfil[condicao]) {
+                porCondicao[condicao] = (porCondicao[condicao] || 0) + 1;
+            }
+        });
+    });
     // cards por perfil (hierarquia: crítico = vermelho raro; ação = amarelo; normal = neutro)
     const cards = {};
     if (["triagem", "enfermagem", "atendimento", "recepcao"].includes(role)) {
@@ -1132,7 +1141,7 @@ app.get("/dashboard", requireAuth([]), async (req, res) => {
         alertasAbertos: alertasAbertos.length, criticos, altos,
         prescPendentes, estoqueCritico, internados, leitosLivres, ocupacao, examesPendentes,
         proximos: fila, fila,
-        alertas: alertasAbertos.slice(0, 5), atividade
+        alertas: alertasAbertos.slice(0, 5), atividade, porCondicao
     });
 });
 

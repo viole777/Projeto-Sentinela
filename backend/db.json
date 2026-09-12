@@ -589,6 +589,116 @@
         "dataAtendimento": "2026-09-12T15:00"
       },
       "ip": "::1"
+    },
+    {
+      "id": 1789244583885,
+      "quando": "2026-09-12T20:23:03.332Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789244583962,
+      "quando": "2026-09-12T20:23:03.349Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789244605068,
+      "quando": "2026-09-12T20:23:24.226Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789244604795,
+      "quando": "2026-09-12T20:23:24.246Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789244660113,
+      "quando": "2026-09-12T20:24:19.790Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789244660523,
+      "quando": "2026-09-12T20:24:19.812Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789244672139,
+      "quando": "2026-09-12T20:24:31.194Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789244671629,
+      "quando": "2026-09-12T20:24:31.209Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789244683746,
+      "quando": "2026-09-12T20:24:43.384Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789244684132,
+      "quando": "2026-09-12T20:24:43.398Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
     }
   ],
   "exames": [],

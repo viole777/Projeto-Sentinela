@@ -1,58 +1,54 @@
 # Projeto Sentinela
 
-O Projeto Sentinela é um sistema web de apoio ao atendimento hospitalar. Ele organiza o cadastro do paciente, a triagem, a fila médica, a consulta e a alta ou internação em um único fluxo, reduzindo perda de informação e tempo de resposta.
+O Projeto Sentinela é um sistema hospitalar de cardiologia com foco em fluxo clínico integrado, gestão de pacientes e apoio ao atendimento. A base atual já continha um núcleo funcional, e a refatoração da Fase 1 foi feita para corrigir a arquitetura, a navegação e o controle de acesso sem remover módulos existentes.
 
-## Como ajuda em uma situação crítica
+## Estado da refatoração
 
-1. O atendimento registra o paciente e seu CPF.
-2. A triagem registra sintomas, temperatura, alergias e risco.
-3. A regra de prioridade destaca febre acima de 39 °C como risco vermelho e direciona o caso ao médico.
-4. O médico visualiza a fila, recebe o alerta de alergia, registra a consulta e decide por alta ou internação.
+### Fase 1 concluída
+- Corrigida a arquitetura de navegação e sessão.
+- Ajustadas rotas e permissões para refletir o cargo real da conta.
+- Padronizada a leitura do layout global e do menu lateral por perfil.
+- Melhorados os fluxos de login, recuperação de senha e primeiro acesso.
+- Adicionado exemplo de configuração de ambiente e script de teste não quebrado.
 
-O sistema apoia a decisão e a comunicação da equipe; não substitui avaliação clínica, protocolos de emergência ou acionamento imediato do serviço de urgência quando houver risco de vida.
+### Fase 2 concluída
+- Expandidos endpoints de usuários, cargos, permissões e setores.
+- Adicionado suporte a `setor` no cadastro de profissionais.
+- Melhorada a visão de perfis e acesso ao painel administrativo.
+
+### Fase 3 concluída
+- Validados e preservados os fluxos de exames, farmácia, alertas e Safety Engine.
+- Ajustada a tela de regras do Safety Engine para edição e persistência.
+- Mantido o fluxo clínico principal e o suporte operacional sem remover módulos existentes.
+
+### Base SQL principal concluída
+- Preenchido o arquivo [database.sql](database.sql) com esquema principal, seed inicial e estrutura de apoio para PostgreSQL.
 
 ## Fluxo principal
 
-```mermaid
-flowchart LR
-    A[Login por perfil] --> B[Atendimento]
-    B --> C[Triagem]
-    C --> D{Classificação de risco}
-    D -->|Vermelho| E[Prioridade médica]
-    D -->|Amarelo ou verde| F[Fila de atendimento]
-    E --> G[Consulta]
-    F --> G
-    G --> H{Conduta}
-    H -->|Alta| I[Encerramento]
-    H -->|Internação| J[Registro de internação]
-```
+1. Login por e-mail institucional.
+2. Sessão autenticada em cookie HttpOnly.
+3. Carregamento do dashboard conforme permissões do perfil.
+4. Atendimento → triagem → consulta cardíaca → exames → prescrições → farmácia → internação → alta.
+5. Central de alertas, auditoria e segurança clínica com apoio do Safety Engine.
 
-## Telas principais
+## Segurança e autenticação
 
-As imagens abaixo mostram a referência visual das telas de triagem e do painel médico:
+- Login com e-mail institucional e senha.
+- Sessão apoiada por cookie `HttpOnly` e validação no backend.
+- Cargos e permissões validadas no servidor, nunca dependentes do frontend.
+- Compatibilidade com JSON local e PostgreSQL (`DATABASE_URL`) quando disponível.
+- Arquivos de ambiente protegidos por `.env` e `.env.example`.
 
-![Tela de triagem](docs/screenshots/triagem.png)
+## Estrutura principal
 
-![Painel do médico](docs/screenshots/painel-medico.png)
-
-## Tecnologia e segurança
-
-- **Backend:** Node.js, Express e SQLite3 disponível no projeto, com persistência local em JSON nesta versão.
-- **Frontend:** HTML, CSS e JavaScript, servido pelo próprio backend.
-- **Controles implementados:** sessões em cookie `HttpOnly` e `SameSite`, autorização por perfil, senhas migradas para `scrypt`, limite de JSON e upload, imagens restritas a JPEG/PNG/WebP, validação de CPF e campos permitidos, além de cabeçalhos HTTP de proteção.
-- **Dependências:** auditadas com `npm audit`.
-
-## Vantagens para a operação
-
-- Um fluxo simples entre recepção, triagem e médico.
-- Priorização automática de um sinal clínico relevante, sem esconder a decisão profissional.
-- Alergia e dados do atendimento disponíveis no momento da consulta.
-- Menos retrabalho por vínculo do atendimento ao paciente.
-- Base pronta para evoluir para banco transacional, auditoria e integração com prontuário eletrônico.
-
-## Próximos passos recomendados
-
-Para uso real em ambiente hospitalar, ainda devem ser definidos backup e recuperação, banco transacional, trilha de auditoria imutável, HTTPS obrigatório, gestão de usuários, expiração distribuída de sessões, testes clínicos da regra de risco e adequação à LGPD. A versão atual é uma demonstração funcional e não deve ser usada como único sistema de suporte à vida.
+- `backend/server.js`: autenticação, autorização, APIs e fluxo clínico.
+- `backend/src/db.js`: camada de persistência e mapa de permissões.
+- `frontend/layout.js`: layout global e sidebar por permissão.
+- `frontend/styles.css`: identidade visual hospitalar do projeto.
+- `database.sql`: esquema principal e seed inicial para PostgreSQL.
+- `database/schema.sql`, `database/schema2.sql`, `database/seeds.sql`: arquivos complementares do PostgreSQL sugerido.
+- `database/migrate-json-to-postgres.js`: migração do JSON atual para PostgreSQL.
 
 ## Execução local
 
@@ -62,3 +58,10 @@ npm start
 ```
 
 A aplicação fica disponível em `http://localhost:3000`.
+
+## Observações
+
+- O projeto foi mantido funcional e não substituído por uma implementação nova.
+- Não foram removidas funcionalidades já existentes; a mudança foi focada na correção da arquitetura e na consistência de segurança.
+- O projeto foi expandido até a Fase 3 com foco em segurança, organização de perfis e suporte clínico/operacional.
+- A manutenção futura pode seguir em novas melhorias de UX, integração real com banco e refinamento de relatórios.

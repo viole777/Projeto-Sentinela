@@ -6,12 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sentinela — Login</title>
     <style>
-        .login-wrap { max-width: 420px; margin: 8vh auto; text-align: center; }
-        .brand { font-size: 42px; margin-bottom: 4px; }
-        .brand-name { font-size: 28px; font-weight: 800; letter-spacing: 2px; }
-        .brand-sub { color: rgba(229,231,235,.7); margin-bottom: 22px; }
-        .login-card { text-align: left; }
-        .login-card label { display: block; font-size: 13px; margin: 12px 0 6px; color: rgba(229,231,235,.85); }
+        .login-wrap { max-width: 440px; margin: 8vh auto; text-align: center; }
+        .brand { font-size: 48px; margin-bottom: 8px; filter: drop-shadow(0 10px 24px rgba(35,168,216,.3)); }
+        .brand-name { font-size: 30px; font-weight: 900; letter-spacing: 2px; color: #edf6ff; }
+        .brand-sub { color: rgba(237,246,255,.78); margin-bottom: 22px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
+        .login-card { text-align: left; background: linear-gradient(180deg, rgba(17,53,70,.92), rgba(12,33,46,.96)); border: 1px solid rgba(143,218,245,.18); border-radius: 20px; padding: 22px; box-shadow: 0 20px 40px rgba(4,16,24,.35); }
+        .login-card label { display: block; font-size: 13px; margin: 12px 0 6px; color: rgba(237,246,255,.88); font-weight: 600; }
+        .password-wrap { position: relative; }
+        .password-wrap input { padding-right: 44px; }
+        .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #93c5fd; cursor: pointer; font-size: 12px; padding: 4px; }
         .row-links { display: flex; justify-content: space-between; margin-top: 12px; font-size: 13px; }
         .row-links a { color: #93c5fd; text-decoration: none; }
         .secure { margin-top: 18px; font-size: 12px; color: rgba(229,231,235,.6); }
@@ -27,9 +30,12 @@
             <label for="email">E-mail institucional</label>
             <input id="email" type="email" placeholder="usuario@hospital..." autocomplete="username">
             <label for="senha">Senha</label>
-            <input id="senha" type="password" placeholder="••••••••••••" autocomplete="current-password">
+            <div class="password-wrap">
+                <input id="senha" type="password" placeholder="••••••••••••" autocomplete="current-password">
+                <button type="button" class="password-toggle" id="toggleSenha">Mostrar</button>
+            </div>
             <div class="err" id="err"></div>
-            <button style="width:100%; margin-top:6px;" onclick="login()">Entrar</button>
+            <button id="loginBtn" style="width:100%; margin-top:6px;" onclick="login()">Entrar</button>
             <div class="row-links">
                 <a href="recuperar-senha.html">Esqueci minha senha</a>
                 <a href="primeiro-acesso.html">Primeiro acesso</a>
@@ -47,25 +53,44 @@
             const email = document.getElementById('email').value.trim();
             const senha = document.getElementById('senha').value;
             const err = document.getElementById('err');
+            const btn = document.getElementById('loginBtn');
             err.textContent = "";
-            if (!email || !senha) { err.textContent = "Informe e-mail e senha."; return; }
-            const r = await fetch("/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, usuario: email, senha })
-            });
-            const data = await r.json().catch(() => ({}));
-            if (r.status === 403 && data.erro === "primeiro_acesso") {
-                sessionStorage.setItem("primeiroAcessoId", data.usuarioId);
-                location.href = "primeiro-acesso.html";
-                return;
+            if (!email || !senha) { err.textContent = "Informe e-mail e senha para entrar."; return; }
+            btn.disabled = true;
+            btn.textContent = "Entrando...";
+            try {
+                const r = await fetch("/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, usuario: email, senha })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.status === 403 && data.erro === "primeiro_acesso") {
+                    sessionStorage.setItem("primeiroAcessoId", data.usuarioId);
+                    location.href = "primeiro-acesso.html";
+                    return;
+                }
+                if (!r.ok) {
+                    err.textContent = data.erro || "Não foi possível entrar no sistema. Tente novamente.";
+                    return;
+                }
+                sessionStorage.setItem("sentinelaRole", data.role || data.tipo);
+                sessionStorage.setItem("sentinelaNome", data.nome || data.usuario);
+                location.href = dashboardFor(data.role || data.tipo);
+            } catch (e) {
+                err.textContent = "Servidor indisponível. Tente novamente em instantes.";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Entrar";
             }
-            if (!r.ok) { err.textContent = "Login inválido. Confira e-mail e senha."; return; }
-            sessionStorage.setItem("sentinelaRole", data.role || data.tipo);
-            sessionStorage.setItem("sentinelaNome", data.nome || data.usuario);
-            location.href = dashboardFor(data.role || data.tipo);
         }
         document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+        document.getElementById('toggleSenha').addEventListener('click', () => {
+            const senhaField = document.getElementById('senha');
+            const isHidden = senhaField.type === 'password';
+            senhaField.type = isHidden ? 'text' : 'password';
+            document.getElementById('toggleSenha').textContent = isHidden ? 'Ocultar' : 'Mostrar';
+        });
     </script>
 </body>
 </html>

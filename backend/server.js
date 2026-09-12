@@ -25,15 +25,35 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 // camada de persistência (db.json) reutilizada
-const { readDB, writeDB, ROLE_PERMISSIONS } = require("./src/db");
+const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool } = require("./src/db");
 
 const sessions = new Map();
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const PASSWORD_KEY_LENGTH = 64;
 
+function normalizeRole(role) {
+    const raw = String(role || "").trim().toLowerCase();
+    const aliases = {
+        cardiologista: "cardiologist",
+        cardiologo: "cardiologist",
+        cardiologist: "cardiologist",
+        medico: "medico",
+        enfermeiro: "enfermagem",
+        enfermagem: "enfermagem",
+        farmacia: "farmacia",
+        recepcao: "recepcao",
+        atendimento: "atendimento",
+        triagem: "triagem",
+        direcao: "direcao",
+        admin: "admin"
+    };
+    return aliases[raw] || raw || "atendimento";
+}
+
 function permissionsFor(role) {
-    if (ROLE_PERMISSIONS[role]) return ROLE_PERMISSIONS[role];
-    return ROLE_PERMISSIONS[role?.toLowerCase()] || [];
+    const normalized = normalizeRole(role);
+    if (ROLE_PERMISSIONS[normalized]) return ROLE_PERMISSIONS[normalized];
+    return ROLE_PERMISSIONS[normalized?.toLowerCase()] || [];
 }
 
 function sessionCan(session, perm) {
@@ -69,40 +89,117 @@ function parseCookies(header = "") {
 }
 
 function requireAuth(roles = []) {
-    return (req, res, next) => {
+    // Backend é a autoridade: esconder botão NUNCA é segurança.
+    // Toda rota valida: usuário → sessão → role → permissão → rota.
+    return async (req, res, next) => {
         const token = parseCookies(req.headers.cookie).sentinela_session;
-        const session = token && sessions.get(token);
+        let session = token && sessions.get(token);
+
+        // Sessão também pode estar no Postgres (Render com múltiplas instâncias)
+        if (!session && token && usingPostgres()) {
+            try {
+                const pool = getPool();
+                const r = await pool.query(
+                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, r.name AS role
+                     FROM sessions s JOIN users u ON u.id = s.user_id
+                     LEFT JOIN roles r ON r.id = u.role_id
+                     WHERE s.token = $1 LIMIT 1`, [token]);
+                const row = r.rows[0];
+                if (row && new Date(row.expires_at).getTime() > Date.now()) {
+                    const perms = await permissionsForRole(row.role);
+                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, permissions: perms, expiresAt: new Date(row.expires_at).getTime(), pg: true };
+                    sessions.set(token, session);
+                }
+            } catch (_) { /* cai para 401 abaixo */ }
+        }
 
         if (!session || session.expiresAt <= Date.now()) {
             if (token) sessions.delete(token);
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
-        // compat: papéis legados (medico/triagem/atendimento) continuam valendo
         const role = session.role || session.tipo;
         if (roles.length && !roles.includes(role) && !roles.includes(session.tipo)) {
             return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
         }
 
         session.expiresAt = Date.now() + SESSION_TTL_MS;
+        if (session.pg && usingPostgres()) {
+            try { await getPool().query(`UPDATE sessions SET expires_at = NOW() + INTERVAL '8 hours' WHERE token = $1`, [token]); } catch (_) {}
+        }
         req.user = session;
         next();
     };
 }
 
+async function permissionsForRole(role) {
+    const normalized = normalizeRole(role);
+    if (!usingPostgres()) return permissionsFor(normalized);
+    try {
+        const pool = getPool();
+        const r = await pool.query(
+            `SELECT p.name FROM permissions p
+             JOIN role_permissions rp ON rp.permission_id = p.id
+             JOIN roles r ON r.id = rp.role_id WHERE r.name = $1`, [normalized]);
+        if (r.rows.length) return r.rows.map(x => x.name);
+    } catch (_) {}
+    return permissionsFor(normalized);
+}
+
+async function persistSession(token, userIdentifier, session) {
+    if (!usingPostgres()) return;
+    try {
+        const pool = getPool();
+        const identifier = String(userIdentifier || session.usuario || session.email || "").trim();
+        if (!identifier) return;
+        const existingUser = await pool.query(
+            `SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
+            [identifier]
+        );
+        if (!existingUser.rows[0]) return;
+        await pool.query(
+            `INSERT INTO sessions (token, user_id, expires_at)
+             VALUES ($1, $2, NOW() + INTERVAL '8 hours')
+             ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at`,
+            [token, existingUser.rows[0].id]
+        );
+    } catch (_) {
+        // sessão continua em memória se o banco não estiver disponível; nunca quebra login
+    }
+}
+
 // ── RBAC novo: requirePermission("prescriptions.write") ──
 // O cargo vem da conta (role), o usuário NÃO escolhe no login.
 function requirePermission(...perms) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const token = parseCookies(req.headers.cookie).sentinela_session;
-        const session = token && sessions.get(token);
+        let session = token && sessions.get(token);
+
+        if (!session && token && usingPostgres()) {
+            try {
+                const pool = getPool();
+                const r = await pool.query(
+                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, r.name AS role
+                     FROM sessions s JOIN users u ON u.id = s.user_id
+                     LEFT JOIN roles r ON r.id = u.role_id
+                     WHERE s.token = $1 LIMIT 1`, [token]);
+                const row = r.rows[0];
+                if (row && new Date(row.expires_at).getTime() > Date.now()) {
+                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, permissions: await permissionsForRole(row.role), expiresAt: new Date(row.expires_at).getTime(), pg: true };
+                    sessions.set(token, session);
+                }
+            } catch (_) {}
+        }
 
         if (!session || session.expiresAt <= Date.now()) {
             if (token) sessions.delete(token);
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
-        const ok = perms.every(p => sessionCan(session, p));
+        // Permissões vêm do banco (role_permissions) quando Postgres; do mapa quando JSON
+        let effective = session.permissions;
+        if (usingPostgres()) effective = await permissionsForRole(session.role || session.tipo);
+        const ok = perms.every(p => effective.includes("*") || effective.includes(p));
         if (!ok) {
             return res.status(403).json({ erro: "Sem permissão para esta operação" });
         }
@@ -115,6 +212,22 @@ function requirePermission(...perms) {
 
 function validateCpf(cpf) {
     return /^\d{11}$/.test(String(cpf).replace(/\D/g, ""));
+}
+
+function mapUserRecord(user) {
+    const role = normalizeRole(user.role || user.tipo || "atendimento");
+    return {
+        id: user.id || user.usuario,
+        usuario: user.usuario,
+        nome: user.nome || user.usuario,
+        email: user.email || null,
+        role,
+        tipo: role,
+        setor: user.setor || null,
+        ativo: user.ativo !== false,
+        mustChangePassword: !!user.mustChangePassword,
+        permissions: Array.isArray(user.permissions) ? user.permissions : permissionsFor(role)
+    };
 }
 
 
@@ -288,7 +401,7 @@ function registrarAlerta(req, { paciente, nivel, regra, mensagem, contexto }) {
 
 //Login por e-mail institucional (novo) com compat para usuário legado.
 // O backend identifica: usuário → cargo (role) → permissões → dashboard.
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
     const db = readDB();
 
     const identificador = String(req.body.email || req.body.usuario || "").trim().toLowerCase();
@@ -305,7 +418,6 @@ app.post("/login", (req, res) => {
 
     if (!user) return res.status(401).json({ erro: "Login inválido" });
 
-    // primeiro acesso: força criação de senha
     if (user.mustChangePassword) {
         return res.status(403).json({ erro: "primeiro_acesso", usuarioId: user.id || user.usuario });
     }
@@ -315,18 +427,21 @@ app.post("/login", (req, res) => {
         writeDB(db);
     }
 
-    const role = user.role || user.tipo || "atendimento";
+    const role = normalizeRole(user.role || user.tipo || "atendimento");
     const permissions = user.permissions || permissionsFor(role);
 
     const token = crypto.randomBytes(32).toString("hex");
-    sessions.set(token, {
+    const session = {
         usuario: String(user.usuario || user.email),
         nome: user.nome || String(user.usuario || ""),
         email: user.email || null,
         tipo: role, role, permissions,
+        setor: user.setor || null,
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
-    });
+    };
+    sessions.set(token, session);
+    await persistSession(token, user.email || user.usuario || user.nome, session);
     audit({ user: { usuario: String(user.usuario || user.email), tipo: role } }, "login", { role });
     const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
     res.setHeader("Set-Cookie", `sentinela_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}; Path=/${secure}`);
@@ -345,6 +460,7 @@ app.get("/me", (req, res) => {
     res.json({
         usuario: session.usuario, nome: session.nome || session.usuario,
         email: session.email || null, role, tipo: role,
+        setor: session.setor || null,
         permissions: session.permissions || permissionsFor(role)
     });
 });
@@ -572,7 +688,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
 
 
 //triagem para medico (com dados do atendimento via CPF)
-app.get("/triagem", requireAuth(["medico"]), (req, res) => {
+app.get("/triagem", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
     const db = readDB();
 
     const triagens = (db.triagens || []).map(t => {
@@ -585,13 +701,13 @@ app.get("/triagem", requireAuth(["medico"]), (req, res) => {
 
 
 //compatibilidade (algumas telas podem chamar /triagens)
-app.get("/triagens", requireAuth(["medico", "triagem"]), (req, res) => {
+app.get("/triagens", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
     const db = readDB();
     res.json(db.triagens);
 });
 
 //delete triagem (para apagar da lista do medico)
-app.delete("/triagem", requireAuth(["medico"]), (req, res) => {
+app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
 
     const triagemId = req.query.id;
@@ -646,7 +762,7 @@ app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico"]), (req
 
 //consulta (vincula paciente por cpf, se vier; senão tenta usar pacienteId)
 // Passa pelo Safety Engine antes de confirmar — sem diagnosticar, só aponta.
-app.post("/consulta", requireAuth(["medico"]), (req, res) => {
+app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
 
     const pacienteCpf = String(req.body.pacienteCpf || "").trim();
@@ -704,7 +820,7 @@ app.post("/consulta", requireAuth(["medico"]), (req, res) => {
 });
 
 // prévia do Safety Engine (médico confere ANTES de confirmar a prescrição)
-app.post("/safety/preview", requireAuth(["medico"]), (req, res) => {
+app.post("/safety/preview", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.body.pacienteCpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -718,7 +834,7 @@ app.post("/safety/preview", requireAuth(["medico"]), (req, res) => {
 });
 
 //finalizar atendimento (alta ou internar) e remover da triagem/painel
-app.post("/finalizar", requireAuth(["medico"]), (req, res) => {
+app.post("/finalizar", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
 
     const acao = String(req.body.acao || "").trim(); // "alta" | "internar"
@@ -787,7 +903,7 @@ app.post("/finalizar", requireAuth(["medico"]), (req, res) => {
 });
 
 // prontuário integrado (paciente + triagens + consultas + atendimentos + alertas)
-app.get("/prontuario/:cpf", requireAuth(["medico", "triagem"]), (req, res) => {
+app.get("/prontuario/:cpf", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -801,7 +917,7 @@ app.get("/prontuario/:cpf", requireAuth(["medico", "triagem"]), (req, res) => {
 });
 
 // lista de pacientes (para fila / emergência / busca)
-app.get("/pacientes", requireAuth(["medico", "triagem", "atendimento"]), (req, res) => {
+app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendimento", "recepcao"]), (req, res) => {
     const db = readDB();
     const q = String(req.query.q || "").toLowerCase();
     let list = db.pacientes || [];
@@ -811,7 +927,7 @@ app.get("/pacientes", requireAuth(["medico", "triagem", "atendimento"]), (req, r
 
 // ── IA assistente: resumo do prontuário + possíveis inconsistências ──
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
-app.get("/ia/resumo/:cpf", requireAuth(["medico"]), (req, res) => {
+app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -825,7 +941,7 @@ app.get("/ia/resumo/:cpf", requireAuth(["medico"]), (req, res) => {
 });
 
 // ── Alertas ──
-app.get("/alertas", requireAuth(["medico", "triagem"]), (req, res) => {
+app.get("/alertas", requireAuth(["medico", "cardiologist", "triagem", "enfermagem"]), (req, res) => {
     const db = ensureTVShape(readDB());
     const nivel = String(req.query.nivel || "").toUpperCase();
     const soAbertos = String(req.query.abertos || "") === "1";
@@ -835,7 +951,7 @@ app.get("/alertas", requireAuth(["medico", "triagem"]), (req, res) => {
     res.json(list.slice(0, 100));
 });
 
-app.post("/alertas/:id/resolver", requireAuth(["medico"]), (req, res) => {
+app.post("/alertas/:id/resolver", requireAuth(["medico", "cardiologist", "direcao"]), (req, res) => {
     const db = readDB();
     const a = (db.alertas || []).find(x => Number(x.id) === Number(req.params.id));
     if (!a) return res.status(404).json({ erro: "Alerta não encontrado" });
@@ -848,7 +964,7 @@ app.post("/alertas/:id/resolver", requireAuth(["medico"]), (req, res) => {
 });
 
 // ── Auditoria (trilha por API — sem DELETE) ──
-app.get("/auditoria", requireAuth(["medico"]), (req, res) => {
+app.get("/auditoria", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
     const db = readDB();
     res.json((db.auditoria || []).slice(-200).reverse());
 });
@@ -882,34 +998,74 @@ app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), (req, res) => {
     res.json(chamada);
 });
 
-app.post("/logout", (req, res) => {
+app.post("/logout", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
     if (token) sessions.delete(token);
+    if (usingPostgres()) {
+        try {
+            await getPool().query(`DELETE FROM sessions WHERE token = $1`, [token]);
+        } catch (_) {}
+    }
     res.setHeader("Set-Cookie", "sentinela_session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/");
     res.json({ ok: true });
 });
 
-// ── Dashboard por cargo (o backend monta os números; o front só exibe) ──
-app.get("/dashboard", requireAuth([]), (req, res) => {
-    const db = ensureTVShape(readDB());
+// ── Dashboard por cargo: centro de comando (muda conforme role) ──
+// triagem → fila/espera/alertas · cardiologista → consultas/exames/prontuários
+// farmacia → prescrições/estoque · direcao → indicadores/ocupação
+app.get("/dashboard", requireAuth([]), async (req, res) => {
+    const db = ensureTVShape(await store.readAll());
     const role = req.user.role || req.user.tipo;
     const hoje = new Date().toISOString().slice(0, 10);
     const consultasHoje = (db.consultas || []).filter(c => String(c.createdAt || "").slice(0, 10) === hoje).length;
     const alertasAbertos = (db.alertas || []).filter(a => !a.resolvido);
-    audit(req, "dashboard", { role });
+    const criticos = alertasAbertos.filter(a => a.nivel === "CRITICO").length;
+    const altos = alertasAbertos.filter(a => a.nivel === "ALTO").length;
+    const prescPendentes = (db.consultas || []).filter(c => c.medicacao && !c.dispensado).length;
+    const estoqueCritico = (db.estoque || []).filter(e => Number(e.quantidade) <= Number(e.minimo)).length;
+    const internados = (db.internacoes || []).filter(i => !i.altaEm).length;
+    const leitos = (db.leitos || []);
+    const leitosLivres = leitos.filter(l => l.status === "livre").length;
+    const ocupacao = leitos.length ? Math.round(((leitos.length - leitosLivres) / leitos.length) * 100) : 0;
+    const examesPendentes = (db.exames || []).filter(e => e.status === "pendente").length;
+    const fila = (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt }));
+    const atividade = (db.auditoria || []).slice(-6).reverse();
+    // cards por perfil (hierarquia: crítico = vermelho raro; ação = amarelo; normal = neutro)
+    const cards = {};
+    if (["triagem", "enfermagem", "atendimento", "recepcao"].includes(role)) {
+        cards.pacientes = (db.pacientes || []).length;
+        cards.espera = (db.triagens || []).length;
+        cards.alertas = alertasAbertos.length;
+        cards.leitos = leitosLivres;
+    } else if (["farmacia"].includes(role)) {
+        cards.presc = prescPendentes;
+        cards.estoque = estoqueCritico;
+        cards.alertas = alertasAbertos.length;
+        cards.pacientes = (db.pacientes || []).length;
+    } else if (["direcao", "admin"].includes(role)) {
+        cards.pacientes = (db.pacientes || []).length;
+        cards.consultas = consultasHoje;
+        cards.alertas = alertasAbertos.length;
+        cards.leitos = leitosLivres;
+        cards.exames = examesPendentes;
+        cards.estoque = estoqueCritico;
+    } else {
+        // cardiologist / medico
+        cards.consultas = consultasHoje;
+        cards.espera = (db.triagens || []).length;
+        cards.alertas = alertasAbertos.length;
+        cards.exames = examesPendentes;
+        cards.presc = prescPendentes;
+        cards.leitos = leitosLivres;
+    }
+    audit(req, "dashboard", { role, backend: store.backend() });
     res.json({
-        role, nome: req.user.nome || req.user.usuario,
-        consultasHoje, triagensAbertas: (db.triagens || []).length,
-        alertasAbertos: alertasAbertos.length,
-        criticos: alertasAbertos.filter(a => a.nivel === "CRITICO").length,
-        altos: alertasAbertos.filter(a => a.nivel === "ALTO").length,
-        prescPendentes: (db.consultas || []).filter(c => c.medicacao && !c.dispensado).length,
-        estoqueCritico: (db.estoque || []).filter(e => Number(e.quantidade) <= Number(e.minimo)).length,
-        internados: (db.internacoes || []).filter(i => !i.altaEm).length,
-        leitosLivres: (db.leitos || []).filter(l => l.status === "livre").length,
-        examesPendentes: (db.exames || []).filter(e => e.status === "pendente").length,
-        proximos: (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt })),
-        alertas: alertasAbertos.slice(0, 5)
+        role, nome: req.user.nome || req.user.usuario, backend: store.backend(),
+        cards, consultasHoje, triagensAbertas: (db.triagens || []).length,
+        alertasAbertos: alertasAbertos.length, criticos, altos,
+        prescPendentes, estoqueCritico, internados, leitosLivres, ocupacao, examesPendentes,
+        proximos: fila, fila,
+        alertas: alertasAbertos.slice(0, 5), atividade
     });
 });
 
@@ -1057,32 +1213,73 @@ app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), 
     res.json({ internacao, leito });
 });
 
-// ── PROFISSIONAIS (gestão de contas) ──
-app.get("/profissionais", requireAuth(["medico", "cardiologist", "direcao"]), (req, res) => {
+// ── PERFIS / USUÁRIOS / PERMISSÕES / SETORES (Fase 2) ──
+app.get("/usuarios", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
     const db = readDB();
-    res.json((db.usuarios || []).map(u => ({
-        id: u.id || u.usuario, usuario: u.usuario, nome: u.nome || u.usuario,
-        email: u.email || null, role: u.role || u.tipo, setor: u.setor || null
-    })));
+    res.json((db.usuarios || []).map(mapUserRecord));
 });
 
-app.post("/profissionais", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.get("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+    const db = readDB();
+    res.json((db.usuarios || []).map(mapUserRecord));
+});
+
+app.get("/roles", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+    const roles = Object.entries(ROLE_PERMISSIONS).map(([name, permissions]) => ({
+        name: normalizeRole(name), permissions: permissions || []
+    }));
+    res.json(roles);
+});
+
+app.get("/permissoes", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+    const permissions = Array.from(new Set(Object.values(ROLE_PERMISSIONS).flat())).sort();
+    res.json(permissions);
+});
+
+app.get("/setores", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+    const db = readDB();
+    const setores = Array.from(new Set((db.usuarios || []).map(u => u.setor).filter(Boolean))).sort();
+    res.json(setores);
+});
+
+app.post("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
     const db = readDB();
     const { usuario, nome, email, role, setor } = req.body || {};
     if (!usuario || !role) return res.status(400).json({ erro: "usuario e role são obrigatórios" });
-    if (db.usuarios.some(u => String(u.usuario).toLowerCase() === String(usuario).toLowerCase())) {
-        return res.status(409).json({ erro: "Usuário já existe" });
+
+    const normalizedRole = normalizeRole(role);
+    if (!ROLE_PERMISSIONS[normalizedRole]) {
+        return res.status(400).json({ erro: `role inválida: ${role}` });
     }
+
+    const usuarioNormalized = String(usuario).trim();
+    const emailNormalized = email ? String(email).trim().toLowerCase() : null;
+
+    if (db.usuarios.some(u => {
+        const userUsuario = String(u.usuario || "").trim().toLowerCase();
+        const userEmail = String(u.email || "").trim().toLowerCase();
+        return userUsuario === usuarioNormalized.toLowerCase() || (emailNormalized && userEmail === emailNormalized);
+    })) {
+        return res.status(409).json({ erro: "Usuário ou e-mail já existe" });
+    }
+
     const novo = {
-        id: Date.now(), usuario: String(usuario).trim(), nome: String(nome || usuario).trim(),
-        email: email ? String(email).trim().toLowerCase() : null,
-        role: String(role), setor: setor ? String(setor).trim() : null,
-        senha: "trocar_no_primeiro_acesso", mustChangePassword: true, ativo: true
+        id: Date.now(),
+        usuario: usuarioNormalized,
+        nome: String(nome || usuario).trim(),
+        email: emailNormalized,
+        role: normalizedRole,
+        tipo: normalizedRole,
+        setor: setor ? String(setor).trim() : null,
+        senha: "trocar_no_primeiro_acesso",
+        permissions: permissionsFor(normalizedRole),
+        mustChangePassword: true,
+        ativo: true
     };
     db.usuarios.push(novo);
     writeDB(db);
-    audit(req, "profissional_criado", { usuario: novo.usuario, role: novo.role });
-    res.json({ ok: true, usuario: novo.usuario, role: novo.role, primeiroAcesso: true });
+    audit(req, "profissional_criado", { usuario: novo.usuario, role: novo.role, setor: novo.setor || null });
+    res.json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true });
 });
 
 // ── RELATÓRIOS (direção) ──

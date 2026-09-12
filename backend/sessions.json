@@ -1,0 +1,104 @@
+{
+  "96dd167d54343430b5681d62a75f87eb2e2fe75e298c9614941cc97a3a28cc40": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789264218056
+  },
+  "e215ed95d32ad4ebd6e73cf18ce362b971e41215104623c674e2dbae5d8928da": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789264560394
+  },
+  "07a3ee7f41a0796312cf6fabd52597ac0a44a86fd9e52c0f3e21885bbe20c5ea": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789264766612
+  },
+  "59b414ff6fda634e79f27bd8668749f7b9b2255623ba02907902f9ae33b1ea22": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789264943522
+  },
+  "9da9c3c211e2ab22ee6467da017d40bce671a49a3e7981232aa15d6d97aced91": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789264998376
+  },
+  "a3d20060d4ce8e848a7a9e5a874538fe5a7e6bd123855fd66eaae7a3e5436e74": {
+    "usuario": "triagem",
+    "nome": "triagem",
+    "email": null,
+    "tipo": "triagem",
+    "role": "triagem",
+    "permissions": [
+      "dashboard.read",
+      "patients.read",
+      "appointments.read",
+      "triage.read",
+      "triage.write",
+      "alerts.read"
+    ],
+    "mustChangePassword": false,
+    "expiresAt": 1789265099113
+  }
+}

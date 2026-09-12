@@ -7,7 +7,7 @@ window.Sentinela = {
       if (!r.ok) { location.href = "index.html"; return; }
       me = await r.json();
     } catch (e) { location.href = "index.html"; return; }
-    const perms = me.permissions || [];
+    const perms = Array.isArray(me.permissions) ? me.permissions : [];
     const can = (p) => perms.includes("*") || perms.includes(p);
     const item = (id, href, icon, label, perm) => {
       if (perm && !can(perm)) return "";
@@ -15,33 +15,41 @@ window.Sentinela = {
     };
     document.body.innerHTML =
     '<style>' +
-    '.shell{display:flex;min-height:100vh}' +
-    '.side{width:230px;padding:18px 12px;background:rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}' +
-    '.side .logo{font-weight:800;letter-spacing:1px}' +
-    '.side .sub{font-size:11px;opacity:.65;margin-bottom:14px}' +
-    '.side a{display:block;padding:9px 12px;border-radius:10px;color:#e5e7eb;text-decoration:none;font-size:14px}' +
-    '.side a:hover{background:rgba(255,255,255,.07)}' +
-    '.side a.active{background:rgba(37,99,235,.25);border:1px solid rgba(37,99,235,.4)}' +
-    '.main{flex:1;min-width:0}.top{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.1);position:sticky;top:0;background:rgba(11,18,32,.95);z-index:5}' +
-    '.top input{max-width:320px}.top .sp{flex:1}.content{padding:20px;max-width:1200px}' +
+    '.shell{display:flex;min-height:100vh;background:linear-gradient(180deg,#071b27 0%,#0b2436 100%)}' +
+    '.side{width:252px;padding:20px 14px;background:linear-gradient(180deg,#0a1f2d 0%,#081b28 100%);border-right:1px solid rgba(143,218,245,.15);display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;box-shadow:inset -1px 0 0 rgba(255,255,255,.02)}' +
+    '.side .logo{font-weight:900;letter-spacing:1.4px;font-size:18px;color:#edf6ff;margin:6px 8px 2px;display:flex;align-items:center;gap:8px}' +
+    '.side .sub{font-size:11px;opacity:.75;margin:0 8px 16px;padding-bottom:12px;border-bottom:1px solid rgba(143,218,245,.12);letter-spacing:.12em;text-transform:uppercase;color:#a9c7d8}' +
+    '.side a{display:block;padding:10px 12px;border-radius:12px;color:#eaf4ff;text-decoration:none;font-size:14px;font-weight:600;border:1px solid transparent;transition:transform .15s ease,background .15s ease,border-color .15s ease}' +
+    '.side a:hover{background:rgba(255,255,255,.05);border-color:rgba(143,218,245,.12);transform:translateX(1px)}' +
+    '.side a.active{background:linear-gradient(135deg, rgba(35,168,216,.24), rgba(17,120,168,.34));border-color:rgba(35,168,216,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}' +
+    '.main{flex:1;min-width:0;background:radial-gradient(900px 400px at 80% 0%, rgba(35,168,216,.14), transparent 50%)}' +
+    '.top{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid rgba(143,218,245,.10);position:sticky;top:0;background:rgba(7,27,39,.78);backdrop-filter:blur(12px);z-index:5}' +
+    '.top b{font-size:15px;letter-spacing:.08em;color:#edf6ff}' +
+    '.top input{max-width:320px;background:rgba(9,35,49,.66);border:1px solid rgba(143,218,245,.18);border-radius:12px;padding:10px 12px;color:#edf6ff}' +
+    '.top .sp{flex:1}' +
+    '.content{padding:22px;max-width:1200px}' +
     '.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}' +
     '.kpi{text-align:center}.kpi b{font-size:26px;display:block}' +
     'table.tbl{width:100%;border-collapse:collapse;font-size:14px}' +
-    'table.tbl th,table.tbl td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.1);text-align:left}' +
-    '@media(max-width:860px){.side{display:none}}' +
+    'table.tbl th,table.tbl td{padding:10px 12px;border-bottom:1px solid rgba(143,218,245,.10);text-align:left}' +
+    '@media(max-width:860px){.side{position:static;width:100%;height:auto;display:block;padding-bottom:10px} .shell{display:block}.top{flex-wrap:wrap}.top input{max-width:none;width:100%}}' +
     '</style>' +
     '<div class="shell"><nav class="side">' +
     '<div class="logo">&#10084;&#65039; SENTINELA</div><div class="sub">Hospital de Cardiologia</div>' +
     item("dashboard","dashboard.html","&#127968;","Dashboard","dashboard.read") +
     item("pacientes","pacientes.html","&#128101;","Pacientes","patients.read") +
     item("atendimento","atendimento.html","&#128657;","Atendimento","appointments.read") +
+    item("fila","fila.html","&#128203;","Fila","appointments.read") +
     item("triagem","triagem.html","&#129657;","Triagem","triage.read") +
     item("consulta","medico.html","&#10084;&#65039;","Cardiologia","consultations.read") +
+    item("prontuario","prontuario.html","&#128214;","Prontuarios","consultations.read") +
     item("exames","exames.html","&#129514;","Exames","exams.read") +
     item("farmacia","farmacia.html","&#128138;","Farmacia","prescriptions.read") +
     item("estoque","estoque.html","&#128230;","Estoque","estoque.read") +
-    item("internacao","internacao.html","&#128719;","Internacao","dashboard.read") +
+    item("internacao","internacao.html","&#128719;","Internacao","internacoes.read") +
+    item("leitos","leitos.html","&#128716;","Leitos","internacoes.read") +
     item("alertas","alertas.html","&#128680;","Alertas","alerts.read") +
+    item("safety","safety-engine.html","&#128737;","Safety Engine","alerts.read") +
     item("ai","sentinela-ai.html","&#129302;","Sentinela AI","ai.read") +
     item("relatorios","relatorios.html","&#128202;","Relatorios","reports.read") +
     item("profissionais","profissionais.html","&#128105;&#8205;&#9877;&#65039;","Profissionais","audit.read") +

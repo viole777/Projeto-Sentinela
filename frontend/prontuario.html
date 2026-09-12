@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Prontuário</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+// O prontuário é o coração: Resumo | Histórico | Triagem | Consultas | Exames | Medicamentos | Internações | Alertas
+Sentinela.mount("prontuario", `
+  <a href="pacientes.html">← Pacientes</a>
+  <h2 id="nome">Prontuário</h2>
+  <div id="resumo" class="cards"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;" id="abas">
+    <button data-a="resumo">Resumo</button><button data-a="triagem">Triagem</button>
+    <button data-a="consultas">Consultas</button><button data-a="exames">Exames</button>
+    <button data-a="meds">Medicamentos</button><button data-a="inter">Internações</button>
+    <button data-a="alertas">Alertas</button>
+  </div>
+  <div class="card" id="corpo"></div>
+`).then(async () => {
+  const cpf = new URLSearchParams(location.search).get("cpf") || sessionStorage.getItem("pacienteCpf");
+  if (!cpf) { document.getElementById("nome").textContent = "Selecione um paciente"; return; }
+  const d = await fetch("/prontuario/" + encodeURIComponent(cpf)).then(r => r.json());
+  const p = d.paciente, perfil = p.perfil || {};
+  document.getElementById("nome").textContent = `${p.nome}`;
+  const nMed = [...new Set((d.consultas || []).map(c => c.medicacao).filter(Boolean))].length;
+  document.getElementById("resumo").innerHTML =
+    `<div class="card kpi"><b>❤️</b>perfil cardiovascular</div>
+     <div class="card kpi"><b>${(d.alertas || []).filter(a => !a.resolvido).length}</b>alertas</div>
+     <div class="card kpi"><b>${nMed}</b>medicamentos</div>
+     <div class="card kpi"><b>${(d.examesFull || []).length}</b>exames</div>`;
+  const ex = await fetch("/exames?cpf=" + encodeURIComponent(cpf)).then(r => r.json()).catch(() => []);
+  const inter = await fetch("/relatorios").then(r => r.json()).catch(() => null);
+  function show(aba) {
+    const el = document.getElementById("corpo");
+    if (aba === "triagem") el.innerHTML = (d.triagens || []).map(t => `<div>• ${t.createdAt.slice(0, 10)} — ${t.risco} PA ${t.pas || "-"}/${t.pad || "-"} FC ${t.fc || "-"}</div>`).join("") || "Sem triagens.";
+    else if (aba === "consultas") el.innerHTML = (d.consultas || []).map(c => `<div>• ${c.createdAt.slice(0, 10)} — ${c.diagnostico || "-"} | ${c.medicacao || "-"}</div>`).join("") || "Sem consultas.";
+    else if (aba === "exames") el.innerHTML = ex.map(e => `<div>• ${e.tipo} — ${e.status}${e.resultado ? ": " + (e.resultado.texto || "") : ""}</div>`).join("") || "Sem exames.";
+    else if (aba === "meds") el.innerHTML = [...new Set((d.consultas || []).map(c => c.medicacao).filter(Boolean))].map(m => `<div>• 💊 ${m}</div>`).join("") || "Sem medicamentos.";
+    else if (aba === "alertas") el.innerHTML = (d.alertas || []).map(a => `<div>• [${a.nivel}] ${a.mensagem}</div>`).join("") || "Sem alertas.";
+    else if (aba === "inter") el.innerHTML = "Ver internação (leitos).";
+    else el.innerHTML = `CPF ${p.cpf} · Hipertensão ${perfil.hipertensao ? "SIM" : "NÃO"} · Diabetes ${perfil.diabetes ? "SIM" : "NÃO"} · Alergias: ${perfil.alergias || "-"}`;
+  }
+  document.querySelectorAll("#abas button").forEach(b => b.onclick = () => show(b.dataset.a));
+  show("resumo");
+});
+</script>
+</body>
+</html>

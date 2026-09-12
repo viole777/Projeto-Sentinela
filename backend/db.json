@@ -1,17 +1,348 @@
 {
   "usuarios": [
-    { "usuario": "triagem", "senha": 123, "tipo": "triagem" },
-    { "usuario": "medico", "senha": 123, "tipo": "medico" },
-    { "usuario": "atendimento", "senha": 123, "tipo": "atendimento" }
+    {
+      "usuario": "triagem",
+      "senha": "scrypt$282489bd80c0e30418c09a5ce9115242$4c72053dd0f95ce04da5b3bf8f840f87929d6d8d6255fff14f2f75c2d1b7b868dc08aa203bb959e1c2b5eae83902324c85e2528305647dbdbdb3827039d84291",
+      "tipo": "triagem"
+    },
+    {
+      "usuario": "medico",
+      "senha": "scrypt$12f3421c365aaff347c7907fc4a97941$464a2edcb2413adb7266d199761e7ff47abf4dcfba60069806561fc4082fd803c5a115a9c1e5e0b4ec2657b7d985b16c9d7340e9b7a73dbbac0eb08b9ecb544b",
+      "tipo": "medico"
+    },
+    {
+      "usuario": "atendimento",
+      "senha": 123,
+      "tipo": "atendimento"
+    },
+    {
+      "id": 1789236897810,
+      "usuario": "novo.setor",
+      "nome": "Novo Setor",
+      "email": "novo.setor@teste.local",
+      "role": "triagem",
+      "tipo": "triagem",
+      "setor": "UTI",
+      "senha": "trocar_no_primeiro_acesso",
+      "permissions": [
+        "dashboard.read",
+        "patients.read",
+        "appointments.read",
+        "triage.read",
+        "triage.write",
+        "alerts.read"
+      ],
+      "mustChangePassword": true,
+      "ativo": true
+    }
   ],
   "pacientes": [],
-  "leitos": [],
+  "leitos": [
+    {
+      "id": "101",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "102",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "103",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "104",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "105",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "UTI-201",
+      "ala": "UTI CARDIOVASCULAR",
+      "status": "livre",
+      "pacienteCpf": null
+    }
+  ],
   "agendamentos": [],
   "prescricoes": [],
   "internacoes": [],
   "triagens": [],
   "consultas": [],
   "atendimentos": [],
-  "auditoria": []
+  "auditoria": [
+    {
+      "id": 1789235418472,
+      "quando": "2026-09-12T17:50:18.027Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789235418524,
+      "quando": "2026-09-12T17:50:18.056Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "triagem",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789235761282,
+      "quando": "2026-09-12T17:56:00.395Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789235967392,
+      "quando": "2026-09-12T17:59:26.581Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789235966628,
+      "quando": "2026-09-12T17:59:26.612Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "triagem",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789236143941,
+      "quando": "2026-09-12T18:02:23.497Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236144185,
+      "quando": "2026-09-12T18:02:23.523Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "triagem",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789236198822,
+      "quando": "2026-09-12T18:03:18.376Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236299528,
+      "quando": "2026-09-12T18:04:59.114Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236336342,
+      "quando": "2026-09-12T18:05:35.359Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236420819,
+      "quando": "2026-09-12T18:07:00.166Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236843751,
+      "quando": "2026-09-12T18:14:03.624Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236876348,
+      "quando": "2026-09-12T18:14:35.786Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789236889152,
+      "quando": "2026-09-12T18:14:49.138Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "login",
+      "detalhes": {
+        "role": "medico"
+      }
+    },
+    {
+      "id": 1789236898564,
+      "quando": "2026-09-12T18:14:57.792Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "login",
+      "detalhes": {
+        "role": "medico"
+      }
+    },
+    {
+      "id": 1789236898305,
+      "quando": "2026-09-12T18:14:57.811Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "profissional_criado",
+      "detalhes": {
+        "usuario": "novo.setor",
+        "role": "triagem",
+        "setor": "UTI"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789237257230,
+      "quando": "2026-09-12T18:20:57.036Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "login",
+      "detalhes": {
+        "role": "medico"
+      }
+    },
+    {
+      "id": 1789237611493,
+      "quando": "2026-09-12T18:26:51.106Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "login",
+      "detalhes": {
+        "role": "medico"
+      }
+    },
+    {
+      "id": 1789237611616,
+      "quando": "2026-09-12T18:26:51.122Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "safety_regras_atualizadas",
+      "detalhes": {
+        "alergia": true,
+        "altoRisco": true,
+        "duplicidade": true,
+        "dadosIncompletos": true,
+        "sinalCritico": true
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789238374918,
+      "quando": "2026-09-12T18:39:34.488Z",
+      "usuario": "medico",
+      "perfil": "medico",
+      "acao": "login",
+      "detalhes": {
+        "role": "medico"
+      }
+    },
+    {
+      "id": 1789238374960,
+      "quando": "2026-09-12T18:39:34.582Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    }
+  ],
+  "exames": [],
+  "farmacia": [],
+  "estoque": [
+    {
+      "id": 1,
+      "medicamento": "Dipirona 500mg",
+      "quantidade": 82,
+      "minimo": 20,
+      "updatedAt": "2026-09-12T17:50:17.972Z"
+    },
+    {
+      "id": 2,
+      "medicamento": "Varfarina 5mg",
+      "quantidade": 7,
+      "minimo": 15,
+      "altoRisco": true,
+      "updatedAt": "2026-09-12T17:50:17.972Z"
+    },
+    {
+      "id": 3,
+      "medicamento": "Losartana 50mg",
+      "quantidade": 60,
+      "minimo": 20,
+      "updatedAt": "2026-09-12T17:50:17.972Z"
+    }
+  ],
+  "movimentacoes": [],
+  "compras": [],
+  "alertas": [],
+  "safetyRules": {
+    "alergia": true,
+    "altoRisco": true,
+    "duplicidade": true,
+    "dadosIncompletos": true,
+    "sinalCritico": true
+  },
+  "tvChamada": null,
+  "tvHistorico": []
 }
-

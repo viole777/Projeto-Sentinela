@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Leitos</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("leitos", `<h2>Leitos</h2><div class="cards" id="mapa"></div>`).then(async () => {
+  const leitos = await fetch("/leitos").then(r => r.json());
+  document.getElementById("mapa").innerHTML = leitos.map(l =>
+    `<div class="card kpi"><b>[${l.id}] ${l.status === "livre" ? "Livre" : "Ocupado"}</b>${l.pacienteNome || ""}<br><small>${l.ala || ""}</small></div>`).join("");
+});
+</script>
+</body>
+</html>

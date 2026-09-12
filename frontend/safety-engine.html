@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Safety Engine</title></head>
+<body>
+<script src="layout.js"></script>
+<script>
+Sentinela.mount("safety", `
+  <h2>Safety Engine</h2>
+  <p style="opacity:.75;">Dados do paciente → Exames/Histórico/Medicação → Safety Engine → Normal / Alerta → Continuar / Revisar. A decisão é sempre do profissional.</p>
+  <div class="card">
+    <h3>Regras ativas</h3>
+    <div id="regras"></div>
+    <button id="salvarRegras" style="margin-top:12px;">Salvar regras</button>
+  </div>
+  <div class="card" style="margin-top:12px;"><h3>Ocorrências em aberto</h3><div id="hist"></div></div>
+`).then(async () => {
+  const r = await fetch("/safety/regras").then(r => r.json());
+  const rules = (r && typeof r === "object") ? r : {};
+  const ruleKeys = Object.keys(rules).filter(k => k !== "altoRiscoLista");
+
+  const regrasEl = document.getElementById("regras");
+  function renderRules() {
+    regrasEl.innerHTML = ruleKeys.map((key) => `
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+        <span>${key}</span>
+        <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""}>
+      </label>
+    `).join("") || "<p>Sem regras configuradas.</p>";
+  }
+
+  renderRules();
+
+  document.getElementById("salvarRegras").onclick = async () => {
+    const payload = {};
+    ruleKeys.forEach((key) => {
+      payload[key] = document.getElementById(`rule-${key}`).checked;
+    });
+
+    const res = await fetch("/safety/regras", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      alert("Falha ao salvar regras do Safety Engine.");
+      return;
+    }
+
+    alert("Regras atualizadas com sucesso.");
+    const updated = await fetch("/safety/regras").then(r => r.json());
+    Object.assign(rules, updated || {});
+    renderRules();
+  };
+
+  const h = await fetch("/alertas?abertos=1").then(r => r.json());
+  document.getElementById("hist").innerHTML = (h || []).slice(0, 20).map(a => `
+    <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+      <b>[${a.nivel}] ${a.regra}</b> — ${a.mensagem}
+      <small>(${a.pacienteNome || ""} · ${a.pacienteCpf || "-"})</small>
+    </div>
+  `).join("") || "<p>Sem ocorrências em aberto.</p>";
+});
+</script>
+</body>
+</html>

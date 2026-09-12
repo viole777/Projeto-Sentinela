@@ -1,6 +1,19 @@
 {
   "usuarios": [
     {
+      "usuario": "admin",
+      "nome": "Administrador",
+      "email": "admin@sentinela.local",
+      "role": "admin",
+      "tipo": "admin",
+      "senha": "scrypt$37428c22909c6c41a95bc141f7cb8ab5$dc5c8771b86adfab8d8b1972accced003ef71308a2a91511601327a23e4ab75aff1c0e3318422b5e468657b2d8531abeee2834bf27329249f95751bf07fbedbf",
+      "permissions": [
+        "*"
+      ],
+      "mustChangePassword": false,
+      "ativo": true
+    },
+    {
       "usuario": "triagem",
       "senha": "scrypt$282489bd80c0e30418c09a5ce9115242$4c72053dd0f95ce04da5b3bf8f840f87929d6d8d6255fff14f2f75c2d1b7b868dc08aa203bb959e1c2b5eae83902324c85e2528305647dbdbdb3827039d84291",
       "tipo": "triagem"
@@ -304,6 +317,82 @@
       "acao": "login",
       "detalhes": {
         "role": "triagem"
+      }
+    },
+    {
+      "id": 1789240088844,
+      "quando": "2026-09-12T19:08:08.414Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "login",
+      "detalhes": {
+        "role": "triagem"
+      }
+    },
+    {
+      "id": 1789240089040,
+      "quando": "2026-09-12T19:08:08.448Z",
+      "usuario": "triagem",
+      "perfil": "triagem",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "triagem",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789240297627,
+      "quando": "2026-09-12T19:11:37.545Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789240298472,
+      "quando": "2026-09-12T19:11:37.574Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789240397493,
+      "quando": "2026-09-12T19:13:16.602Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789240397378,
+      "quando": "2026-09-12T19:13:16.636Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789240746831,
+      "quando": "2026-09-12T19:19:06.562Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
       }
     }
   ],

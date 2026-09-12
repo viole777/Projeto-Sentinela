@@ -1,13 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <link rel="stylesheet" href="styles.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Triagem</title>
     <style>
-        .btn-tv{
-            background: #28a745 ;
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .eyebrow {
+            font-size: 11px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            opacity: .7;
+            margin-bottom: 6px;
+        }
+        .btn-tv {
+            background: #28a745;
             color: white;
             border: none;
             padding: 8px 14px;
@@ -16,41 +31,42 @@
             font-size: 14px;
             margin-left: 8px;
         }
-        .btn-tv:hover{background: #1e7e342f;}
-        .pacientes-fila{
+        .btn-tv:hover { background: #1e7e34; }
+        .pacientes-fila {
             margin-bottom: 30px;
-            background: #f0f4ff;
-            border-radius: 8px;
+            background: rgba(255,255,255,.03);
+            border-radius: 16px;
             padding: 16px;
-            border: 1px solid #d0d8f0;
+            border: 1px solid rgba(143,218,245,.18);
         }
-
-        .pacientes-fila h3{
+        .pacientes-fila h3 {
             margin-top: 0;
-            color: #333;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        .pacients-fila h3 span{
+        .pacientes-fila h3 span {
             font-size: 13px;
             font-weight: normal;
-            color: #666;
+            opacity: .8;
         }
-        .fila-item{
+        .fila-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: white;
-            border-radius: 6px;
+            background: rgba(9,35,49,.5);
+            border-radius: 12px;
             padding: 10px 14px;
             margin-bottom: 8px;
-            border: 1px solid #dce4ff;
+            border: 1px solid rgba(143,218,245,.14);
+            gap: 14px;
+            flex-wrap: wrap;
         }
-        .fila-item strong{ font-size: 14px;}
-        .fila-item small{ color: #888; font-size: 12px;}
-        .btn-abrir-tv{
+        .fila-item strong { font-size: 14px; }
+        .fila-item small { color: #a9c7d8; font-size: 12px; }
+        .btn-abrir-tv {
             display: inline-block;
             background: #17a2b8;
             color: white;
@@ -61,303 +77,293 @@
             cursor: pointer;
             border: none;
         }
-
-        .btn-abrir-tv:hover{
-            background: #117a8b
-        }
-
-
+        .btn-abrir-tv:hover { background: #117a8b; }
+        .badge { padding: 6px 10px; border-radius: 10px; color: #fff; display: inline-block; }
     </style>
 </head>
 <body>
-    <!-- estilos de cores reaproveitam o global styles.css -->
-    <style>
-        .badge { padding: 6px 10px; border-radius: 10px; color: #fff; display: inline-block; }
-    </style>
-
-
-    <div class="container">
-    <h2>Triagem</h2>
-<!-- botão da TV -->
- <div style="display: flex; justify-content: space-between;
- align-items: center; margin-bottom: 20px;">
- <h2 style="margin: 0;">Triagem Hospi</h2>
-<button class="btn-abrir-tv" onclick="window.open('tv.html' , '_blank')">Abrir Tela da TV</button></div>
-<!-- chamar um paciente na TV -->
- <div class="pacientes-fila" style="margin-bottom:30px;background:#f0f4ff;border-radius:8px;padding:16px;border:1px solid #d0d8f0;">
-    <h3>
-        Pacientes Cadastrados no atendimento
-        <span>Clique em "Chamar na TV" para chamar ao guiche</span>
-    </h3>
-    <div id="fila-pacientes">
-        <p style="color: #888; text-align:center;">Carregando...</p>
-    </div>
-    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-    <button onclick="carregarPacientes()" style="background:#6c757d;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;">Atualizar Lista</button>
-    <input id="guiche" placeholder="Guiche (ex: GUICHE 01)" value="GUICHE 01" style="max-width:220px;">
-    </div>
- </div>
-<!-- parte triagem -->
-    <div id="dadosAtendimento" style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; margin: 14px 0;">
-        <div style="min-width:220px; flex:1;">
-            <h3 style="margin:0 0 10px 0;">Dados do atendimento</h3>
-            <table style="width:100%; border-collapse:collapse; font-size:14px;">
-                <tbody>
-                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Paciente</td><td id="tbPaciente" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
-                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">CPF</td><td id="tbCpf" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
-                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Tipo</td><td id="tbTipo" style="padding:8px; border:1px solid #e5e7eb;">-</td></tr>
-                    <tr><td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">Imagem</td><td style="padding:8px; border:1px solid #e5e7eb;" id="tbImagem">-</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div style="width:240px;">
-            <h3 style="margin:0 0 10px 0;">Prévia</h3>
-            <img id="imgAtendimento" alt="Imagem" style="display:block; width:240px; max-width:100%; border-radius:12px; border:1px solid #e5e7eb; background:#f8fafc;" />
-        </div>
-    </div>
-
-    <div class="triForm" style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
-        <h3 style="margin:6px 0 2px 0;">Triagem cardiologica</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <input id="pas" type="number" placeholder="Pressao arterial sistolica (ex: 150)">
-            <input id="pad" type="number" placeholder="Pressao arterial diastolica (ex: 95)">
-            <input id="fc" type="number" placeholder="FC bpm (ex: 112)">
-            <input id="spo2" type="number" placeholder="Saturacao SpO2 % (ex: 93)">
-            <input id="fr" type="number" placeholder="Frequencia respiratoria (ex: 22)">
-            <input id="temp" type="number" step="0.1" placeholder="Temperatura C (ex: 36.8)">
-        </div>
-        <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:14px;">
-            <label><input type="checkbox" id="dorToracica" style="width:auto;"> Dor toracica</label>
-            <label><input type="checkbox" id="faltaAr" style="width:auto;"> Falta de ar</label>
-            <label><input type="checkbox" id="tontura" style="width:auto;"> Tontura</label>
-            <label><input type="checkbox" id="palpitacoes" style="width:auto;"> Palpitacoes</label>
-            <label><input type="checkbox" id="desmaio" style="width:auto;"> Desmaio</label>
-        </div>
-        <input id="nome" placeholder="Nome">
-        <input id="sintomas" placeholder="Sintomas">
-
-        <select id="risco">
-           <option value="verde">Verde</option>
-           <option value="amarelo">Amarelo</option>
-           <option value="vermelho">Vermelho</option>
-        </select>
-
-        <input id="alergia" placeholder="Alergias">
-
-        <button onclick="salvar()">Salvar e enviar para Médico</button>
-    </div>
-    </div>
-
-
+    <script src="layout.js"></script>
     <script>
-        function calcularSituacaoPorTemperatura(t) {
-            if (t === "" || t == null) return { situacao: "Não informada", classe: "normal", vazia: true };
-            const temp = Number(t);
-            if (Number.isNaN(temp)) return { situacao: "Não informada", classe: "normal", vazia: true };
+        Sentinela.mount("triagem", `
+            <div class="container">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Operação</div>
+                        <h2>Triagem cardiológica</h2>
+                    </div>
+                    <button class="btn-abrir-tv" onclick="window.open('tv.html', '_blank')">Abrir Tela da TV</button>
+                </div>
 
-            // Regras pedidas:
-            // Hipotermia grave: < 35°C
-            // Normal: 36°C – 37,5°C
-            // Febre: >= 37,8°C
-            // Febre alta: >= 39°C
-            // Hipertermia crítica: >= 40°C
-            if (temp < 35) return { situacao: "Hipotermia grave", classe: "hipotermia" };
-            if (temp >= 40) return { situacao: "Hipertermia crítica", classe: "critica" };
-            if (temp >= 39) return { situacao: "Febre alta", classe: "alta" };
-            if (temp >= 37.8) return { situacao: "Febre", classe: "febre" };
-            if (temp >= 36 && temp <= 37.5) return { situacao: "Normal", classe: "normal" };
+                <div class="pacientes-fila">
+                    <h3>
+                        Pacientes cadastrados no atendimento
+                        <span>Clique em "Chamar na TV" para encaminhar ao guichê</span>
+                    </h3>
+                    <div id="fila-pacientes">
+                        <p style="color: #a9c7d8; text-align:center;">Carregando...</p>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+                        <button id="btnAtualizarFila" style="background:#6c757d;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;">Atualizar Lista</button>
+                        <input id="guiche" placeholder="Guiche (ex: GUICHE 01)" value="GUICHE 01" style="max-width:220px;">
+                    </div>
+                </div>
 
-            // Fallback (ex.: 35-36 ou 37.5-37.8)
-            return { situacao: "Normal", classe: "normal" };
-        }
+                <div id="dadosAtendimento" style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; margin: 14px 0;">
+                    <div style="min-width:220px; flex:1;">
+                        <h3 style="margin:0 0 10px 0;">Dados do atendimento</h3>
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <tbody>
+                                <tr><td style="padding:8px; border:1px solid rgba(143,218,245,.14); font-weight:600;">Paciente</td><td id="tbPaciente" style="padding:8px; border:1px solid rgba(143,218,245,.14);">-</td></tr>
+                                <tr><td style="padding:8px; border:1px solid rgba(143,218,245,.14); font-weight:600;">CPF</td><td id="tbCpf" style="padding:8px; border:1px solid rgba(143,218,245,.14);">-</td></tr>
+                                <tr><td style="padding:8px; border:1px solid rgba(143,218,245,.14); font-weight:600;">Tipo</td><td id="tbTipo" style="padding:8px; border:1px solid rgba(143,218,245,.14);">-</td></tr>
+                                <tr><td style="padding:8px; border:1px solid rgba(143,218,245,.14); font-weight:600;">Imagem</td><td style="padding:8px; border:1px solid rgba(143,218,245,.14);" id="tbImagem">-</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="width:240px;">
+                        <h3 style="margin:0 0 10px 0;">Prévia</h3>
+                        <img id="imgAtendimento" alt="Imagem" style="display:block; width:240px; max-width:100%; border-radius:12px; border:1px solid rgba(143,218,245,.14); background:#f8fafc;" />
+                    </div>
+                </div>
 
-        function aplicarCoresPeloCalor() {
-            const tempStr = temp.value;
-            const { classe, situacao, vazia } = calcularSituacaoPorTemperatura(tempStr);
+                <div class="triForm" style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
+                    <h3 style="margin:6px 0 2px 0;">Triagem cardiológica</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <input id="pas" type="number" placeholder="Pressão arterial sistólica (ex: 150)">
+                        <input id="pad" type="number" placeholder="Pressão arterial diastólica (ex: 95)">
+                        <input id="fc" type="number" placeholder="FC bpm (ex: 112)">
+                        <input id="spo2" type="number" placeholder="Saturação SpO2 % (ex: 93)">
+                        <input id="fr" type="number" placeholder="Frequência respiratória (ex: 22)">
+                        <input id="temp" type="number" step="0.1" placeholder="Temperatura C (ex: 36.8)">
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:14px;">
+                        <label><input type="checkbox" id="dorToracica" style="width:auto;"> Dor torácica</label>
+                        <label><input type="checkbox" id="faltaAr" style="width:auto;"> Falta de ar</label>
+                        <label><input type="checkbox" id="tontura" style="width:auto;"> Tontura</label>
+                        <label><input type="checkbox" id="palpitacoes" style="width:auto;"> Palpitações</label>
+                        <label><input type="checkbox" id="desmaio" style="width:auto;"> Desmaio</label>
+                    </div>
+                    <input id="nome" placeholder="Nome">
+                    <input id="sintomas" placeholder="Sintomas">
 
-            // Atualiza uma cor base no campo de temperatura
-            temp.classList.remove("hipotermia", "normal", "febre", "alta", "critica");
-            temp.classList.add(classe);
+                    <select id="risco">
+                       <option value="verde">Verde</option>
+                       <option value="amarelo">Amarelo</option>
+                       <option value="vermelho">Vermelho</option>
+                    </select>
 
-            // Sugestão de risco pelo padrão de cores
-            // (Mantém compatível com seu select de risco existente.)
-            // Campo vazio NÃO sugere risco (corrige "Hipotermia grave 0.0°C" do print).
-            if (!vazia) {
-            if (classe === "hipotermia") risco.value = "verde";
-            if (classe === "normal") risco.value = "verde";
-            if (classe === "febre") risco.value = "amarelo";
-            if (classe === "alta") risco.value = "vermelho";
-            if (classe === "critica") risco.value = "vermelho";
+                    <input id="alergia" placeholder="Alergias">
+
+                    <button id="btnSalvarTriagem">Salvar e enviar para Médico</button>
+                </div>
+            </div>
+        `).then(() => {
+            const temp = document.getElementById("temp");
+            const risco = document.getElementById("risco");
+            const nome = document.getElementById("nome");
+            const sintomas = document.getElementById("sintomas");
+            const pas = document.getElementById("pas");
+            const pad = document.getElementById("pad");
+            const fc = document.getElementById("fc");
+            const spo2 = document.getElementById("spo2");
+            const fr = document.getElementById("fr");
+            const dorToracica = document.getElementById("dorToracica");
+            const faltaAr = document.getElementById("faltaAr");
+            const tontura = document.getElementById("tontura");
+            const palpitacoes = document.getElementById("palpitacoes");
+            const desmaio = document.getElementById("desmaio");
+            const alergia = document.getElementById("alergia");
+
+            function calcularSituacaoPorTemperatura(t) {
+                if (t === "" || t == null) return { situacao: "Não informada", classe: "normal", vazia: true };
+                const temperatura = Number(t);
+                if (Number.isNaN(temperatura)) return { situacao: "Não informada", classe: "normal", vazia: true };
+                if (temperatura < 35) return { situacao: "Hipotermia grave", classe: "hipotermia" };
+                if (temperatura >= 40) return { situacao: "Hipertermia crítica", classe: "critica" };
+                if (temperatura >= 39) return { situacao: "Febre alta", classe: "alta" };
+                if (temperatura >= 37.8) return { situacao: "Febre", classe: "febre" };
+                if (temperatura >= 36 && temperatura <= 37.5) return { situacao: "Normal", classe: "normal" };
+                return { situacao: "Normal", classe: "normal" };
             }
 
-            // Mostra feedback rápido
-            let badge = document.getElementById("tempBadge");
-            if (!badge) {
-                badge = document.createElement("div");
-                badge.id = "tempBadge";
-                badge.style.marginTop = "8px";
-                badge.style.fontWeight = "bold";
-                document.querySelector(".container").appendChild(badge);
-            }
-            badge.textContent = vazia ? `Situação: ${situacao}` : `Situação: ${situacao} (${Number(tempStr).toFixed(1)}°C)`;
-            badge.className = `badge ${classe}`;
-        }
+            function aplicarCoresPeloCalor() {
+                const tempStr = temp.value;
+                const { classe, situacao, vazia } = calcularSituacaoPorTemperatura(tempStr);
+                temp.classList.remove("hipotermia", "normal", "febre", "alta", "critica");
+                temp.classList.add(classe);
 
-        function salvar(){
-            const tempStr = (temp.value ?? "").toString().trim();
-            if (tempStr === "") {
-                alert("Informe a temperatura antes de salvar (ex: 36.8).");
-                temp.focus();
-                return;
-            }
-            aplicarCoresPeloCalor();
-            const pacienteCpf = sessionStorage.getItem('pacienteCpf');
-            const pacienteId = sessionStorage.getItem('pacienteId');
-            if (!pacienteCpf) {
-                alert("Selecione um paciente da fila (Chamar na TV / atender) antes de salvar.");
-                return;
-            }
-
-            fetch("/triagem", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    pacienteCpf: pacienteCpf,
-                    pacienteId: pacienteId ? Number(pacienteId) : undefined,
-                    nome: nome.value,
-                    sintomas: sintomas.value,
-                    temperatura: Number(temp.value),
-                    pas: pas.value === "" ? null : Number(pas.value),
-                    pad: pad.value === "" ? null : Number(pad.value),
-                    fc: fc.value === "" ? null : Number(fc.value),
-                    spo2: spo2.value === "" ? null : Number(spo2.value),
-                    fr: fr.value === "" ? null : Number(fr.value),
-                    dorToracica: dorToracica.checked,
-                    faltaAr: faltaAr.checked,
-                    tontura: tontura.checked,
-                    palpitacoes: palpitacoes.checked,
-                    desmaio: desmaio.checked,
-                    risco: risco.value,
-                    alergia: alergia.value
-                })
-            })
-            .then(async r => {
-                if (!r.ok) {
-                    const t = await r.text().catch(() => "");
-                    throw new Error(t || ("HTTP " + r.status));
+                if (!vazia) {
+                    if (classe === "hipotermia") risco.value = "verde";
+                    if (classe === "normal") risco.value = "verde";
+                    if (classe === "febre") risco.value = "amarelo";
+                    if (classe === "alta") risco.value = "vermelho";
+                    if (classe === "critica") risco.value = "vermelho";
                 }
-                return r.json();
-            })
-            .then(() => {
-                alert("Triagem salva!");
-                location.href = "medico.html";
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Erro ao salvar triagem: ' + err.message);
-            });
-        }
 
-        async function carregarAtendimentoTabela() {
-            const pacienteCpf = sessionStorage.getItem('pacienteCpf') || '';
-            if (!pacienteCpf) return;
-
-            const r = await fetch(`/atendimentos?cpf=${encodeURIComponent(pacienteCpf)}`);
-            const list = await r.json();
-
-            const a = Array.isArray(list) ? list[list.length - 1] : null;
-
-            const tbPaciente = document.getElementById('tbPaciente');
-            const tbCpf = document.getElementById('tbCpf');
-            const tbTipo = document.getElementById('tbTipo');
-            const tbImagem = document.getElementById('tbImagem');
-            const imgAtendimento = document.getElementById('imgAtendimento');
-
-            tbPaciente.textContent = a?.pacienteNome || '-';
-            tbCpf.textContent = a?.pacienteCpf || pacienteCpf;
-            tbTipo.textContent = a?.tipo || '-';
-
-            if (a?.imagem) {
-                tbImagem.textContent = 'OK';
-                imgAtendimento.src = `${a.imagem}`;
-            } else {
-                tbImagem.textContent = 'Sem imagem';
-                imgAtendimento.src = '';
+                let badge = document.getElementById("tempBadge");
+                if (!badge) {
+                    badge = document.createElement("div");
+                    badge.id = "tempBadge";
+                    badge.style.marginTop = "8px";
+                    badge.style.fontWeight = "bold";
+                    document.querySelector(".container").appendChild(badge);
+                }
+                badge.textContent = vazia ? `Situação: ${situacao}` : `Situação: ${situacao} (${Number(tempStr).toFixed(1)}°C)`;
+                badge.className = `badge ${classe}`;
             }
 
-            // preenche nome no formulário
-            if (a?.pacienteNome && !document.getElementById('nome').value) {
-                document.getElementById('nome').value = a.pacienteNome;
-            }
-        }
-
-        // Inicializa e atualiza conforme digita
-        temp.addEventListener("input", aplicarCoresPeloCalor);
-
-        // Lista de pacientes vindos do atendimento (fila) + Chamar na TV
-        async function carregarPacientes() {
-            const box = document.getElementById('fila-pacientes');
-            try {
-                const r = await fetch('/atendimentos');
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                const list = await r.json();
-                if (!Array.isArray(list) || !list.length) {
-                    box.innerHTML = '<p style="color:#888;text-align:center;">Nenhum paciente aguardando. Cadastre no atendimento.</p>';
+            function salvar() {
+                const tempStr = (temp.value ?? "").toString().trim();
+                if (tempStr === "") {
+                    alert("Informe a temperatura antes de salvar (ex: 36.8).");
+                    temp.focus();
                     return;
                 }
-                box.innerHTML = '';
-                list.slice().reverse().forEach(a => {
-                    const div = document.createElement('div');
-                    div.className = 'fila-item';
-                    div.innerHTML = `<div><strong></strong><br><small></small></div>`;
-                    div.querySelector('strong').textContent = a.pacienteNome || 'Paciente';
-                    div.querySelector('small').textContent = 'CPF: ' + (a.pacienteCpf || '-');
-                    const btns = document.createElement('div');
-                    btns.style.display = 'flex';
-                    btns.style.gap = '8px';
-                    const b1 = document.createElement('button');
-                    b1.textContent = 'Chamar na TV';
-                    b1.style.cssText = 'background:#17a2b8;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;';
-                    b1.onclick = () => chamarNaTV(a.pacienteCpf);
-                    const b2 = document.createElement('button');
-                    b2.textContent = 'Atender';
-                    b2.style.cssText = 'background:#2563eb;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;';
-                    b2.onclick = () => {
-                        sessionStorage.setItem('pacienteCpf', a.pacienteCpf);
-                        sessionStorage.setItem('pacienteId', a.pacienteId);
-                        sessionStorage.setItem('pacienteNome', a.pacienteNome || '');
-                        carregarAtendimentoTabela();
-                        window.scrollTo({ top: document.getElementById('dadosAtendimento').offsetTop, behavior: 'smooth' });
-                    };
-                    btns.appendChild(b1);
-                    btns.appendChild(b2);
-                    div.appendChild(btns);
-                    box.appendChild(div);
+                aplicarCoresPeloCalor();
+                const pacienteCpf = sessionStorage.getItem('pacienteCpf');
+                const pacienteId = sessionStorage.getItem('pacienteId');
+                if (!pacienteCpf) {
+                    alert("Selecione um paciente da fila (Chamar na TV / atender) antes de salvar.");
+                    return;
+                }
+
+                fetch("/triagem", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        pacienteCpf,
+                        pacienteId: pacienteId ? Number(pacienteId) : undefined,
+                        nome: nome.value,
+                        sintomas: sintomas.value,
+                        temperatura: Number(temp.value),
+                        pas: pas.value === "" ? null : Number(pas.value),
+                        pad: pad.value === "" ? null : Number(pad.value),
+                        fc: fc.value === "" ? null : Number(fc.value),
+                        spo2: spo2.value === "" ? null : Number(spo2.value),
+                        fr: fr.value === "" ? null : Number(fr.value),
+                        dorToracica: dorToracica.checked,
+                        faltaAr: faltaAr.checked,
+                        tontura: tontura.checked,
+                        palpitacoes: palpitacoes.checked,
+                        desmaio: desmaio.checked,
+                        risco: risco.value,
+                        alergia: alergia.value
+                    })
+                })
+                .then(async r => {
+                    if (!r.ok) {
+                        const text = await r.text().catch(() => "");
+                        throw new Error(text || ("HTTP " + r.status));
+                    }
+                    return r.json();
+                })
+                .then(() => {
+                    alert("Triagem salva!");
+                    location.href = "medico.html";
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Erro ao salvar triagem: ' + err.message);
                 });
-            } catch (e) {
-                console.error(e);
-                box.innerHTML = '<p style="color:#c00;text-align:center;">Falha ao carregar fila. Verifique login de triagem.</p>';
             }
-        }
 
-        async function chamarNaTV(pacienteCpf) {
-            const guiche = (document.getElementById('guiche') || {}).value || 'GUICHÊ 01';
-            const r = await fetch('/tv/chamar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pacienteCpf, guiche })
-            });
-            if (!r.ok) {
-                const t = await r.text().catch(() => '');
-                alert('Falha ao chamar na TV: ' + t);
-                return;
+            async function carregarAtendimentoTabela() {
+                const pacienteCpf = sessionStorage.getItem('pacienteCpf') || '';
+                if (!pacienteCpf) return;
+
+                const r = await fetch(`/atendimentos?cpf=${encodeURIComponent(pacienteCpf)}`);
+                const list = await r.json();
+                const a = Array.isArray(list) ? list[list.length - 1] : null;
+
+                const tbPaciente = document.getElementById('tbPaciente');
+                const tbCpf = document.getElementById('tbCpf');
+                const tbTipo = document.getElementById('tbTipo');
+                const tbImagem = document.getElementById('tbImagem');
+                const imgAtendimento = document.getElementById('imgAtendimento');
+
+                tbPaciente.textContent = a?.pacienteNome || '-';
+                tbCpf.textContent = a?.pacienteCpf || pacienteCpf;
+                tbTipo.textContent = a?.tipo || '-';
+
+                if (a?.imagem) {
+                    tbImagem.textContent = 'OK';
+                    imgAtendimento.src = `${a.imagem}`;
+                } else {
+                    tbImagem.textContent = 'Sem imagem';
+                    imgAtendimento.src = '';
+                }
+
+                if (a?.pacienteNome && !nome.value) {
+                    nome.value = a.pacienteNome;
+                }
             }
-            sessionStorage.setItem('pacienteCpf', pacienteCpf);
-            await carregarAtendimentoTabela();
-            alert('Chamado na TV: ' + guiche);
-        }
 
-        window.addEventListener("DOMContentLoaded", () => {
+            async function carregarPacientes() {
+                const box = document.getElementById('fila-pacientes');
+                try {
+                    const r = await fetch('/atendimentos');
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const list = await r.json();
+                    if (!Array.isArray(list) || !list.length) {
+                        box.innerHTML = '<p style="color:#a9c7d8;text-align:center;">Nenhum paciente aguardando. Cadastre no atendimento.</p>';
+                        return;
+                    }
+                    box.innerHTML = '';
+                    list.slice().reverse().forEach(a => {
+                        const div = document.createElement('div');
+                        div.className = 'fila-item';
+                        div.innerHTML = '<div><strong></strong><br><small></small></div>';
+                        div.querySelector('strong').textContent = a.pacienteNome || 'Paciente';
+                        div.querySelector('small').textContent = 'CPF: ' + (a.pacienteCpf || '-');
+                        const btns = document.createElement('div');
+                        btns.style.display = 'flex';
+                        btns.style.gap = '8px';
+                        const b1 = document.createElement('button');
+                        b1.textContent = 'Chamar na TV';
+                        b1.style.cssText = 'background:#17a2b8;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;';
+                        b1.onclick = () => chamarNaTV(a.pacienteCpf);
+                        const b2 = document.createElement('button');
+                        b2.textContent = 'Atender';
+                        b2.style.cssText = 'background:#2563eb;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;';
+                        b2.onclick = () => {
+                            sessionStorage.setItem('pacienteCpf', a.pacienteCpf);
+                            sessionStorage.setItem('pacienteId', a.pacienteId);
+                            sessionStorage.setItem('pacienteNome', a.pacienteNome || '');
+                            carregarAtendimentoTabela();
+                            window.scrollTo({ top: document.getElementById('dadosAtendimento').offsetTop, behavior: 'smooth' });
+                        };
+                        btns.appendChild(b1);
+                        btns.appendChild(b2);
+                        div.appendChild(btns);
+                        box.appendChild(div);
+                    });
+                } catch (e) {
+                    console.error(e);
+                    box.innerHTML = '<p style="color:#ef5d5d;text-align:center;">Falha ao carregar fila. Verifique login de triagem.</p>';
+                }
+            }
+
+            async function chamarNaTV(pacienteCpf) {
+                const guiche = (document.getElementById('guiche') || {}).value || 'GUICHÊ 01';
+                const r = await fetch('/tv/chamar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pacienteCpf, guiche })
+                });
+                if (!r.ok) {
+                    const text = await r.text().catch(() => '');
+                    alert('Falha ao chamar na TV: ' + text);
+                    return;
+                }
+                sessionStorage.setItem('pacienteCpf', pacienteCpf);
+                await carregarAtendimentoTabela();
+                alert('Chamado na TV: ' + guiche);
+            }
+
+            document.getElementById("btnAtualizarFila").addEventListener("click", carregarPacientes);
+            document.getElementById("btnSalvarTriagem").addEventListener("click", salvar);
+            temp.addEventListener("input", aplicarCoresPeloCalor);
+
             aplicarCoresPeloCalor();
             carregarAtendimentoTabela();
             carregarPacientes();

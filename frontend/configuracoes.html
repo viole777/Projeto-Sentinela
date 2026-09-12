@@ -10,6 +10,12 @@ Sentinela.mount("config", `
     <div id="regras"></div>
     <button style="margin-top:8px;" onclick="salvar()">Salvar regras</button>
   </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h3>Gestão de perfis, permissões e setores</h3>
+    <div id="adminOverview"></div>
+  </div>
+
   <div class="card" style="margin-top:12px;"><h3>Privacidade e LGPD</h3>
     <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p></div>
 `).then(async () => {
@@ -17,6 +23,65 @@ Sentinela.mount("config", `
   const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
   document.getElementById("regras").innerHTML = keys.map(k =>
     `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""}> ${k}</label>`).join("");
+
+  const [usuarios, roles, permissoes, setores] = await Promise.all([
+    fetch("/usuarios").then(r => r.json()),
+    fetch("/roles").then(r => r.json()),
+    fetch("/permissoes").then(r => r.json()),
+    fetch("/setores").then(r => r.json())
+  ]);
+
+  const overview = document.getElementById("adminOverview");
+  overview.innerHTML = `
+    <div class="cards">
+      <div class="card">
+        <div class="kpi"><b>${usuarios.length}</b><span>Usuários</span></div>
+      </div>
+      <div class="card">
+        <div class="kpi"><b>${roles.length}</b><span>Perfis</span></div>
+      </div>
+      <div class="card">
+        <div class="kpi"><b>${setores.length}</b><span>Setores</span></div>
+      </div>
+      <div class="card">
+        <div class="kpi"><b>${permissoes.length}</b><span>Permissões</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px;">
+      <div class="card">
+        <h4>Perfis e permissões</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${roles.map(role => `
+            <div style="padding:10px;border:1px solid rgba(143,218,245,.18);border-radius:10px;background:rgba(255,255,255,.02);">
+              <strong>${role.name}</strong>
+              <div style="font-size:12px;opacity:.8;margin-top:6px;">${(role.permissions || []).slice(0, 6).join(", ") || "Sem permissões explícitas"}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Setores ativos</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${(setores || []).map(setor => `<span class="badge normal" style="display:inline-block;">${setor}</span>`).join("") || "<span style=\"opacity:.7\">Nenhum setor cadastrado</span>"}
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Usuários cadastrados</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">
+          ${usuarios.map(user => `
+            <div style="padding:10px;border:1px solid rgba(143,218,245,.18);border-radius:10px;background:rgba(255,255,255,.02);">
+              <div><strong>${user.nome || user.usuario}</strong> <span style="opacity:.7;">(${user.role})</span></div>
+              <div style="font-size:12px;opacity:.8;">${user.email || "Sem e-mail"} • ${user.setor || "Sem setor"}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
   window.salvar = async () => {
     const body = {};
     keys.forEach(k => body[k] = document.getElementById("rg_" + k).checked);

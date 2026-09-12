@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <link rel="stylesheet" href="styles.css">
     <meta charset="UTF-8">
@@ -7,29 +7,34 @@
     <title>Medicações</title>
 </head>
 <body>
-<div class="container">
-    <h2>Medicações</h2>
-
-    <div id="lista"></div>
-</div>
-<script>
-    fetch("/medicacoes")
-    .then(r => r.json())
-    .then(data => {
-        const div = document.getElementById("lista");
-        
-        data.forEach(m => {
-            div.innerHTML += `
-            <div class="card" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 10px;">
-                <b>Paciente:</b> ${m.pacienteNome || m.paciente || "-"}<br>
-                <b>Diagnóstico:</b> ${m.diagnostico || "-"}<br>
-                <b>Medicação:</b> ${m.medicacao || "-"}<br>
-                <small>CPF: ${m.pacienteCpf || "-"}</small>
-            </div>`;
-
+    <script src="layout.js"></script>
+    <script>
+        Sentinela.mount("farmacia", `
+            <div class="container">
+                <h2>Medicações</h2>
+                <div id="lista"></div>
+            </div>
+        `).then(() => {
+            fetch("/medicacoes")
+                .then(r => r.json())
+                .then(data => {
+                    const div = document.getElementById("lista");
+                    data.forEach(m => {
+                        div.innerHTML += `
+                        <div class="card" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 10px;">
+                            <b>Paciente:</b> ${m.pacienteNome || m.paciente || "-"}<br>
+                            <b>Diagnóstico:</b> ${m.diagnostico || "-"}<br>
+                            <b>Medicação:</b> ${m.medicacao || "-"}<br>
+                            <small>CPF: ${m.pacienteCpf || "-"}</small>
+                        </div>`;
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    const div = document.getElementById("lista");
+                    div.innerHTML = '<p>Não foi possível carregar as medicações.</p>';
+                });
         });
-    })
-</script>
+    </script>
 </body>
 </html>
-

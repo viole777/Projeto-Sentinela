@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <link rel="stylesheet" href="styles.css">
     <meta charset="UTF-8">
@@ -7,105 +7,114 @@
     <title>Atendimento</title>
 </head>
 <body>
-    <div class="container">
-    <h2>atendimentos</h2>
+    <script src="layout.js"></script>
+    <script>
+        Sentinela.mount("atendimento", `
+            <div class="container">
+                <h2>Atendimento</h2>
 
-    <input id="nome" placeholder="Nome">
-     <input id="cpf" placeholder="CPF">
-     <input id="dataNascimento" type="date" placeholder="Data de nascimento">
-     <input id="sexo" placeholder="Sexo">
-     <input id="nomeMae" placeholder="Nome da mãe">
-     <input id="estadoCivil" placeholder="Estado civil">
-     <input id="endereco" placeholder="Endereço">
-     <input id="telefone" type="tel" placeholder="Telefone">
-     <input id="email" type="email" placeholder="E-mail">
-     <input id="contatoEmergencia" placeholder="Contato de emergência">
+                <input id="nome" placeholder="Nome">
+                <input id="cpf" placeholder="CPF">
+                <input id="dataNascimento" type="date" placeholder="Data de nascimento">
+                <input id="sexo" placeholder="Sexo">
+                <input id="nomeMae" placeholder="Nome da mãe">
+                <input id="estadoCivil" placeholder="Estado civil">
+                <input id="endereco" placeholder="Endereço">
+                <input id="telefone" type="tel" placeholder="Telefone">
+                <input id="email" type="email" placeholder="E-mail">
+                <input id="contatoEmergencia" placeholder="Contato de emergência">
 
-     <h3 style="margin-top:14px;">Perfil cardiovascular</h3>
-     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <select id="hipertensao"><option value="">Hipertensão...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="diabetes"><option value="">Diabetes...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="dislipidemia"><option value="">Dislipidemia...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="tabagismo"><option value="">Tabagismo...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="sedentarismo"><option value="">Sedentarismo...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="obesidade"><option value="">Obesidade...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="infartoPrevio"><option value="">Infarto prévio...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="avcPrevio"><option value="">AVC prévio...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="arritmias"><option value="">Arritmias...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="insuficienciaCardiaca"><option value="">Insuf. cardíaca...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="doencaCoronariana"><option value="">Dça coronariana...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="marcapasso"><option value="">Marcapasso...</option><option>SIM</option><option>NÃO</option></select>
-      <select id="desfibrilador"><option value="">Desfibrilador (CDI)...</option><option>SIM</option><option>NÃO</option></select>
-     </div>
-     <input id="cirurgiasCardiacas" placeholder="Cirurgias cardíacas prévias" style="margin-top:8px;">
-     <input id="alergias" placeholder="Alergias" style="margin-top:8px;">
-     <input id="medicamentosAtuais" placeholder="Medicamentos atuais" style="margin-top:8px;">
-     <input id="proteses" placeholder="Próteses" style="margin-top:8px;">
-     <input id="historicoFamiliar" placeholder="Histórico familiar cardiovascular" style="margin-top:8px;">
+                <h3 style="margin-top:14px;">Perfil cardiovascular</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <select id="hipertensao"><option value="">Hipertensão...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="diabetes"><option value="">Diabetes...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="dislipidemia"><option value="">Dislipidemia...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="tabagismo"><option value="">Tabagismo...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="sedentarismo"><option value="">Sedentarismo...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="obesidade"><option value="">Obesidade...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="infartoPrevio"><option value="">Infarto prévio...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="avcPrevio"><option value="">AVC prévio...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="arritmias"><option value="">Arritmias...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="insuficienciaCardiaca"><option value="">Insuf. cardíaca...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="doencaCoronariana"><option value="">Dça coronariana...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="marcapasso"><option value="">Marcapasso...</option><option>SIM</option><option>NÃO</option></select>
+                    <select id="desfibrilador"><option value="">Desfibrilador (CDI)...</option><option>SIM</option><option>NÃO</option></select>
+                </div>
+                <input id="cirurgiasCardiacas" placeholder="Cirurgias cardíacas prévias" style="margin-top:8px;">
+                <input id="alergias" placeholder="Alergias" style="margin-top:8px;">
+                <input id="medicamentosAtuais" placeholder="Medicamentos atuais" style="margin-top:8px;">
+                <input id="proteses" placeholder="Próteses" style="margin-top:8px;">
+                <input id="historicoFamiliar" placeholder="Histórico familiar cardiovascular" style="margin-top:8px;">
 
-     <select id="tipo">
-        <option>Convenio</option>
-        <option>Particular</option>
-     </select>
-     <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
-        <label for="foto" style="cursor:pointer; border:1px dashed #ccc; padding:10px; border-radius:10px; text-align:center; background:#f8fafc;">
-            Enviar imagem do paciente (clique aqui)
-        </label>
-        <input type="file" id="foto" accept="image/*" style="display:none;">
-        <img id="fotoPreview" alt="Prévia" style="display:none; max-width: 240px; border-radius:12px; border:1px solid #e5e7eb;" />
-     </div>
+                <select id="tipo">
+                    <option>Convenio</option>
+                    <option>Particular</option>
+                </select>
 
-     <button style="margin-top:12px;" onclick="cadastrar()">Enviar para triagem</button>
+                <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+                    <label for="foto" style="cursor:pointer; border:1px dashed rgba(143,218,245,.35); padding:10px; border-radius:10px; text-align:center; background:rgba(255,255,255,.02);">
+                        Enviar imagem do paciente (clique aqui)
+                    </label>
+                    <input type="file" id="foto" accept="image/*" style="display:none;">
+                    <img id="fotoPreview" alt="Prévia" style="display:none; max-width: 240px; border-radius:12px; border:1px solid rgba(143,218,245,.14);" />
+                </div>
 
-     <script>
-        const fotoEl = document.getElementById('foto');
-        const previewEl = document.getElementById('fotoPreview');
+                <button id="btnEnviarAtendimento" style="margin-top:12px;">Enviar para triagem</button>
+            </div>
+        `).then(() => {
+            const fotoEl = document.getElementById('foto');
+            const previewEl = document.getElementById('fotoPreview');
+            const btnEnviarAtendimento = document.getElementById('btnEnviarAtendimento');
 
-        fotoEl?.addEventListener('change', () => {
-            const file = fotoEl.files && fotoEl.files[0];
-            if (!file) return;
-            const url = URL.createObjectURL(file);
-            previewEl.style.display = 'block';
-            previewEl.src = url;
+            fotoEl?.addEventListener('change', () => {
+                const file = fotoEl.files && fotoEl.files[0];
+                if (!file) return;
+                const url = URL.createObjectURL(file);
+                previewEl.style.display = 'block';
+                previewEl.src = url;
+            });
+
+            function cadastrar() {
+                const form = new FormData();
+                form.append('nome', document.getElementById('nome').value);
+                form.append('cpf', document.getElementById('cpf').value);
+                form.append('tipo', document.getElementById('tipo').value);
+
+                ["dataNascimento","sexo","nomeMae","estadoCivil","endereco","telefone","email","contatoEmergencia","cirurgiasCardiacas","alergias","medicamentosAtuais","proteses","historicoFamiliar"].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && el.value) form.append(id, el.value);
+                });
+
+                ["hipertensao","diabetes","dislipidemia","tabagismo","sedentarismo","obesidade","infartoPrevio","avcPrevio","arritmias","insuficienciaCardiaca","doencaCoronariana","marcapasso","desfibrilador"].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && el.value) form.append(id, el.value);
+                });
+
+                const file = fotoEl.files && fotoEl.files[0];
+                if (file) form.append('foto', file);
+
+                fetch("/atendimento", {
+                    method: "POST",
+                    body: form
+                })
+                .then(r => {
+                    if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.erro || 'Erro no atendimento')));
+                    return r.json();
+                })
+                .then(paciente => {
+                    sessionStorage.setItem('pacienteCpf', paciente.cpf);
+                    sessionStorage.setItem('pacienteId', paciente.id);
+                    alert("Atendimento enviado para triagem");
+                    location.href = "triagem.html";
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Erro ao enviar atendimento: ' + err.message);
+                });
+            }
+
+            btnEnviarAtendimento?.addEventListener('click', cadastrar);
         });
-
-        function cadastrar(){
-            const form = new FormData();
-            form.append('nome', document.getElementById('nome').value);
-            form.append('cpf', document.getElementById('cpf').value);
-            form.append('tipo', document.getElementById('tipo').value);
-            ["dataNascimento","sexo","nomeMae","estadoCivil","endereco","telefone","email","contatoEmergencia","cirurgiasCardiacas","alergias","medicamentosAtuais","proteses","historicoFamiliar"].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && el.value) form.append(id, el.value);
-            });
-            ["hipertensao","diabetes","dislipidemia","tabagismo","sedentarismo","obesidade","infartoPrevio","avcPrevio","arritmias","insuficienciaCardiaca","doencaCoronariana","marcapasso","desfibrilador"].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && el.value) form.append(id, el.value);
-            });
-
-            const file = fotoEl.files && fotoEl.files[0];
-            if (file) form.append('foto', file);
-
-            fetch("/atendimento", {
-                method: "POST",
-                body: form
-            })
-            .then(r => {
-                if(!r.ok) return r.json().then(e => Promise.reject(new Error(e.erro || 'Erro no atendimento')));
-                return r.json();
-            })
-            .then(paciente => {
-                sessionStorage.setItem('pacienteCpf', paciente.cpf);
-                sessionStorage.setItem('pacienteId', paciente.id);
-                alert("Atendimento enviado para triagem");
-                location.href = "triagem.html";
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Erro ao enviar atendimento: ' + err.message);
-            })
-        }
-     </script>
-</div>
+    </script>
 </body>
 </html>

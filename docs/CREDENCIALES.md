@@ -6,26 +6,28 @@ Este documento lista todos os usuários e senhas do projeto (ambiente de demonst
 
 ---
 
-## 1. Usuários de demonstração (ambiente local / dev)
+## 1. Usuários ativos no ambiente local atual
 
-A persistência atual está em `backend/db.json` (JSON local). Estes são **os únicos**
-usuários criados por padrão:
+A persistência atual está em `backend/db.json` (JSON local). Hoje o arquivo contém
+os usuários abaixo:
 
-| Usuário        | Senha | Cargo (função) | Login aceita…            |
-|----------------|-------|----------------|--------------------------|
-| `atendimento`  | `123` | atendimento    | `atendimento` ou e-mail  |
-| `triagem`      | `123` | triagem        | `triagem` ou e-mail      |
-| `medico`       | `123` | medico         | `medico` ou e-mail       |
+| Usuário        | Senha real                         | Cargo (função) | Observação                                      |
+|----------------|-----------------------------------|----------------|-------------------------------------------------|
+| `admin`        | `123`                             | admin          | perfil administrativo completo                   |
+| `atendimento`  | `123`                             | atendimento    | senha armazenada em texto no JSON local          |
+| `triagem`      | `123`                             | triagem        | senha armazenada como hash `scrypt` no JSON     |
+| `medico`       | `123`                             | medico         | senha armazenada como hash `scrypt` no JSON     |
+| `novo.setor`   | `trocar_no_primeiro_acesso`        | triagem        | usuário criado pela UI, com `setor = UTI`       |
 
 ```text
 URL:       http://localhost:3000
 Tela:      index.html (login principal)
 ```
 
-> O login atual aceita tanto o **usuário** (`medico`) como o **e-mail
-> institucional** (`medico@hospital.com`), e valida a senha por `scrypt`
-> (em produção). O usuário **nunca escolhe seu perfil** no login: o cargo e
-> as permissões vêm da conta.
+> O login atual aceita o identificador do usuário no campo `usuario` (ex.: `triagem`,
+> `medico`, `atendimento`), e também aceita `email` quando a conta possui esse campo
+> preenchido. O usuário **nunca escolhe seu perfil** no login: o cargo e as permissões
+> vêm da conta.
 
 ---
 
@@ -57,16 +59,17 @@ permissões vive em `backend/src/db.js → ROLE_PERMISSIONS` e no PostgreSQL em
 ## 3. Usuários criados pela UI (primeiro acesso)
 
 Um profissional criado desde `frontend/profissionais.html` (`POST /profissionais`)
-**não tem senha real atribuída**. É criado com:
+**não inicia com uma senha real definida**. O cadastro atual do ambiente local
+criou o usuário abaixo:
 
-```json
-{ "senha": "trocar_no_primeiro_acesso", "mustChangePassword": true }
-```
+| Usuário      | Senha inicial                   | Cargo | Setor | Requisito |
+|--------------|-------------------------------|-------|-------|-----------|
+| `novo.setor` | `trocar_no_primeiro_acesso`    | triagem | UTI | deve trocar a senha na primeira entrada |
 
 Ao entrar pela primeira vez o sistema retorna `403 primeiro_acesso` e
 redireciona a `primeiro-acesso.html`, onde o usuário **define sua própria senha**
-(mínimo 6 caracteres). Não existe uma senha padrão para estas contas: a senha
-é definida pelo próprio profissional.
+(mínimo 6 caracteres). Não existe uma senha padrão permanente para estas contas:
+a senha é definida pelo próprio profissional.
 
 ---
 

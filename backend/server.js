@@ -411,10 +411,15 @@ app.post("/login", async (req, res) => {
         return res.status(401).json({ erro: "Login inválido" });
     }
 
-    const user = db.usuarios.find(u =>
-        String(u.email || u.usuario || "").trim().toLowerCase() === identificador &&
-        passwordMatches(senhaEnviada, u.senha)
-    );
+    const user = db.usuarios.find(u => {
+        const candidates = [
+            String(u.email || ""),
+            String(u.usuario || ""),
+            String(u.id || "")
+        ].map(value => value.trim().toLowerCase());
+
+        return candidates.includes(identificador) && passwordMatches(senhaEnviada, u.senha);
+    });
 
     if (!user) return res.status(401).json({ erro: "Login inválido" });
 

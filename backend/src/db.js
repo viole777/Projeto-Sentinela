@@ -82,6 +82,7 @@ function ensureDBShape(db) {
   if (!db.triagens) db.triagens = [];
   if (!db.consultas) db.consultas = [];
   if (!db.atendimentos) db.atendimentos = [];
+  if (!db.atendimentosCasa) db.atendimentosCasa = [];
   if (!db.auditoria) db.auditoria = [];
   // ── Novos módulos (hospital de cardiologia) ──
   if (!db.exames) db.exames = [];
@@ -112,9 +113,27 @@ function seedIfEmpty(db) {
   // Estoque inicial
   if (!db.estoque.length) {
     db.estoque = [
-      { id: 1, medicamento: "Dipirona 500mg", quantidade: 82, minimo: 20, updatedAt: new Date().toISOString() },
-      { id: 2, medicamento: "Varfarina 5mg", quantidade: 7, minimo: 15, altoRisco: true, updatedAt: new Date().toISOString() },
-      { id: 3, medicamento: "Losartana 50mg", quantidade: 60, minimo: 20, updatedAt: new Date().toISOString() }
+      { id: 1, medicamento: "Aspirina 100mg", categoria: "Antiagregantes plaquetários", quantidade: 90, minimo: 30, updatedAt: new Date().toISOString() },
+      { id: 2, medicamento: "Clopidogrel 75mg", categoria: "Antiagregantes plaquetários", quantidade: 56, minimo: 20, updatedAt: new Date().toISOString() },
+      { id: 3, medicamento: "Atorvastatina 20mg", categoria: "Estatinas", quantidade: 80, minimo: 25, updatedAt: new Date().toISOString() },
+      { id: 4, medicamento: "Losartana 50mg", categoria: "Hipertensão / RAAS", quantidade: 84, minimo: 25, updatedAt: new Date().toISOString() },
+      { id: 5, medicamento: "Metoprolol 50mg", categoria: "Betabloqueadores", quantidade: 70, minimo: 25, updatedAt: new Date().toISOString() },
+      { id: 6, medicamento: "Carvedilol 25mg", categoria: "Betabloqueadores", quantidade: 48, minimo: 18, updatedAt: new Date().toISOString() },
+      { id: 7, medicamento: "Enalapril 10mg", categoria: "Hipertensão / RAAS", quantidade: 62, minimo: 20, updatedAt: new Date().toISOString() },
+      { id: 8, medicamento: "Amlodipina 5mg", categoria: "Bloqueadores de canais de cálcio", quantidade: 58, minimo: 20, updatedAt: new Date().toISOString() },
+      { id: 9, medicamento: "Furosemida 40mg", categoria: "Diuréticos", quantidade: 40, minimo: 20, updatedAt: new Date().toISOString() },
+      { id: 10, medicamento: "Spironolactona 25mg", categoria: "Diuréticos", quantidade: 38, minimo: 18, updatedAt: new Date().toISOString() },
+      { id: 11, medicamento: "Digoxina 0,25mg", categoria: "Antiarrítmicos", quantidade: 26, minimo: 10, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 12, medicamento: "Amiodarona 200mg", categoria: "Antiarrítmicos", quantidade: 34, minimo: 12, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 13, medicamento: "Propafenona 150mg", categoria: "Antiarrítmicos", quantidade: 24, minimo: 10, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 14, medicamento: "Nitroglicerina 0,4mg", categoria: "Nitratos", quantidade: 80, minimo: 30, updatedAt: new Date().toISOString() },
+      { id: 15, medicamento: "Isosorbida 5mg", categoria: "Nitratos", quantidade: 42, minimo: 15, updatedAt: new Date().toISOString() },
+      { id: 16, medicamento: "Heparina 5000UI", categoria: "Anticoagulantes", quantidade: 30, minimo: 12, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 17, medicamento: "Enoxaparina 40mg", categoria: "Anticoagulantes", quantidade: 26, minimo: 12, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 18, medicamento: "Varfarina 5mg", categoria: "Anticoagulantes", quantidade: 24, minimo: 12, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 19, medicamento: "Dobutamina 250mg", categoria: "Inotrópicos", quantidade: 10, minimo: 6, altoRisco: true, updatedAt: new Date().toISOString() },
+      { id: 20, medicamento: "Verapamil 40mg", categoria: "Bloqueadores de canais de cálcio", quantidade: 30, minimo: 12, updatedAt: new Date().toISOString() },
+      { id: 21, medicamento: "Diltiazem 60mg", categoria: "Bloqueadores de canais de cálcio", quantidade: 24, minimo: 10, updatedAt: new Date().toISOString() }
     ];
   }
   return db;

@@ -769,6 +769,62 @@ app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico"]), (req
     res.json(list);
 });
 
+app.get("/atendimentos-casa", requireAuth(["atendimento", "recepcao", "medico", "cardiologist", "triagem"]), (req, res) => {
+    const db = readDB();
+    const list = (db.atendimentosCasa || []).slice().reverse();
+    res.json(list);
+});
+
+app.post("/atendimento-casa", requireAuth(["atendimento", "recepcao", "medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const cpf = String(req.body.pacienteCpf || "").replace(/\D/g, "");
+    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+
+    if (!paciente) {
+        return res.status(404).json({ erro: "Paciente não encontrado para o CPF informado" });
+    }
+
+    const endereco = String(req.body.endereco || paciente.perfil?.endereco || "").trim() || "Endereço não informado";
+    const motivo = String(req.body.motivo || "").trim();
+    const observacoes = String(req.body.observacoes || "").trim();
+    const dataAtendimento = String(req.body.dataAtendimento || new Date().toISOString()).slice(0, 16);
+    const status = String(req.body.status || "agendado").trim().toLowerCase() || "agendado";
+
+    const registro = {
+        id: Date.now(),
+        pacienteId: paciente.id,
+        pacienteCpf: paciente.cpf,
+        pacienteNome: paciente.nome,
+        endereco,
+        motivo: motivo || "Atendimento domiciliar agendado",
+        observacoes: observacoes || "Paciente encaminhado para atendimento em casa.",
+        dataAtendimento,
+        status,
+        criadoPor: req.user.usuario,
+        createdAt: new Date().toISOString()
+    };
+
+    db.atendimentosCasa.push(registro);
+    writeDB(db);
+    audit(req, "atendimento_casa_criado", { pacienteCpf: paciente.cpf, status, dataAtendimento });
+    res.json(registro);
+});
+
+app.post("/atendimento-casa/:id/concluir", requireAuth(["atendimento", "recepcao", "medico", "cardiologist"]), (req, res) => {
+    const db = readDB();
+    const registro = (db.atendimentosCasa || []).find(item => Number(item.id) === Number(req.params.id));
+
+    if (!registro) {
+        return res.status(404).json({ erro: "Atendimento domiciliar não encontrado" });
+    }
+
+    registro.status = "concluido";
+    registro.concluidoPor = req.user.usuario;
+    registro.concluidoEm = new Date().toISOString();
+    writeDB(db);
+    audit(req, "atendimento_casa_concluido", { atendimentoId: registro.id, pacienteCpf: registro.pacienteCpf });
+    res.json(registro);
+});
 
 
 //consulta (vincula paciente por cpf, se vier; senão tenta usar pacienteId)
@@ -1164,7 +1220,15 @@ app.post("/farmacia/dispensar", requireAuth(["farmacia", "medico", "cardiologist
 
 app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"]), (req, res) => {
     const db = readDB();
-    res.json((db.estoque || []).map(e => ({ ...e, critico: Number(e.quantidade) <= Number(e.minimo) })));
+    const estoque = (db.estoque || [])
+        .map(e => ({ ...e, categoria: e.categoria || "Outros", critico: Number(e.quantidade) <= Number(e.minimo) }))
+        .sort((a, b) => {
+            const categoria = (a.categoria || '').localeCompare(b.categoria || '');
+            if (categoria !== 0) return categoria;
+            return String(a.medicamento).localeCompare(String(b.medicamento));
+        });
+
+    res.json(estoque);
 });
 
 app.post("/estoque/entrada", requireAuth(["farmacia"]), (req, res) => {

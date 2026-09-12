@@ -23,6 +23,7 @@ window.Sentinela = {
       ]],
       ["Operação", [
         item("atendimento", "atendimento.html", "Atendimento", "appointments.read"),
+        item("casa", "atendimento-casa.html", "Atend. Domiciliar", "appointments.read"),
         item("fila", "fila.html", "Fila", "appointments.read"),
         item("triagem", "triagem.html", "Triagem", "triage.read"),
         item("consulta", "medico.html", "Consultas", "consultations.read"),
@@ -99,7 +100,7 @@ window.Sentinela = {
           '<header class="top">' +
             '<div class="page-meta">' +
               '<div class="page-path">Sistema / ' + (active || 'Sentinela') + '</div>' +
-              '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
+              '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
             '</div>' +
             '<div class="top-search"><input id="buscaGlobal" placeholder="Buscar paciente por nome ou CPF"></div>' +
             '<div class="user-badge">' +

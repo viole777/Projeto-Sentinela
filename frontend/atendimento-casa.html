@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atendimento Domiciliar</title>
+</head>
+<body>
+    <script src="layout.js"></script>
+    <script>
+        Sentinela.mount("casa", `
+            <div class="container">
+                <h2>Atendimento domiciliar</h2>
+
+                <div class="card">
+                    <h3>Agendar atendimento em casa</h3>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label>CPF do paciente</label>
+                            <input id="pacienteCpf" placeholder="Digite o CPF do paciente">
+                        </div>
+                        <div>
+                            <label>Paciente</label>
+                            <input id="pacienteNome" placeholder="Nome do paciente" readonly>
+                        </div>
+                        <div>
+                            <label>Data e hora</label>
+                            <input id="dataAtendimento" type="datetime-local">
+                        </div>
+                        <div>
+                            <label>Status</label>
+                            <select id="status">
+                                <option value="agendado">Agendado</option>
+                                <option value="em_andamento">Em andamento</option>
+                                <option value="concluido">Concluído</option>
+                            </select>
+                        </div>
+                        <div style="grid-column:1 / -1;">
+                            <label>Endereço</label>
+                            <input id="endereco" placeholder="Rua, número, bairro, cidade">
+                        </div>
+                        <div style="grid-column:1 / -1;">
+                            <label>Motivo do atendimento</label>
+                            <input id="motivo" placeholder="Ex.: acompanhamento pós-alta, revisão de sinais vitais, suporte de enfermagem">
+                        </div>
+                        <div style="grid-column:1 / -1;">
+                            <label>Observações</label>
+                            <textarea id="observacoes" rows="3" placeholder="Descreva os cuidados, sinais e orientações do atendimento domiciliar"></textarea>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="btnSalvar">Salvar agendamento</button>
+                        <button id="btnLimpar" class="secondary">Limpar</button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:18px;">
+                    <h3>Atendimentos domiciliares cadastrados</h3>
+                    <div id="listaCasa" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        `).then(async () => {
+            const cpfInput = document.getElementById('pacienteCpf');
+            const nomeInput = document.getElementById('pacienteNome');
+            const enderecoInput = document.getElementById('endereco');
+            const motivoInput = document.getElementById('motivo');
+            const observacoesInput = document.getElementById('observacoes');
+            const dataInput = document.getElementById('dataAtendimento');
+            const statusInput = document.getElementById('status');
+            const listaCasa = document.getElementById('listaCasa');
+
+            function formatarData(data) {
+                if (!data) return '-';
+                return new Date(data).toLocaleString('pt-BR');
+            }
+
+            async function preencherPacientePorCpf() {
+                const cpf = (cpfInput.value || '').replace(/\D/g, '');
+                if (!cpf) {
+                    nomeInput.value = '';
+                    return;
+                }
+
+                const pacientes = await fetch('/pacientes').then(r => r.json());
+                const paciente = pacientes.find(p => String(p.cpf).replace(/\D/g, '') === cpf);
+                if (paciente) {
+                    nomeInput.value = paciente.nome || '';
+                    if (paciente.perfil?.endereco) enderecoInput.value = paciente.perfil.endereco;
+                } else {
+                    nomeInput.value = 'Paciente não encontrado';
+                    enderecoInput.value = '';
+                }
+            }
+
+            async function carregarAgenda() {
+                const itens = await fetch('/atendimentos-casa').then(r => r.json());
+                listaCasa.innerHTML = itens.length
+                    ? `<table class="tbl"><thead><tr><th>Paciente</th><th>Data</th><th>Endereço</th><th>Motivo</th><th>Status</th><th>Ação</th></tr></thead><tbody>` + itens.map(item => `
+                        <tr>
+                            <td>${item.pacienteNome}</td>
+                            <td>${formatarData(item.dataAtendimento || item.createdAt)}</td>
+                            <td>${item.endereco || '-'}</td>
+                            <td>${item.motivo || '-'}</td>
+                            <td>${item.status || 'agendado'}</td>
+                            <td>${item.status === 'concluido' ? '✅ Concluído' : `<button data-id="${item.id}" class="secondary">Concluir</button>`}</td>
+                        </tr>
+                    `).join('') + `</tbody></table>`
+                    : '<p>Nenhum atendimento domiciliar cadastrado.</p>';
+
+                listaCasa.querySelectorAll('button[data-id]').forEach(button => {
+                    button.addEventListener('click', async () => {
+                        const id = button.getAttribute('data-id');
+                        const r = await fetch(`/atendimento-casa/${id}/concluir`, { method: 'POST' });
+                        if (!r.ok) {
+                            alert('Erro ao concluir atendimento domiciliar');
+                            return;
+                        }
+                        carregarAgenda();
+                    });
+                });
+            }
+
+            cpfInput.addEventListener('blur', preencherPacientePorCpf);
+
+            document.getElementById('btnSalvar').addEventListener('click', async () => {
+                const cpf = (cpfInput.value || '').replace(/\D/g, '');
+                if (!cpf) {
+                    alert('Informe o CPF do paciente');
+                    return;
+                }
+
+                const body = {
+                    pacienteCpf: cpf,
+                    endereco: enderecoInput.value,
+                    motivo: motivoInput.value,
+                    observacoes: observacoesInput.value,
+                    dataAtendimento: dataInput.value,
+                    status: statusInput.value
+                };
+
+                const r = await fetch('/atendimento-casa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!r.ok) {
+                    const e = await r.json().catch(() => ({ erro: 'Erro ao salvar atendimento domiciliar' }));
+                    alert(e.erro || 'Erro ao salvar atendimento domiciliar');
+                    return;
+                }
+
+                alert('Atendimento domiciliar registrado com sucesso');
+                document.getElementById('btnLimpar').click();
+                carregarAgenda();
+            });
+
+            document.getElementById('btnLimpar').addEventListener('click', () => {
+                cpfInput.value = '';
+                nomeInput.value = '';
+                enderecoInput.value = '';
+                motivoInput.value = '';
+                observacoesInput.value = '';
+                dataInput.value = '';
+                statusInput.value = 'agendado';
+            });
+
+            carregarAgenda();
+        });
+    </script>
+</body>
+</html>

@@ -19,8 +19,25 @@ Sentinela.mount("estoque", `
   };
   async function carregar() {
     const list = await fetch("/estoque").then(r => r.json());
-    document.getElementById("lista").innerHTML = `<table class="tbl"><thead><tr><th>Medicamento</th><th>Qtd</th><th>Status</th></tr></thead><tbody>` +
-      list.map(e => `<tr><td>${e.medicamento}</td><td>${e.quantidade}</td><td>${e.critico ? (Number(e.quantidade) === 0 ? "🔴 zerado" : "🟠 abaixo do mínimo") : "🟢 ok"}</td></tr>`).join("") + `</tbody></table>`;
+    const grupos = {};
+    list.forEach(item => {
+      const categoria = item.categoria || "Outros";
+      if (!grupos[categoria]) grupos[categoria] = [];
+      grupos[categoria].push(item);
+    });
+
+    document.getElementById("lista").innerHTML = Object.entries(grupos).map(([categoria, itens]) => `
+      <div class="card" style="margin-top:12px;">
+        <h3>${categoria}</h3>
+        <table class="tbl">
+          <thead><tr><th>Medicamento</th><th>Qtd</th><th>Status</th></tr></thead>
+          <tbody>
+            ${itens.map(e => `<tr><td>${e.medicamento}</td><td>${e.quantidade}</td><td>${e.critico ? (Number(e.quantidade) === 0 ? "🔴 zerado" : "🟠 abaixo do mínimo") : "🟢 ok"}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    `).join("");
+
     const c = await fetch("/compras/sugestao").then(r => r.json()).catch(() => ({ itens: [] }));
     document.getElementById("compras").innerHTML = (c.itens || []).map(i => `<div>• ${i.medicamento} — atual ${i.atual}, mínimo ${i.minimo}</div>`).join("") || "<p>Nenhuma necessidade. ✅</p>";
   }

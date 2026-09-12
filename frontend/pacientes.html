@@ -5,29 +5,71 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("pacientes", `
-  <h2>Pacientes</h2>
-  <div style="display:flex;gap:8px;margin-bottom:12px;">
-    <input id="busca" placeholder="🔍 Buscar paciente (nome/CPF)...">
-    <button onclick="location.href='atendimento.html'">+ Novo paciente</button>
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Pacientes</div>
+      <h1>Cadastro e acompanhamento</h1>
+    </div>
+    <button onclick="location.href='atendimento.html'">Novo atendimento</button>
   </div>
-  <div style="display:flex;gap:8px;margin-bottom:12px;" id="filtros">
-    <button data-f="">Todos</button><button data-f="triagem">Em atendimento</button>
-    <button data-f="internado">Internados</button><button data-f="alta">Alta</button>
+
+  <div class="panel">
+    <div class="panel-title">Busca e filtros</div>
+    <div class="toolbar">
+      <input id="busca" placeholder="Buscar paciente por nome ou CPF">
+    </div>
+    <div class="toolbar" id="filtros" style="margin-top:12px;">
+      <button class="secondary" data-f="">Todos</button>
+      <button class="secondary" data-f="triagem">Em atendimento</button>
+      <button class="secondary" data-f="internado">Internados</button>
+      <button class="secondary" data-f="alta">Alta</button>
+    </div>
   </div>
-  <div class="card"><table class="tbl"><thead><tr><th>Nome</th><th>CPF</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+
+  <div class="section">
+    <div class="panel-title">Lista de pacientes</div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>
 `).then(() => {
   let filtro = "";
   document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { filtro = b.dataset.f; carregar(); });
+
   async function carregar() {
     const q = (document.getElementById("busca").value || sessionStorage.getItem("pacienteBusca") || "").trim();
     sessionStorage.removeItem("pacienteBusca");
+
     const list = await fetch("/pacientes?q=" + encodeURIComponent(q)).then(r => r.json());
     const rows = (filtro ? list.filter(p => p.status === filtro) : list);
     const dot = { triagem: "🟡", aguardando_medico: "🟡", em_consulta: "🟠", internado: "🔴", alta: "🟢" };
-    document.getElementById("tb").innerHTML = rows.map(p =>
-      `<tr><td>${p.nome}</td><td>${p.cpf}</td><td>${dot[p.status] || "⚪"} ${p.status || "-"}</td>
-       <td><button onclick="sessionStorage.setItem('pacienteCpf','${p.cpf}');location.href='paciente.html?cpf=${p.cpf}'">Abrir</button></td></tr>`).join("") || "<tr><td colspan=4>Nenhum paciente.</td></tr>";
+
+    document.getElementById("tb").innerHTML = rows.length
+      ? rows.map(p => `
+          <tr>
+            <td>${p.nome}</td>
+            <td>${p.cpf}</td>
+            <td>${dot[p.status] || "⚪"} ${p.status || "-"}</td>
+            <td>
+              <div class="row-actions">
+                <button class="secondary" onclick="sessionStorage.setItem('pacienteCpf','${p.cpf}');location.href='paciente.html?cpf=${p.cpf}'">Abrir</button>
+              </div>
+            </td>
+          </tr>
+        `).join("")
+      : '<tr><td colspan="4"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
   }
+
   document.getElementById("busca").addEventListener("input", carregar);
   window.addEventListener("sentinela:buscar", () => { document.getElementById("busca").value = sessionStorage.getItem("pacienteBusca") || ""; carregar(); });
   const b = sessionStorage.getItem("pacienteBusca"); if (b) document.getElementById("busca").value = b;

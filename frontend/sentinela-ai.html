@@ -5,29 +5,55 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("ai", `
-  <h2>🤖 Sentinela AI</h2><p style="opacity:.75;">Assistente hospitalar — apoio, nunca diagnóstico.</p>
-  <div style="display:flex;gap:8px;margin:12px 0;">
-    <input id="cpf" placeholder="CPF do paciente...">
-    <button onclick="resumir()">Resumir prontuário</button>
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Cardiologia</div>
+      <h1>Resumo clínico assistido</h1>
+    </div>
   </div>
-  <div id="out"></div>
-  <div class="card" style="margin-top:12px;"><h3>Sugestões</h3>
-    • Resumir prontuário<br>• Consultar histórico<br>• Identificar inconsistências<br>• Gerar resumo de atendimento
-    <br><br><small>⚠️ A IA é ferramenta de apoio. Decisões clínicas são do profissional habilitado.</small></div>
+
+  <div class="panel">
+    <div class="panel-title">Consulta de prontuário</div>
+    <div class="toolbar">
+      <input id="cpf" placeholder="CPF do paciente">
+      <button onclick="resumir()">Gerar resumo</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="panel-title">Resultado</div>
+    <div id="out"></div>
+  </div>
 `).then(() => {
   const cpf = sessionStorage.getItem("pacienteCpf");
   if (cpf) document.getElementById("cpf").value = cpf;
+
   window.resumir = async () => {
     const c = document.getElementById("cpf").value.trim();
     if (!c) return alert("Informe o CPF.");
+
     const box = document.getElementById("out");
-    box.innerHTML = "<p>Gerando resumo...</p>";
+    box.innerHTML = '<div class="empty-state">Gerando resumo...</div>';
+
     const r = await fetch("/ia/resumo/" + encodeURIComponent(c));
-    if (!r.ok) { box.innerHTML = "<p>Paciente não encontrado.</p>"; return; }
+    if (!r.ok) { box.innerHTML = '<div class="empty-state">Paciente não encontrado.</div>'; return; }
+
     const d = await r.json();
-    box.innerHTML = `<div class="card" style="border:1px solid rgba(34,197,94,.5);"><b>🤖 Resumo — ${d.pacienteNome}</b><br><br>${d.resumo}<br><br>
-      ${(d.inconsistencias || []).length ? "<b>⚠️ Possíveis inconsistências:</b><br>• " + d.inconsistencias.join("<br>• ") : "✅ Nenhuma inconsistência aparente."}
-      <br><br><small>Fonte: prontuário. ${d.aviso}</small></div>`;
+    box.innerHTML = `
+      <div class="list-item">
+        <div class="meta-row">
+          <strong>Resumo clínico — ${d.pacienteNome}</strong>
+          <span class="meta-chip">${d.pacienteCpf}</span>
+        </div>
+        <div style="margin-top:10px;">${d.resumo}</div>
+        <div style="margin-top:12px;">
+          ${(d.inconsistencias || []).length
+            ? '<div class="meta-row" style="margin-bottom:8px;"><span class="badge alta">Atenção</span></div>' + (d.inconsistencias || []).map(i => `<div>• ${i}</div>`).join("")
+            : '<div class="meta-row"><span class="badge normal">Sem inconsistências</span></div>'}
+        </div>
+        <small style="display:block;margin-top:10px;">${d.aviso}</small>
+      </div>
+    `;
   };
 });
 </script>

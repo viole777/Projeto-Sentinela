@@ -118,8 +118,14 @@ function requireAuth(roles = []) {
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
-        const role = session.role || session.tipo;
-        if (roles.length && !roles.includes(role) && !roles.includes(session.tipo)) {
+        const sessionRole = normalizeRole(session.role || session.tipo);
+        const sessionPerms = Array.isArray(session.permissions) ? session.permissions : permissionsFor(sessionRole);
+        const requestedRoles = roles.map(normalizeRole);
+
+        const hasWildcardPermission = sessionPerms.includes("*");
+        const roleAllowed = requestedRoles.length === 0 || hasWildcardPermission || requestedRoles.includes(sessionRole);
+
+        if (roles.length && !roleAllowed) {
             return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
         }
 

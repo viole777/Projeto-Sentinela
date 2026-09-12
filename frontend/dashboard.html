@@ -5,52 +5,116 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("dashboard", `
-  <h2 id="saudacao">Dashboard</h2>
-  <div id="unidade" style="opacity:.65;font-size:13px;">Unidade Cardiológica</div>
-  <div class="cards" id="kpis"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" id="grid2">
-    <div class="card"><h3>🚨 Alertas</h3><div id="alertas"></div><div style="margin-top:8px;"><a href="alertas.html" style="color:#93c5fd;">Ver central de alertas</a></div></div>
-    <div class="card"><h3>Fila de atendimento</h3><div id="prox"></div><div style="margin-top:8px;"><a href="triagem.html" style="color:#93c5fd;">Ver fila completa</a></div></div>
-    <div class="card"><h3>Indicadores</h3><div id="indic"></div></div>
-    <div class="card"><h3>Internação</h3><div id="inter"></div></div>
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Painel operacional</div>
+      <h1 id="saudacao">Dashboard</h1>
+    </div>
+    <div class="header-meta" id="unidade"></div>
   </div>
-  <div class="card" style="margin-top:12px;"><h3>Atividade recente</h3><div id="ativ"></div></div>
+
+  <div class="panel">
+    <div class="panel-title">Indicadores</div>
+    <div class="panel-grid" id="kpis"></div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-title">Atendimento de hoje</div>
+      <div id="agenda" class="list"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Alertas</div>
+      <div id="alertas" class="list"></div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-title">Fila</div>
+      <div id="fila"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Atividade recente</div>
+      <div id="ativ" class="list"></div>
+    </div>
+  </div>
 `).then(async () => {
   const d = await fetch("/dashboard").then(r => r.json());
   const hora = new Date().getHours();
   const turno = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+
   document.getElementById("saudacao").textContent = `${turno}, ${d.nome}.`;
-  document.getElementById("unidade").textContent = `Unidade Cardiológica · ${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · Perfil ${(d.role || "").toUpperCase()}`;
-  const kpi = (v, l, tone) => `<div class="card kpi" style="${tone === "crit" ? "border:1px solid #ef4444;background:rgba(239,68,68,.08);" : tone === "warn" ? "border:1px solid #f59e0b;" : tone === "ok" ? "border:1px solid rgba(34,197,94,.4);" : ""}"><b>${v}</b>${l}</div>`;
-  const critAlto = (d.criticos || 0) + (d.altos || 0);
+  document.getElementById("unidade").innerHTML = `
+    <div class="meta-row">
+      <span class="meta-chip">Unidade Cardiológica</span>
+      <span>${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</span>
+      <span class="meta-chip">${(d.role || "").toUpperCase()}</span>
+    </div>
+  `;
+
   const c = d.cards || {};
-  let html = "";
-  if (c.pacientes != null) html += kpi(c.pacientes, "Pacientes", "");
-  if (c.espera != null) html += kpi(c.espera, "Em espera", c.espera > 0 ? "warn" : "");
-  if (c.alertas != null) html += kpi(c.alertas, "Alertas", critAlto ? "crit" : "ok");
-  if (c.leitos != null) html += kpi(c.leitos, "Leitos livres", "");
-  if (c.consultas != null) html += kpi(c.consultas, "Consultas hoje", "");
-  if (c.exames != null) html += kpi(c.exames, "Exames pendentes", c.exames > 0 ? "warn" : "");
-  if (c.presc != null) html += kpi(c.presc, "Prescrições", c.presc > 0 ? "warn" : "");
-  if (c.estoque != null) html += kpi(c.estoque, "Estoque crítico", c.estoque > 0 ? "warn" : "ok");
-  document.getElementById("kpis").innerHTML = html;
+  const kpis = [];
+  if (c.pacientes != null) kpis.push([c.pacientes, "Pacientes"]);
+  if (c.espera != null) kpis.push([c.espera, "Em espera"]);
+  if (c.alertas != null) kpis.push([c.alertas, "Alertas"]);
+  if (c.leitos != null) kpis.push([c.leitos, "Leitos livres"]);
+  if (c.consultas != null) kpis.push([c.consultas, "Consultas hoje"]);
+  if (c.exames != null) kpis.push([c.exames, "Exames pendentes"]);
+  if (c.presc != null) kpis.push([c.presc, "Prescrições"]);
+  if (c.estoque != null) kpis.push([c.estoque, "Estoque crítico"]);
+
+  document.getElementById("kpis").innerHTML = kpis.map(([value, label]) => `
+    <div class="kpi">
+      <b>${value}</b>
+      <span>${label}</span>
+    </div>
+  `).join("");
+
+  const fila = d.fila || d.proximos || [];
+  const agenda = fila.slice(0, 6);
+  document.getElementById("agenda").innerHTML = agenda.length
+    ? agenda.map((p, idx) => `
+        <div class="list-item">
+          <strong>${String((idx + 1) * 30).padStart(2, "0")}:00 — ${p.nome}</strong>
+          <small>${p.risco || "Normal"} · ${p.status || "Aguardando"}</small>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Nenhum atendimento agendado.</div>';
+
   const al = d.alertas || [];
   document.getElementById("alertas").innerHTML = al.length
-    ? `<p><b>${al.length} ocorrência(s) precisa(m) de atenção</b><br><small>${d.criticos} crítica(s) · ${d.altos} importante(s)</small></p>` +
-      al.slice(0, 3).map(a => `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);"><b>${a.nivel}</b> — ${a.mensagem}<br><small>${a.pacienteNome || ""}</small></div>`).join("")
-    : `<div style="text-align:center;padding:16px;"><div style="font-size:26px;">🛡️</div><b>Tudo em ordem</b><br><small>Nenhuma ocorrência requer sua atenção. O Sentinela segue monitorando.</small></div>`;
-  const fila = d.fila || d.proximos || [];
-  document.getElementById("prox").innerHTML = fila.length
-    ? fila.slice(0, 5).map(p => `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;"><span>${p.nome}</span><small>${p.risco || "-"}</small></div>`).join("")
-    : `<div style="text-align:center;padding:16px;"><div style="font-size:26px;">✓</div><b>Nenhum paciente aguardando</b><br><small>A fila de atendimento está vazia.</small></div>`;
-  document.getElementById("indic").innerHTML =
-    `<div>Atendimentos hoje: <b>${d.consultasHoje}</b></div><div>Exames pendentes: <b>${d.examesPendentes}</b></div><div>Prescrições pendentes: <b>${d.prescPendentes}</b></div>`;
-  document.getElementById("inter").innerHTML =
-    `<div>Ocupação: <b>${d.ocupacao}%</b></div><div>Leitos livres: <b>${d.leitosLivres}</b></div><div>Internados: <b>${d.internados}</b></div>`;
+    ? al.slice(0, 4).map(a => `
+        <div class="list-item">
+          <div class="meta-row">
+            <span class="badge ${a.nivel === 'crítico' ? 'critica' : a.nivel === 'alto' ? 'alta' : 'info'}">${a.nivel || 'Informação'}</span>
+          </div>
+          <strong>${a.mensagem}</strong>
+          <small>${a.pacienteNome || "Sistema"}</small>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Nenhuma ocorrência pendente.</div>';
+
+  document.getElementById("fila").innerHTML = fila.length
+    ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Paciente</th><th>Prioridade</th><th>Espera</th><th>Status</th></tr></thead><tbody>${fila.slice(0, 6).map(p => `
+        <tr>
+          <td>${p.nome}</td>
+          <td><span class="badge ${p.risco === 'vermelho' ? 'alta' : p.risco === 'amarelo' ? 'febre' : 'normal'}">${p.risco || 'Normal'}</span></td>
+          <td>${p.espera || '-'}</td>
+          <td>${p.status || 'Aguardando'}</td>
+        </tr>
+      `).join("")}</tbody></table></div>`
+    : '<div class="empty-state">Nenhum paciente aguardando.</div>';
+
   const atv = d.atividade || [];
   document.getElementById("ativ").innerHTML = atv.length
-    ? atv.map(e => `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;">${(e.quando || "").slice(11, 16)} — ${e.acao} <small>(${e.usuario})</small></div>`).join("")
-    : `<div style="text-align:center;padding:12px;opacity:.8;">Sem atividade ainda.</div>`;
+    ? atv.slice(0, 6).map(e => `
+        <div class="list-item">
+          <strong>${e.acao}</strong>
+          <small>${(e.quando || '').slice(11, 16)} · ${e.usuario}</small>
+        </div>
+      `).join("")
+    : '<div class="empty-state">Sem atividade recente.</div>';
 });
 </script>
 </body>

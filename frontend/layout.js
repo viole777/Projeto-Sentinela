@@ -1,4 +1,4 @@
-// Layout unico do Sentinela: topbar + sidebar por permissao.
+// Layout unico do Sentinela: sidebar + header operacionais.
 window.Sentinela = {
   async mount(active, contentHTML) {
     let me = null;
@@ -7,69 +7,128 @@ window.Sentinela = {
       if (!r.ok) { location.href = "index.html"; return; }
       me = await r.json();
     } catch (e) { location.href = "index.html"; return; }
+
     const perms = Array.isArray(me.permissions) ? me.permissions : [];
     const can = (p) => perms.includes("*") || perms.includes(p);
-    const item = (id, href, icon, label, perm) => {
+
+    const item = (id, href, label, perm) => {
       if (perm && !can(perm)) return "";
-      return '<a href="' + href + '" class="' + (active === id ? "active" : "") + '">' + icon + ' ' + label + '</a>';
+      return '<a href="' + href + '" class="nav-link ' + (active === id ? "active" : "") + '">' + label + '</a>';
     };
+
+    const groups = [
+      ["Geral", [
+        item("dashboard", "dashboard.html", "Dashboard", "dashboard.read"),
+        item("pacientes", "pacientes.html", "Pacientes", "patients.read")
+      ]],
+      ["Operação", [
+        item("atendimento", "atendimento.html", "Atendimento", "appointments.read"),
+        item("fila", "fila.html", "Fila", "appointments.read"),
+        item("triagem", "triagem.html", "Triagem", "triage.read"),
+        item("consulta", "medico.html", "Consultas", "consultations.read"),
+        item("prontuario", "prontuario.html", "Prontuários", "consultations.read")
+      ]],
+      ["Cardiologia", [
+        item("exames", "exames.html", "Exames", "exams.read"),
+        item("ai", "sentinela-ai.html", "Sentinela AI", "ai.read")
+      ]],
+      ["Farmácia", [
+        item("farmacia", "farmacia.html", "Prescrições", "prescriptions.read"),
+        item("estoque", "estoque.html", "Estoque", "estoque.read")
+      ]],
+      ["Internação", [
+        item("internacao", "internacao.html", "Internações", "internacoes.read"),
+        item("leitos", "leitos.html", "Leitos", "internacoes.read")
+      ]],
+      ["Gestão", [
+        item("alertas", "alertas.html", "Alertas", "alerts.read"),
+        item("safety", "safety-engine.html", "Safety Engine", "alerts.read"),
+        item("relatorios", "relatorios.html", "Relatórios", "reports.read"),
+        item("profissionais", "profissionais.html", "Profissionais", "audit.read"),
+        item("auditoria", "auditoria.html", "Auditoria", "audit.read"),
+        item("config", "configuracoes.html", "Configurações", "dashboard.read")
+      ]]
+    ];
+
+    const navHTML = groups.map(([label, items]) => {
+      const visibleItems = items.filter(Boolean).join("");
+      return visibleItems ? '<div class="nav-group"><div class="nav-label">' + label + '</div>' + visibleItems + '</div>' : "";
+    }).join("");
+
     document.body.innerHTML =
-    '<style>' +
-    '.shell{display:flex;min-height:100vh;background:linear-gradient(180deg,#071b27 0%,#0b2436 100%)}' +
-    '.side{width:252px;padding:20px 14px;background:linear-gradient(180deg,#0a1f2d 0%,#081b28 100%);border-right:1px solid rgba(143,218,245,.15);display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;box-shadow:inset -1px 0 0 rgba(255,255,255,.02)}' +
-    '.side .logo{font-weight:900;letter-spacing:1.4px;font-size:18px;color:#edf6ff;margin:6px 8px 2px;display:flex;align-items:center;gap:8px}' +
-    '.side .sub{font-size:11px;opacity:.75;margin:0 8px 16px;padding-bottom:12px;border-bottom:1px solid rgba(143,218,245,.12);letter-spacing:.12em;text-transform:uppercase;color:#a9c7d8}' +
-    '.side a{display:block;padding:10px 12px;border-radius:12px;color:#eaf4ff;text-decoration:none;font-size:14px;font-weight:600;border:1px solid transparent;transition:transform .15s ease,background .15s ease,border-color .15s ease}' +
-    '.side a:hover{background:rgba(255,255,255,.05);border-color:rgba(143,218,245,.12);transform:translateX(1px)}' +
-    '.side a.active{background:linear-gradient(135deg, rgba(35,168,216,.24), rgba(17,120,168,.34));border-color:rgba(35,168,216,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}' +
-    '.main{flex:1;min-width:0;background:radial-gradient(900px 400px at 80% 0%, rgba(35,168,216,.14), transparent 50%)}' +
-    '.top{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid rgba(143,218,245,.10);position:sticky;top:0;background:rgba(7,27,39,.78);backdrop-filter:blur(12px);z-index:5}' +
-    '.top b{font-size:15px;letter-spacing:.08em;color:#edf6ff}' +
-    '.top input{max-width:320px;background:rgba(9,35,49,.66);border:1px solid rgba(143,218,245,.18);border-radius:12px;padding:10px 12px;color:#edf6ff}' +
-    '.top .sp{flex:1}' +
-    '.content{padding:22px;max-width:1200px}' +
-    '.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}' +
-    '.kpi{text-align:center}.kpi b{font-size:26px;display:block}' +
-    'table.tbl{width:100%;border-collapse:collapse;font-size:14px}' +
-    'table.tbl th,table.tbl td{padding:10px 12px;border-bottom:1px solid rgba(143,218,245,.10);text-align:left}' +
-    '@media(max-width:860px){.side{position:static;width:100%;height:auto;display:block;padding-bottom:10px} .shell{display:block}.top{flex-wrap:wrap}.top input{max-width:none;width:100%}}' +
-    '</style>' +
-    '<div class="shell"><nav class="side">' +
-    '<div class="logo">&#10084;&#65039; SENTINELA</div><div class="sub">Hospital de Cardiologia</div>' +
-    item("dashboard","dashboard.html","&#127968;","Dashboard","dashboard.read") +
-    item("pacientes","pacientes.html","&#128101;","Pacientes","patients.read") +
-    item("atendimento","atendimento.html","&#128657;","Atendimento","appointments.read") +
-    item("fila","fila.html","&#128203;","Fila","appointments.read") +
-    item("triagem","triagem.html","&#129657;","Triagem","triage.read") +
-    item("consulta","medico.html","&#10084;&#65039;","Cardiologia","consultations.read") +
-    item("prontuario","prontuario.html","&#128214;","Prontuarios","consultations.read") +
-    item("exames","exames.html","&#129514;","Exames","exams.read") +
-    item("farmacia","farmacia.html","&#128138;","Farmacia","prescriptions.read") +
-    item("estoque","estoque.html","&#128230;","Estoque","estoque.read") +
-    item("internacao","internacao.html","&#128719;","Internacao","internacoes.read") +
-    item("leitos","leitos.html","&#128716;","Leitos","internacoes.read") +
-    item("alertas","alertas.html","&#128680;","Alertas","alerts.read") +
-    item("safety","safety-engine.html","&#128737;","Safety Engine","alerts.read") +
-    item("ai","sentinela-ai.html","&#129302;","Sentinela AI","ai.read") +
-    item("relatorios","relatorios.html","&#128202;","Relatorios","reports.read") +
-    item("profissionais","profissionais.html","&#128105;&#8205;&#9877;&#65039;","Profissionais","audit.read") +
-    item("auditoria","auditoria.html","&#128272;","Auditoria","audit.read") +
-    item("config","configuracoes.html","&#9881;&#65039;","Configuracoes","dashboard.read") +
-    '<div style="flex:1"></div><a href="#" id="btnSair">&#128682; Sair</a></nav>' +
-    '<div class="main"><div class="top"><b>&#10084;&#65039; SENTINELA</b>' +
-    '<input id="buscaGlobal" placeholder="Buscar paciente (nome/CPF)...">' +
-    '<div class="sp"></div><span>&#128276;</span><span>\uD83D\uDC64 ' + (me.nome || me.usuario) + ' \u00B7 ' + (me.role || "").toUpperCase() + '</span></div>' +
-    '<div class="content" id="app"></div></div></div>';
+      '<style>' +
+      '.shell{display:flex;min-height:100vh;background:var(--bg);color:var(--text)}' +
+      '.side{width:240px;background:#f7f9fb;border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}' +
+      '.brand{display:flex;align-items:center;gap:10px;padding:8px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}' +
+      '.brand-mark{width:28px;height:28px;border-radius:4px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}' +
+      '.brand-name{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--text)}' +
+      '.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
+      '.nav-group{margin-bottom:12px}' +
+      '.nav-label{padding:8px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}' +
+      '.nav-link{display:block;padding:8px 10px;border-radius:4px;color:var(--text);font-size:14px;border:1px solid transparent;}' +
+      '.nav-link:hover{background:#edf3f8;border-color:var(--border)}' +
+      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#cfe0f6;font-weight:700}' +
+      '.nav-spacer{flex:1}' +
+      '.nav-logout{display:block;padding:8px 10px;border-radius:4px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
+      '.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}' +
+      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:#f7f9fb;position:sticky;top:0;z-index:5}' +
+      '.page-meta{flex:1;min-width:0}' +
+      '.page-path{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:700}' +
+      '.page-title{font-size:18px;font-weight:800;color:var(--text);margin-top:2px}' +
+      '.top-search{max-width:360px;width:100%}' +
+      '.top-search input{background:#fff;border:1px solid var(--border);border-radius:4px;padding:9px 10px;color:var(--text)}' +
+      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:#fff}' +
+      '.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}' +
+      '.user-text{display:flex;flex-direction:column;gap:2px;line-height:1.1}' +
+      '.user-name{font-size:13px;font-weight:700}' +
+      '.user-role{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
+      '.content{padding:22px;max-width:1280px;width:100%;margin:0 auto}' +
+      '@media(max-width:860px){.shell{display:block}.side{position:static;width:100%;height:auto}.top{flex-wrap:wrap}.top-search{max-width:none}.content{padding:16px}}' +
+      '</style>' +
+      '<div class="shell">' +
+        '<aside class="side">' +
+          '<div class="brand">' +
+            '<div class="brand-mark">S</div>' +
+            '<div><div class="brand-name">SENTINELA</div><div class="brand-sub">Cardiologia</div></div>' +
+          '</div>' +
+          navHTML +
+          '<div class="nav-spacer"></div>' +
+          '<a href="#" class="nav-logout" id="btnSair">Sair</a>' +
+        '</aside>' +
+        '<div class="main">' +
+          '<header class="top">' +
+            '<div class="page-meta">' +
+              '<div class="page-path">Sistema / ' + (active || 'Sentinela') + '</div>' +
+              '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
+            '</div>' +
+            '<div class="top-search"><input id="buscaGlobal" placeholder="Buscar paciente por nome ou CPF"></div>' +
+            '<div class="user-badge">' +
+              '<div class="user-avatar">' + ((me.nome || me.usuario || 'U').charAt(0).toUpperCase()) + '</div>' +
+              '<div class="user-text"><span class="user-name">' + (me.nome || me.usuario) + '</span><span class="user-role">' + (me.role || '').toUpperCase() + '</span></div>' +
+            '</div>' +
+          '</header>' +
+          '<main class="content" id="app"></main>' +
+        '</div>' +
+      '</div>';
+
     document.getElementById("app").innerHTML = contentHTML;
-    document.getElementById("btnSair").onclick = () => { fetch("/logout", { method: "POST" }).then(() => location.href = "index.html"); return false; };
+
+    document.getElementById("btnSair").onclick = () => {
+      fetch("/logout", { method: "POST" }).then(() => location.href = "index.html");
+      return false;
+    };
+
     const busca = document.getElementById("buscaGlobal");
-    if (busca) busca.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && busca.value.trim()) {
-        sessionStorage.setItem("pacienteBusca", busca.value.trim());
-        if (active !== "pacientes") location.href = "pacientes.html";
-        else window.dispatchEvent(new Event("sentinela:buscar"));
-      }
-    });
+    if (busca) {
+      busca.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && busca.value.trim()) {
+          sessionStorage.setItem("pacienteBusca", busca.value.trim());
+          if (active !== "pacientes") location.href = "pacientes.html";
+          else window.dispatchEvent(new Event("sentinela:buscar"));
+        }
+      });
+    }
+
     window.Sentinela.me = me;
   },
   fmtDate(iso) { try { return new Date(iso).toLocaleString("pt-BR"); } catch (e) { return iso || "-"; } }

@@ -5,14 +5,25 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("safety", `
-  <h2>Safety Engine</h2>
-  <p style="opacity:.75;">Dados do paciente → Exames/Histórico/Medicação → Safety Engine → Normal / Alerta → Continuar / Revisar. A decisão é sempre do profissional.</p>
-  <div class="card">
-    <h3>Regras ativas</h3>
-    <div id="regras"></div>
-    <button id="salvarRegras" style="margin-top:12px;">Salvar regras</button>
+  <div class="page-header">
+    <div>
+      <div class="eyebrow">Segurança</div>
+      <h1>Safety Engine</h1>
+    </div>
   </div>
-  <div class="card" style="margin-top:12px;"><h3>Ocorrências em aberto</h3><div id="hist"></div></div>
+
+  <div class="panel">
+    <div class="panel-title">Regras ativas</div>
+    <div id="regras"></div>
+    <div class="row-actions" style="margin-top:12px;">
+      <button id="salvarRegras">Salvar regras</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="panel-title">Ocorrências em aberto</div>
+    <div id="hist" class="list"></div>
+  </div>
 `).then(async () => {
   const r = await fetch("/safety/regras").then(r => r.json());
   const rules = (r && typeof r === "object") ? r : {};
@@ -21,11 +32,11 @@ Sentinela.mount("safety", `
   const regrasEl = document.getElementById("regras");
   function renderRules() {
     regrasEl.innerHTML = ruleKeys.map((key) => `
-      <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+      <div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <span>${key}</span>
         <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""}>
-      </label>
-    `).join("") || "<p>Sem regras configuradas.</p>";
+      </div>
+    `).join("") || "<div class=\"empty-state\">Sem regras configuradas.</div>";
   }
 
   renderRules();
@@ -55,11 +66,15 @@ Sentinela.mount("safety", `
 
   const h = await fetch("/alertas?abertos=1").then(r => r.json());
   document.getElementById("hist").innerHTML = (h || []).slice(0, 20).map(a => `
-    <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">
-      <b>[${a.nivel}] ${a.regra}</b> — ${a.mensagem}
-      <small>(${a.pacienteNome || ""} · ${a.pacienteCpf || "-"})</small>
+    <div class="list-item">
+      <div class="meta-row">
+        <span class="badge ${a.nivel === "CRITICO" ? "critica" : a.nivel === "ALTO" ? "alta" : "info"}">${a.nivel}</span>
+        <span class="meta-chip">${a.regra}</span>
+      </div>
+      <strong>${a.mensagem}</strong>
+      <small>${a.pacienteNome || ""} · ${a.pacienteCpf || "-"}</small>
     </div>
-  `).join("") || "<p>Sem ocorrências em aberto.</p>";
+  `).join("") || "<div class=\"empty-state\">Sem ocorrências em aberto.</div>";
 });
 </script>
 </body>

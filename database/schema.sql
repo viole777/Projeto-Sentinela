@@ -122,6 +122,33 @@ CREATE TABLE IF NOT EXISTS exam_results (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS atendimentos_casa (
+  id SERIAL PRIMARY KEY,
+  patient_cpf TEXT REFERENCES patients(cpf),
+  patient_name TEXT,
+  endereco TEXT,
+  motivo TEXT,
+  observacoes TEXT,
+  data_atendimento TEXT,
+  status TEXT DEFAULT 'agendado',
+  criado_por TEXT,
+  concluido_por TEXT,
+  concluido_em TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tv_calls (
+  id BIGINT PRIMARY KEY,
+  patient_cpf TEXT,
+  patient_name TEXT,
+  guiche TEXT,
+  local_type TEXT,
+  local_number TEXT,
+  called_at TIMESTAMPTZ DEFAULT NOW(),
+  called_by TEXT,
+  is_current BOOLEAN DEFAULT FALSE
+);
+
 CREATE TABLE IF NOT EXISTS medications (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,

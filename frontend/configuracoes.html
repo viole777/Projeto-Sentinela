@@ -53,7 +53,7 @@ Sentinela.mount("config", `
         <h4>Perfis e permissões</h4>
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${roles.map(role => `
-            <div style="padding:10px;border:1px solid rgba(143,218,245,.18);border-radius:10px;background:rgba(255,255,255,.02);">
+            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
               <strong>${role.name}</strong>
               <div style="font-size:12px;opacity:.8;margin-top:6px;">${(role.permissions || []).slice(0, 6).join(", ") || "Sem permissões explícitas"}</div>
             </div>
@@ -72,7 +72,7 @@ Sentinela.mount("config", `
         <h4>Usuários cadastrados</h4>
         <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">
           ${usuarios.map(user => `
-            <div style="padding:10px;border:1px solid rgba(143,218,245,.18);border-radius:10px;background:rgba(255,255,255,.02);">
+            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
               <div><strong>${user.nome || user.usuario}</strong> <span style="opacity:.7;">(${user.role})</span></div>
               <div style="font-size:12px;opacity:.8;">${user.email || "Sem e-mail"} • ${user.setor || "Sem setor"}</div>
             </div>

@@ -29,8 +29,8 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
-// camada de persistência (db.json) reutilizada
-const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool } = require("./src/db");
+// camada de persistência unificada (JSON em dev / PostgreSQL em produção)
+const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
 
 const sessions = new Map();
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -1556,7 +1556,16 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Porta ${PORT}`);
-});
+// Com DATABASE_URL definido, hidrata o estado a partir do Postgres ANTES de
+// aceitar requisições — assim readDB() (síncrono) devolve dados reais.
+hydrate()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Porta ${PORT} · storage=${store.backend()}`);
+        });
+    })
+    .catch((err) => {
+        console.error("Falha ao preparar o armazenamento:", err.message);
+        process.exit(1);
+    });
 

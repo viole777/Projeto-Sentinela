@@ -1,26 +1,38 @@
-// Migração: JSON atual (backend/db.json) → PostgreSQL (Render).
+// Migração: JSON atual (backend/db.json) → PostgreSQL (Render/Supabase).
 // Uso: DATABASE_URL=postgres://... node database/migrate-json-to-postgres.js
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const { resolveConnectionString, sslFromEnv } = require('../backend/src/config/database');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
+
+function sslConfig() {
+  const sslMode = String(process.env.PGSSL || process.env.PGSSLMODE || '').toLowerCase();
+  return sslMode === 'disable' || sslMode === 'allow' ? false : { rejectUnauthorized: false };
+}
 
 async function main() {
   if (!process.env.DATABASE_URL) {
-    console.error('Defina DATABASE_URL primeiro.');
+    console.error('Defina DATABASE_URL primeiro (ex.: DATABASE_URL=postgres://... node database/migrate-json-to-postgres.js).');
     process.exit(1);
   }
   const pool = new Pool({
-    connectionString: resolveConnectionString(process.env.DATABASE_URL),
-    ssl: sslFromEnv()
+    connectionString: process.env.DATABASE_URL,
+    ssl: sslConfig()
   });
-  const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
-  const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 
+  // Garante que o esquema existe antes de migrar (idempotente).
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   const schema2 = fs.readFileSync(path.join(__dirname, 'schema2.sql'), 'utf8');
   const seeds = fs.readFileSync(path.join(__dirname, 'seeds.sql'), 'utf8');
   await pool.query(schema + '\n' + schema2 + '\n' + seeds);
+
+  const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
+  if (!fs.existsSync(dbPath)) {
+    console.log('backend/db.json não existe; nada a migrar.');
+    await pool.end();
+    return;
+  }
+  const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 
   for (const u of db.usuarios || []) {
     const role = u.role || u.tipo || 'atendimento';
@@ -100,6 +112,71 @@ async function main() {
 
   if (db.safetyRules) {
     await pool.query(`INSERT INTO safety_rules (rules) VALUES ($1)`, [JSON.stringify(db.safetyRules)]);
+  }
+
+  // Leitos (beds) — vincula a ala (ward) e espelha status do db.json.
+  for (const b of db.leitos || []) {
+    const wardName = b.ala || 'CARDIOLOGIA';
+    let ward = (await pool.query(`SELECT id FROM wards WHERE name = $1`, [wardName])).rows[0];
+    if (!ward) {
+      ward = (await pool.query(`INSERT INTO wards (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id`, [wardName])).rows[0];
+    }
+    await pool.query(
+      `INSERT INTO beds (code, ward_id, status, patient_cpf, patient_name)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (code) DO UPDATE SET ward_id = EXCLUDED.ward_id, status = EXCLUDED.status,
+         patient_cpf = EXCLUDED.patient_cpf, patient_name = EXCLUDED.patient_name`,
+      [String(b.id), ward ? ward.id : null, b.status === 'livre' ? 'free' : 'occupied', b.pacienteCpf || null, b.pacienteNome || null]
+    );
+  }
+
+  // Internações.
+  for (const h of db.internacoes || []) {
+    await pool.query(
+      `INSERT INTO hospitalizations (patient_cpf, patient_name, bed_code, reason, doctor, admitted_at, discharged_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [String(h.pacienteCpf), h.pacienteNome || null, h.leito || null, h.motivo || null,
+        h.medicoResponsavel || h.doc || null, h.entradaEm ? new Date(h.entradaEm).toISOString() : null,
+        h.altaEm ? new Date(h.altaEm).toISOString() : null]
+    );
+  }
+
+  // Movimentações de estoque (vinculadas ao inventory pelo nome).
+  for (const m of db.movimentacoes || []) {
+    const inv = (await pool.query(`SELECT id FROM inventory WHERE name = $1`, [m.medicamento])).rows[0];
+    if (!inv) continue;
+    await pool.query(
+      `INSERT INTO inventory_movements (inventory_id, kind, qty, created_by) VALUES ($1,$2,$3,$4)`,
+      [inv.id, m.tipo || 'entrada', Number(m.qtd) || 0, m.por || null]
+    );
+  }
+
+  // Atendimentos domiciliares (tabela nova).
+  for (const c of db.atendimentosCasa || []) {
+    await pool.query(
+      `INSERT INTO atendimentos_casa (patient_cpf, patient_name, endereco, motivo, observacoes, data_atendimento, status, criado_por, concluido_por, concluido_em, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [String(c.pacienteCpf), c.pacienteNome || null, c.endereco || null, c.motivo || null,
+        c.observacoes || null, c.dataAtendimento || null, c.status || 'agendado',
+        c.criadoPor || null, c.concluidoPor || null,
+        c.concluidoEm ? new Date(c.concluidoEm).toISOString() : null,
+        c.createdAt ? new Date(c.createdAt).toISOString() : null]
+    );
+  }
+
+  // TV / chamada de guichê.
+  const tvHistory = db.tvHistorico || [];
+  for (let i = 0; i < tvHistory.length; i++) {
+    const call = tvHistory[i];
+    await pool.query(
+      `INSERT INTO tv_calls (id, patient_cpf, patient_name, guiche, local_type, local_number, called_at, called_by, is_current)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO NOTHING`,
+      [Number(call.id), call.pacienteCpf || null, call.paciente || call.pacienteNome || null,
+        call.guiche || null, call.localType || call.guiche || null, call.localNumber || call.guiche || null,
+        call.quando ? new Date(call.quando).toISOString() : null, call.chamadoPor || null,
+        i === 0]
+    );
   }
 
   console.log('Migração concluída.');

@@ -17,6 +17,31 @@ INSERT INTO permissions (name) VALUES
   ('ai.read'), ('audit.read'), ('reports.read')
 ON CONFLICT (name) DO NOTHING;
 
+-- role_permissions: mesmo mapa do ROLE_PERMISSIONS em backend/src/db.js
+-- (admin recebe todas; os demais recebem exatamente as permissões do cargo).
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r JOIN permissions p ON
+  (r.name = 'admin') OR
+  (r.name IN ('cardiologist', 'medico') AND p.name IN (
+    'dashboard.read','patients.read','patients.write','appointments.read','triage.read',
+    'consultations.read','consultations.write','exams.read','exams.write',
+    'prescriptions.read','prescriptions.write','alerts.read','alerts.resolve',
+    'ai.read','audit.read','reports.read')) OR
+  (r.name = 'enfermagem' AND p.name IN (
+    'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
+    'internacoes.read','internacoes.write','exams.read','alerts.read')) OR
+  (r.name = 'triagem' AND p.name IN (
+    'dashboard.read','patients.read','appointments.read','triage.read','triage.write','alerts.read')) OR
+  (r.name = 'farmacia' AND p.name IN (
+    'dashboard.read','patients.read','prescriptions.read','prescriptions.dispense',
+    'estoque.read','estoque.write','alerts.read')) OR
+  (r.name IN ('atendimento','recepcao') AND p.name IN (
+    'dashboard.read','patients.read','patients.write','appointments.read','appointments.write')) OR
+  (r.name = 'direcao' AND p.name IN (
+    'dashboard.read','reports.read','audit.read','patients.read','alerts.read'))
+ON CONFLICT DO NOTHING;
+
 INSERT INTO wards (name) VALUES ('CARDIOLOGIA'), ('UTI CARDIOVASCULAR')
 ON CONFLICT (name) DO NOTHING;
 

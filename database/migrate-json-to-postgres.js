@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const { resolveConnectionString, sslFromEnv } = require('../backend/src/config/database');
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -10,8 +11,8 @@ async function main() {
     process.exit(1);
   }
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false }
+    connectionString: resolveConnectionString(process.env.DATABASE_URL),
+    ssl: sslFromEnv()
   });
   const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
   const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));

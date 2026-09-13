@@ -7,18 +7,7 @@ const DB_FILE = path.join(__dirname, '..', 'db.json');
 // Local/dev: JSON (db.json). Produção/Render: PostgreSQL via DATABASE_URL.
 // Toda rota usa store.* — nunca acessa o JSON diretamente.
 // Isso elimina o "Frankenstein de 8MB" e o filesystem efêmero do Render Free.
-let pgPool = null;
-function getPool() {
-  if (!process.env.DATABASE_URL) return null;
-  if (pgPool) return pgPool;
-  const { Pool } = require('pg');
-  pgPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false }
-  });
-  return pgPool;
-}
-function usingPostgres() { return !!process.env.DATABASE_URL; }
+const { getPool, usingPostgres, describeDatabaseUrl, testDatabaseConnection } = require('./config/database');
 
 // ── RBAC: papéis → permissões (o usuário NÃO escolhe o cargo no login) ──
 const ROLE_PERMISSIONS = {
@@ -167,17 +156,7 @@ function readAllSync() { return readDB(); }
 // ── STORE: API única usada por todas as rotas ──
 // JSON (dev) ou Postgres (Render, via DATABASE_URL). Migração:
 //   DATABASE_URL=... node database/migrate-json-to-postgres.js
-function getPool() {
-  if (!process.env.DATABASE_URL) return null;
-  if (pgPool) return pgPool;
-  const { Pool } = require('pg');
-  pgPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false }
-  });
-  return pgPool;
-}
-function usingPostgres() { return !!process.env.DATABASE_URL; }
+// getPool/usingPostgres vêm de ./config/database (parsing validado).
 
 const store = {
   backend() { return usingPostgres() ? 'postgres' : 'json'; },
@@ -217,5 +196,5 @@ const store = {
   }
 };
 
-module.exports = { readDB, writeDB, readAllSync, ROLE_PERMISSIONS, store, usingPostgres, getPool };
+module.exports = { readDB, writeDB, readAllSync, ROLE_PERMISSIONS, store, usingPostgres, getPool, describeDatabaseUrl, testDatabaseConnection };
 

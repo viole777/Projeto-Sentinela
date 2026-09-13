@@ -30,7 +30,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 // camada de persistência (db.json) reutilizada
-const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool } = require("./src/db");
+const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, describeDatabaseUrl } = require("./src/db");
 
 const sessions = new Map();
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -1540,23 +1540,19 @@ app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) =>
 
 app.get("/health", async (req, res) => {
     if (!usingPostgres()) {
-        return res.status(503).json({ status: "error", database: "disconnected", reason: "DATABASE_URL nao configurado no ambiente" });
+        return res.status(503).json({ status: "error", database: "disconnected" });
     }
 
     try {
+        const details = describeDatabaseUrl(process.env.DATABASE_URL);
+        console.log(`[health] conectando: ${details.host}:${details.port}/${details.database}`);
         const pool = getPool();
         await pool.query("SELECT 1");
+        console.log("[health] database connected");
         return res.status(200).json({ status: "ok", database: "connected" });
     } catch (error) {
-        let host = undefined;
-        try { host = new URL(process.env.DATABASE_URL).host; } catch (_) { host = "(DATABASE_URL invalida - conferir percent-encoding)"; }
-        return res.status(503).json({
-            status: "error",
-            database: "disconnected",
-            reason: String((error && error.message) || error),
-            code: (error && error.code) || undefined,
-            host
-        });
+        console.log("[health] database disconnected: " + String((error && error.message) || error));
+        return res.status(503).json({ status: "error", database: "disconnected" });
     }
 });
 

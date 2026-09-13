@@ -744,6 +744,50 @@
         "backend": "json"
       },
       "ip": "::1"
+    },
+    {
+      "id": 1789318607767,
+      "quando": "2026-09-13T16:56:46.784Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "login",
+      "detalhes": {
+        "role": "admin"
+      }
+    },
+    {
+      "id": 1789318607794,
+      "quando": "2026-09-13T16:56:46.806Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "tema_atualizado",
+      "detalhes": {
+        "tema": "dark"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789318607385,
+      "quando": "2026-09-13T16:56:46.818Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "tema_atualizado",
+      "detalhes": {
+        "tema": "light"
+      },
+      "ip": "::1"
+    },
+    {
+      "id": 1789318606872,
+      "quando": "2026-09-13T16:56:46.823Z",
+      "usuario": "admin",
+      "perfil": "admin",
+      "acao": "dashboard",
+      "detalhes": {
+        "role": "admin",
+        "backend": "json"
+      },
+      "ip": "::1"
     }
   ],
   "exames": [],

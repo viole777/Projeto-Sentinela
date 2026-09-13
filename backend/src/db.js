@@ -7,7 +7,7 @@ const DB_FILE = path.join(__dirname, '..', 'db.json');
 // Local/dev: JSON (db.json). Produção/Render: PostgreSQL via DATABASE_URL.
 // Toda rota usa store.* — nunca acessa o JSON diretamente.
 // Isso elimina o "Frankenstein de 8MB" e o filesystem efêmero do Render Free.
-const { getPool, usingPostgres, describeDatabaseUrl, testDatabaseConnection } = require('./config/database');
+const { getPool, usingPostgres } = require('./config/database');
 
 // ── RBAC: papéis → permissões (o usuário NÃO escolhe o cargo no login) ──
 const ROLE_PERMISSIONS = {
@@ -196,5 +196,5 @@ const store = {
   }
 };
 
-module.exports = { readDB, writeDB, readAllSync, ROLE_PERMISSIONS, store, usingPostgres, getPool, describeDatabaseUrl, testDatabaseConnection };
+module.exports = { readDB, writeDB, readAllSync, ROLE_PERMISSIONS, store, usingPostgres, getPool };
 

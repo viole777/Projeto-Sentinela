@@ -1540,7 +1540,7 @@ app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) =>
 
 app.get("/health", async (req, res) => {
     if (!usingPostgres()) {
-        return res.status(503).json({ status: "error", database: "disconnected" });
+        return res.status(503).json({ status: "error", database: "disconnected", reason: "DATABASE_URL nao configurado no ambiente" });
     }
 
     try {
@@ -1548,7 +1548,15 @@ app.get("/health", async (req, res) => {
         await pool.query("SELECT 1");
         return res.status(200).json({ status: "ok", database: "connected" });
     } catch (error) {
-        return res.status(503).json({ status: "error", database: "disconnected" });
+        let host = undefined;
+        try { host = new URL(process.env.DATABASE_URL).host; } catch (_) { host = "(DATABASE_URL invalida - conferir percent-encoding)"; }
+        return res.status(503).json({
+            status: "error",
+            database: "disconnected",
+            reason: String((error && error.message) || error),
+            code: (error && error.code) || undefined,
+            host
+        });
     }
 });
 

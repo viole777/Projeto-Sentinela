@@ -32,7 +32,13 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
 
-const sessions = new Map();
+// Sessões: cache em memória + persistência durável (Supabase em produção,
+// backend/sessions.json no dev sem DATABASE_URL). Mesma API do Map —
+// get/set/delete continuam funcionando em todo o arquivo.
+const sessions = require("./src/sessions");
+// Ao reidratar uma sessão do banco, as permissões vêm das tabelas de RBAC:
+sessions.setPermissionLoader(permissionsForRole);
+
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const PASSWORD_KEY_LENGTH = 64;
 
@@ -98,28 +104,11 @@ function requireAuth(roles = []) {
     // Toda rota valida: usuário → sessão → role → permissão → rota.
     return async (req, res, next) => {
         const token = parseCookies(req.headers.cookie).sentinela_session;
-        let session = token && sessions.get(token);
+        // get() olha o cache e, se não achar, reidrata a sessão do Supabase.
+        // É o que mantém todo mundo logado após restart/redeploy do Render.
+        const session = token ? await sessions.get(token) : null;
 
-        // Sessão também pode estar no Postgres (Render com múltiplas instâncias)
-        if (!session && token && usingPostgres()) {
-            try {
-                const pool = getPool();
-                const r = await pool.query(
-                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
-                     FROM sessions s JOIN users u ON u.id = s.user_id
-                     LEFT JOIN roles r ON r.id = u.role_id
-                     WHERE s.token = $1 LIMIT 1`, [token]);
-                const row = r.rows[0];
-                if (row && new Date(row.expires_at).getTime() > Date.now()) {
-                    const perms = await permissionsForRole(row.role);
-                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, theme: row.theme || "light", permissions: perms, expiresAt: new Date(row.expires_at).getTime(), pg: true };
-                    sessions.set(token, session);
-                }
-            } catch (_) { /* cai para 401 abaixo */ }
-        }
-
-        if (!session || session.expiresAt <= Date.now()) {
-            if (token) sessions.delete(token);
+        if (!session) { // sessões vencidas já são descartadas dentro do store
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
@@ -135,9 +124,7 @@ function requireAuth(roles = []) {
         }
 
         session.expiresAt = Date.now() + SESSION_TTL_MS;
-        if (session.pg && usingPostgres()) {
-            try { await getPool().query(`UPDATE sessions SET expires_at = NOW() + INTERVAL '8 hours' WHERE token = $1`, [token]); } catch (_) {}
-        }
+        sessions.touch(token, session); // renova no cache E no Supabase
         req.user = session;
         next();
     };
@@ -157,53 +144,15 @@ async function permissionsForRole(role) {
     return permissionsFor(normalized);
 }
 
-async function persistSession(token, userIdentifier, session) {
-    if (!usingPostgres()) return;
-    try {
-        const pool = getPool();
-        const identifier = String(userIdentifier || session.usuario || session.email || "").trim();
-        if (!identifier) return;
-        const existingUser = await pool.query(
-            `SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
-            [identifier]
-        );
-        if (!existingUser.rows[0]) return;
-        await pool.query(
-            `INSERT INTO sessions (token, user_id, expires_at)
-             VALUES ($1, $2, NOW() + INTERVAL '8 hours')
-             ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at`,
-            [token, existingUser.rows[0].id]
-        );
-    } catch (_) {
-        // sessão continua em memória se o banco não estiver disponível; nunca quebra login
-    }
-}
-
 // ── RBAC novo: requirePermission("prescriptions.write") ──
 // O cargo vem da conta (role), o usuário NÃO escolhe no login.
 function requirePermission(...perms) {
     return async (req, res, next) => {
         const token = parseCookies(req.headers.cookie).sentinela_session;
-        let session = token && sessions.get(token);
+        // get() reidrata do Supabase quando o token não está no cache desta instância
+        const session = token ? await sessions.get(token) : null;
 
-        if (!session && token && usingPostgres()) {
-            try {
-                const pool = getPool();
-                const r = await pool.query(
-                    `SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
-                     FROM sessions s JOIN users u ON u.id = s.user_id
-                     LEFT JOIN roles r ON r.id = u.role_id
-                     WHERE s.token = $1 LIMIT 1`, [token]);
-                const row = r.rows[0];
-                if (row && new Date(row.expires_at).getTime() > Date.now()) {
-                    session = { usuario: row.username, nome: row.name, email: row.email, tipo: row.role, role: row.role, theme: row.theme || "light", permissions: await permissionsForRole(row.role), expiresAt: new Date(row.expires_at).getTime(), pg: true };
-                    sessions.set(token, session);
-                }
-            } catch (_) {}
-        }
-
-        if (!session || session.expiresAt <= Date.now()) {
-            if (token) sessions.delete(token);
+        if (!session) {
             return res.status(401).json({ erro: "Autenticação necessária" });
         }
 
@@ -216,6 +165,7 @@ function requirePermission(...perms) {
         }
 
         session.expiresAt = Date.now() + SESSION_TTL_MS;
+        sessions.touch(token, session); // antes a renovação não chegava ao banco
         req.user = session;
         next();
     };
@@ -1150,8 +1100,10 @@ app.post("/login", async (req, res) => {
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
     };
+    // set() persiste no Supabase (produção) ou no sessions.json (dev).
+    // O upsert é assíncrono com retry — se o banco engasgar, o flush de 30s
+    // tenta de novo e o shutdown espera as gravações pendentes.
     sessions.set(token, session);
-    await persistSession(token, user.email || user.usuario || user.nome, session);
     audit({ user: { usuario: String(user.usuario || user.email), tipo: role } }, "login", { role });
     const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
     res.setHeader("Set-Cookie", `sentinela_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}; Path=/${secure}`);
@@ -1159,11 +1111,12 @@ app.post("/login", async (req, res) => {
 });
 
 // Sessão atual → o frontend decide o dashboard pelo cargo (sem escolher perfil)
-app.get("/me", (req, res) => {
+app.get("/me", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
-    const session = token && sessions.get(token);
-    if (!session || session.expiresAt <= Date.now()) {
-        if (token) sessions.delete(token);
+    // get() reidrata do Supabase — o /me é a primeira chamada do frontend,
+    // então é ele que evita o "chute para o login" após um restart.
+    const session = token ? await sessions.get(token) : null;
+    if (!session) {
         return res.status(401).json({ erro: "Autenticação necessária" });
     }
     const role = session.role || session.tipo;
@@ -1810,12 +1763,8 @@ app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), (req, res) => {
 
 app.post("/logout", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
-    if (token) sessions.delete(token);
-    if (usingPostgres()) {
-        try {
-            await getPool().query(`DELETE FROM sessions WHERE token = $1`, [token]);
-        } catch (_) {}
-    }
+    // apaga do cache e do Supabase/arquivo — o logout vale em qualquer instância
+    if (token) await sessions.delete(token);
     res.setHeader("Set-Cookie", "sentinela_session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/");
     res.json({ ok: true });
 });

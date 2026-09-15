@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- O backend limpa sessões vencidas a cada 30s (purge); sem índice essa
+-- varredura vira full scan conforme a tabela cresce.
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at);
+
 CREATE TABLE IF NOT EXISTS patients (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,

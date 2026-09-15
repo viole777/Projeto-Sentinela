@@ -143,3 +143,8 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Dados de runtime do backend — nunca versionar (contêm tokens/dados reais)
+backend/sessions.json
+backend/sessions.json.tmp
+backend/uploads/

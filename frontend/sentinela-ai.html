@@ -39,13 +39,66 @@ Sentinela.mount("ai", `
     if (!r.ok) { box.innerHTML = '<div class="empty-state">Paciente não encontrado.</div>'; return; }
 
     const d = await r.json();
+
+    const statusIA =
+      d.iaDisponivel === true
+        ? `
+            <span class="badge normal">
+              ● Gemini conectado
+            </span>
+          `
+        : `
+            <span class="badge alta">
+              ⚠ Resumo local
+            </span>
+          `;
+
+    const cacheInfo =
+      d.cache === true
+        ? `
+            <small
+              style="
+                display:block;
+                margin-top:6px;
+                opacity:.7;
+              "
+            >
+              Resultado reutilizado do cache
+              para economizar tokens.
+            </small>
+          `
+        : "";
+
+    const erroIA =
+      d.erroIA
+        ? `
+            <small
+              style="
+                display:block;
+                margin-top:6px;
+                opacity:.75;
+              "
+            >
+              Motivo: ${d.erroIA}
+            </small>
+          `
+        : "";
+
     box.innerHTML = `
       <div class="list-item">
         <div class="meta-row">
           <strong>Resumo clínico — ${d.pacienteNome}</strong>
           <span class="meta-chip">${d.pacienteCpf}</span>
         </div>
-        <div style="margin-top:10px;">${d.resumo}</div>
+        <div style="margin-top:10px;">
+          ${d.resumo}
+        </div>
+
+        <div style="margin-top:12px;">
+          ${statusIA}
+          ${cacheInfo}
+          ${erroIA}
+        </div>
         <div style="margin-top:12px;">
           ${(d.inconsistencias || []).length
             ? '<div class="meta-row" style="margin-bottom:8px;"><span class="badge alta">Atenção</span></div>' + (d.inconsistencias || []).map(i => `<div>• ${i}</div>`).join("")

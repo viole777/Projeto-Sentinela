@@ -166,20 +166,70 @@ function writeJSON(data) {
 let current = null;
 let hydrated = false;
 let syncChain = Promise.resolve();
+let jsonFallback = false; // true = Postgres falhou no arranque e estamos no db.json
+
+// Coleções de dados "reais" do usuário. Leitos/estoque não contam porque o
+// database.sql já popula alguns; só estas listas indicam banco já em uso.
+const DATA_COLLECTIONS = [
+  'usuarios', 'pacientes', 'triagens', 'consultas', 'exames',
+  'atendimentos', 'internacoes', 'alertas', 'auditoria', 'atendimentosCasa'
+];
+
+function hasAnyData(db) {
+  return DATA_COLLECTIONS.some((k) => ((db && db[k]) || []).length > 0);
+}
+
+// Primeira instalação com Supabase: o PostgreSQL está vazio mas o db.json tem
+// dados → importa o JSON uma única vez. Depois disso o Postgres é a fonte da
+// verdade e o db.json vira apenas fallback de desenvolvimento.
+async function importJsonIfPostgresEmpty(pgDb) {
+  if (hasAnyData(pgDb)) return false;
+  if (!fs.existsSync(DB_FILE)) return false;
+  let local;
+  try {
+    local = readJSON();
+  } catch (_) {
+    return false;
+  }
+  if (!hasAnyData(local)) return false;
+  console.log('[storage] PostgreSQL vazio e db.json com dados → importando o JSON para o Supabase (uma única vez)...');
+  try {
+    await syncToPostgres(local);
+    console.log('[storage] Importação concluída: o PostgreSQL (Supabase) é agora a fonte da verdade.');
+    return true;
+  } catch (error) {
+    console.error('[storage] Importação do JSON para o PostgreSQL falhou:', error.message);
+    return false;
+  }
+}
 
 // Carrega o estado inicial: Postgres (produção) ou JSON (dev). Chamado antes
 // do app.listen() — as rotas que usam readDB() sincrono recebem dados reais.
 async function hydrate() {
   if (!usingPostgres() || !getPool()) {
+    jsonFallback = false;
     current = readJSON();
     hydrated = true;
     return current;
   }
   try {
     current = await readAllFromPostgres();
+    jsonFallback = false;
     hydrated = true;
+    // Supabase conectado mas vazio → sobe os dados do db.json uma única vez.
+    if (await importJsonIfPostgresEmpty(current)) {
+      current = await readAllFromPostgres();
+    }
   } catch (error) {
-    console.warn('[storage] Postgres indisponível no arranque; usando db.json como fallback:', error.message);
+    jsonFallback = true;
+    console.error('');
+    console.error('==========================================================');
+    console.error('  ATENÇÃO: PostgreSQL (Supabase) INDISPONÍVEL no arranque.');
+    console.error('  O sistema está rodando com db.json (fallback local).');
+    console.error(`  Motivo: ${error.message}`);
+    console.error('  Confira a senha/URL em DATABASE_URL (.env) ou no painel do');
+    console.error('  Supabase → Project Settings → Database → Connection string.');
+    console.error('==========================================================');
     current = readJSON();
     hydrated = true;
   }
@@ -216,25 +266,148 @@ function readAllSync() { return readDB(); }
 // ── Leitura completa do PostgreSQL (formato igual ao db.json das rotas) ──
 async function readAllFromPostgres() {
   const pool = getPool();
-  const safe = async (query, empty) => {
-    try { return (await pool.query(query)).rows; } catch (_) { return empty; }
+  const safe = async (query, empty, label = "consulta") => {
+    try {
+      return (
+        await pool.query(query)
+      ).rows;
+    } catch (error) {
+      console.error(
+        `[storage] Erro ao consultar ${label}:`,
+        error.message
+      );
+      throw error;
+    }
   };
 
-  const users = await safe(`SELECT u.*, r.name AS role_name FROM users u LEFT JOIN roles r ON r.id = u.role_id`, []);
-  const patients = await safe(`SELECT * FROM patients ORDER BY id DESC LIMIT 500`, []);
-  const beds = await safe(`SELECT b.*, w.name AS ala FROM beds b LEFT JOIN wards w ON w.id = b.ward_id`, []);
-  const appointments = await safe(`SELECT * FROM appointments ORDER BY id DESC LIMIT 200`, []);
-  const triage = await safe(`SELECT * FROM triage ORDER BY id DESC LIMIT 200`, []);
-  const consultations = await safe(`SELECT * FROM consultations ORDER BY id DESC LIMIT 200`, []);
-  const exams = await safe(`SELECT e.*, er.resultado AS resultado FROM exams e LEFT JOIN exam_results er ON er.exam_id = e.id ORDER BY e.id DESC LIMIT 200`, []);
-  const inventory = await safe(`SELECT * FROM inventory ORDER BY id`, []);
-  const hospitalizations = await safe(`SELECT * FROM hospitalizations ORDER BY id DESC LIMIT 200`, []);
-  const alerts = await safe(`SELECT * FROM alerts ORDER BY id DESC LIMIT 100`, []);
-  const safetyRules = await safe(`SELECT rules FROM safety_rules ORDER BY id DESC LIMIT 1`, []);
-  const audit = await safe(`SELECT * FROM audit_logs ORDER BY id DESC LIMIT 200`, []);
-  // Tabelas novas (schema recente). Se ainda não existirem no banco, seguimos sem elas.
-  const atendimentosCasa = await safe(`SELECT * FROM atendimentos_casa ORDER BY id DESC LIMIT 200`, []);
-  const tvCalls = await safe(`SELECT * FROM tv_calls ORDER BY called_at DESC LIMIT 12`, []);
+  const users = await safe(
+    `SELECT u.*, r.name AS role_name
+     FROM users u
+     LEFT JOIN roles r
+     ON r.id = u.role_id`,
+    [],
+    "users"
+  );
+
+  const patients = await safe(
+    `SELECT *
+     FROM patients
+     ORDER BY id DESC
+     LIMIT 500`,
+    [],
+    "patients"
+  );
+
+  const beds = await safe(
+    `SELECT b.*, w.name AS ala
+     FROM beds b
+     LEFT JOIN wards w
+     ON w.id = b.ward_id`,
+    [],
+    "beds"
+  );
+
+  const appointments = await safe(
+    `SELECT *
+     FROM appointments
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "appointments"
+  );
+
+  const triage = await safe(
+    `SELECT *
+     FROM triage
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "triage"
+  );
+
+  const consultations = await safe(
+    `SELECT *
+     FROM consultations
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "consultations"
+  );
+
+  const exams = await safe(
+    `SELECT e.*, er.resultado AS resultado
+     FROM exams e
+     LEFT JOIN exam_results er
+     ON er.exam_id = e.id
+     ORDER BY e.id DESC
+     LIMIT 200`,
+    [],
+    "exams"
+  );
+
+  const inventory = await safe(
+    `SELECT *
+     FROM inventory
+     ORDER BY id`,
+    [],
+    "inventory"
+  );
+
+  const hospitalizations = await safe(
+    `SELECT *
+     FROM hospitalizations
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "hospitalizations"
+  );
+
+  const alerts = await safe(
+    `SELECT *
+     FROM alerts
+     ORDER BY id DESC
+     LIMIT 100`,
+    [],
+    "alerts"
+  );
+
+  const safetyRules = await safe(
+    `SELECT rules
+     FROM safety_rules
+     ORDER BY id DESC
+     LIMIT 1`,
+    [],
+    "safety_rules"
+  );
+
+  const audit = await safe(
+    `SELECT *
+     FROM audit_logs
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "audit_logs"
+  );
+
+  // Tabelas novas (schema recente). Se ainda não existirem no banco, o erro
+  // é logado com o nome da tabela para facilitar o diagnóstico.
+  const atendimentosCasa = await safe(
+    `SELECT *
+     FROM atendimentos_casa
+     ORDER BY id DESC
+     LIMIT 200`,
+    [],
+    "atendimentos_casa"
+  );
+
+  const tvCalls = await safe(
+    `SELECT *
+     FROM tv_calls
+     ORDER BY called_at DESC
+     LIMIT 12`,
+    [],
+    "tv_calls"
+  );
 
   const db = ensureDBShape({
     usuarios: users.map(u => ({ id: u.id, usuario: u.username, nome: u.name, email: u.email, role: u.role_name || u.role, tipo: u.role_name || u.role, senha: u.password_hash, setor: u.unit, theme: u.theme || 'light', mustChangePassword: u.must_change_password, resetToken: u.reset_token, resetExpires: u.reset_expires, ativo: u.active })),
@@ -259,13 +432,16 @@ async function readAllFromPostgres() {
 
 // ── STORE: API pública (mantida para /dashboard e demais leituras diretas) ──
 const store = {
-  backend() { return usingPostgres() ? 'postgres' : 'json'; },
-  async readAll() { return usingPostgres() ? readAllFromPostgres() : readDB(); },
+  // Reporta a verdade: se o Postgres falhou no arranque, está em JSON (fallback).
+  backend() { return usingPostgres() && !jsonFallback ? 'postgres' : 'json'; },
+  async readAll() { return usingPostgres() && !jsonFallback ? readAllFromPostgres() : readDB(); },
   hydrate
 };
 // ═══════════════════════════════════════════════════════════════════════
-// Sync: objeto em memória → PostgreSQL (upserts + remoção de registros que
-// foram apagados pelas rotas). Ordem respeita FKs (patients antes de tudo).
+// Sync: objeto em memória → PostgreSQL (APENAS upserts). Ordem respeita FKs
+// (patients antes de tudo). Nunca apaga registros simplesmente porque não
+// estão no array em memória: a leitura é limitada (LIMIT 200/500), então um
+// DELETE guiado pela memória apagaria histórico real do banco.
 // ═══════════════════════════════════════════════════════════════════════
 async function syncToPostgres(db) {
   const pool = getPool();
@@ -284,22 +460,6 @@ async function syncToPostgres(db) {
   await syncAtendimentosCasa(pool, db.atendimentosCasa || []);
   await syncTVCalls(pool, db.tvChamada || null, db.tvHistorico || []);
   await syncSafetyRules(pool, db.safetyRules || null);
-}
-
-// Remove do Postgres as linhas cujo id não existe mais em memória.
-async function pruneByIds(pool, table, list) {
-  const keep = new Set();
-  for (const item of list || []) {
-    const n = Number(item && item.id);
-    if (Number.isFinite(n) && n > 0) keep.add(n);
-  }
-  const res = await pool.query(`SELECT id FROM ${table}`);
-  for (const row of res.rows) {
-    const n = Number(row.id);
-    if (!keep.has(n)) {
-      await pool.query(`DELETE FROM ${table} WHERE id = $1`, [n]);
-    }
-  }
 }
 
 async function syncUsers(pool, list) {
@@ -370,7 +530,6 @@ async function syncBeds(pool, list) {
   }
 }
 async function syncAppointments(pool, list) {
-  await pruneByIds(pool, 'appointments', list);
   for (const a of list) {
     const id = Number(a.id);
     const createdAt = a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString();
@@ -395,7 +554,6 @@ async function syncAppointments(pool, list) {
 }
 
 async function syncTriage(pool, list) {
-  await pruneByIds(pool, 'triage', list);
   for (const t of list) {
     const vitals = JSON.stringify({
       temperatura: t.temperatura ?? null, pas: t.pas ?? null, pad: t.pad ?? null,
@@ -430,7 +588,6 @@ async function syncTriage(pool, list) {
   }
 }
 async function syncConsultas(pool, list) {
-  await pruneByIds(pool, 'consultations', list);
   for (const c of list) {
     const createdAt = c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString();
     const dispensedAt = c.dispensadoEm ? new Date(c.dispensadoEm).toISOString() : null;
@@ -563,7 +720,6 @@ async function syncAlerts(pool, list) {
 }
 
 async function syncHospitalizations(pool, list) {
-  await pruneByIds(pool, 'hospitalizations', list);
   for (const h of list) {
     const admittedAt = h.entradaEm ? new Date(h.entradaEm).toISOString() : new Date().toISOString();
     const dischargedAt = h.altaEm ? new Date(h.altaEm).toISOString() : null;
@@ -621,7 +777,6 @@ async function syncAudit(pool, list) {
   }
 }
 async function syncAtendimentosCasa(pool, list) {
-  await pruneByIds(pool, 'atendimentos_casa', list);
   for (const c of list) {
     const createdAt = c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString();
     const concludedAt = c.concluidoEm ? new Date(c.concluidoEm).toISOString() : null;

@@ -112,8 +112,8 @@
         <div class="brand-name">SENTINELA</div>
         <div class="brand-sub">Sistema Hospitalar de Cardiologia</div>
         <div class="card login-card">
-            <label for="email">E-mail institucional</label>
-            <input id="email" type="email" placeholder="usuario@hospital..." autocomplete="username">
+            <label for="email">Usuário ou e-mail institucional</label>
+            <input id="email" type="text" placeholder="usuário ou e-mail" autocomplete="username">
             <label for="senha">Senha</label>
             <div class="password-wrap">
                 <input id="senha" type="password" placeholder="••••••••••••" autocomplete="current-password">
@@ -135,19 +135,19 @@
             return "dashboard.html"; // dashboard único que se adapta ao cargo
         }
         async function login() {
-            const email = document.getElementById('email').value.trim();
+            const identificador = document.getElementById('email').value.trim();
             const senha = document.getElementById('senha').value;
             const err = document.getElementById('err');
             const btn = document.getElementById('loginBtn');
             err.textContent = "";
-            if (!email || !senha) { err.textContent = "Informe e-mail e senha para entrar."; return; }
+            if (!identificador || !senha) { err.textContent = "Informe e-mail e senha para entrar."; return; }
             btn.disabled = true;
             btn.textContent = "Entrando...";
             try {
                 const r = await fetch("/login", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, usuario: email, senha })
+                    body: JSON.stringify({ usuario: identificador, senha })
                 });
                 const data = await r.json().catch(() => ({}));
                 if (r.status === 403 && data.erro === "primeiro_acesso") {

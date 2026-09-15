@@ -1,5 +1,6 @@
--- Sentinela — Hospital de Cardiologia · esquema principal PostgreSQL
--- Render: psql $DATABASE_URL -f database.sql
+-- Sentinela — Hospital de Cardiologia · SCHEMA ÚNICO PostgreSQL
+-- (tabelas + seeds + índices — substitui database/schema.sql e database/schema2.sql)
+-- Supabase/Render: psql $DATABASE_URL -f database.sql
 -- Depois: DATABASE_URL=... node database/migrate-json-to-postgres.js
 
 CREATE TABLE IF NOT EXISTS roles (
@@ -246,6 +247,44 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   happened_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ============================================================
+-- UPGRADE DE BASES ANTIGAS (idempotente — no-op em bases novas)
+-- Colunas adicionadas ao longo do tempo; mantém um banco
+-- Supabase existente alinhado com o código atual.
+-- ============================================================
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'light';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMPTZ;
+
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS image_path TEXT;
+
+ALTER TABLE triage ADD COLUMN IF NOT EXISTS created_by TEXT;
+
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS dispensed BOOLEAN DEFAULT FALSE;
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS dispensed_by TEXT;
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS dispensed_at TIMESTAMPTZ;
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS created_by TEXT;
+
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS observation TEXT;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS requested_by TEXT;
+
+ALTER TABLE beds ADD COLUMN IF NOT EXISTS occupied_since TIMESTAMPTZ;
+
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS resolved BOOLEAN DEFAULT FALSE;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS resolved_by TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+
+-- ============================================================
+-- SEEDS ESSENCIAIS (papéis, permissões, alas e leitos)
+-- ============================================================
+
 INSERT INTO roles (name) VALUES
   ('admin'), ('cardiologist'), ('medico'), ('enfermagem'),
   ('triagem'), ('farmacia'), ('atendimento'), ('recepcao'), ('direcao')
@@ -306,3 +345,41 @@ INSERT INTO inventory (name, quantity, min_stock, high_risk) VALUES
   ('Varfarina 5mg', 7, 15, TRUE),
   ('Losartana 50mg', 60, 20, FALSE)
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- ÍNDICES DO SENTINELA
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_patients_cpf
+ON patients(cpf);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_patient_cpf
+ON appointments(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_triage_patient_cpf
+ON triage(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_triage_status
+ON triage(status);
+
+CREATE INDEX IF NOT EXISTS idx_consultations_patient_cpf
+ON consultations(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_exams_patient_cpf
+ON exams(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_patient_cpf
+ON alerts(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_hospitalizations_patient_cpf
+ON hospitalizations(patient_cpf);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_username
+ON audit_logs(username);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_created_at
+ON appointments(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_consultations_created_at
+ON consultations(created_at);
+

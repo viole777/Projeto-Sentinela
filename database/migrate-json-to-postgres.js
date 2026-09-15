@@ -21,10 +21,10 @@ async function main() {
   });
 
   // Garante que o esquema existe antes de migrar (idempotente).
-  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  const schema2 = fs.readFileSync(path.join(__dirname, 'schema2.sql'), 'utf8');
+  // database.sql é o schema ÚNICO (tabelas + seeds + índices).
+  const schema = fs.readFileSync(path.join(__dirname, '..', 'database.sql'), 'utf8');
   const seeds = fs.readFileSync(path.join(__dirname, 'seeds.sql'), 'utf8');
-  await pool.query(schema + '\n' + schema2 + '\n' + seeds);
+  await pool.query(schema + '\n' + seeds);
 
   const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
   if (!fs.existsSync(dbPath)) {

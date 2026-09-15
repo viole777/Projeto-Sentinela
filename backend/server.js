@@ -398,75 +398,679 @@ function normalizeAiPayload(content) {
     };
 }
 
-async function resumoIA(paciente, triagens, consultas, atendimentos) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    const apiUrl = process.env.AI_API_URL || "https://api.aimlapi.com/chat/completions";
-    const model = process.env.AI_MODEL || "gpt-4o-mini";
+// ============================================================
+// SENTINELA AI — RACIONAMENTO DE TOKENS
+// ============================================================
 
-    const localSummary = buildLocalClinicalSummary(paciente, triagens, consultas, atendimentos);
+const AI_MAX_INPUT_CHARS = 12000;
+const AI_MAX_OUTPUT_TOKENS = 350;
 
-    if (!apiKey) {
-        return localSummary;
+const AI_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const AI_MAX_REQUESTS_PER_WINDOW = 10;
+const AI_RATE_WINDOW_MS = 10 * 60 * 1000;
+
+const aiCache = new Map();
+const aiRateLimit = new Map();
+
+
+// ------------------------------------------------------------
+// Limita textos
+// ------------------------------------------------------------
+
+function aiTrim(value, max = 300) {
+    const text = String(value ?? "").trim();
+
+    if (text.length <= max) {
+        return text;
     }
 
-    try {
-        const response = await fetch(apiUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model,
-                messages: [
-                    {
-                        role: "system",
-                        content: "Você é o Sentinela AI, um assistente clínico de apoio para cardiologia. Sua tarefa é resumir o prontuário do paciente de forma objetiva, sem diagnosticar, sem substituir avaliação médica, e apontar apenas inconsistências relevantes. Responda em português do Brasil e, se possível, em JSON com as chaves resumo e inconsistencias."
-                    },
-                    {
-                        role: "user",
-                        content: JSON.stringify({
-                            paciente: {
-                                nome: paciente?.nome || "Paciente",
-                                cpf: paciente?.cpf || "-",
-                                status: paciente?.status || "-"
-                            },
-                            triagens: triagens.slice(-6),
-                            consultas: consultas.slice(-8),
-                            atendimentos: atendimentos.slice(-5)
-                        }, null, 2)
-                    }
-                ],
-                temperature: 0.35,
-                max_tokens: 600
-            })
-        });
+    return text.slice(0, max) + "...";
+}
 
-        if (!response.ok) {
-            throw new Error(`AI request failed: ${response.status}`);
+
+// ------------------------------------------------------------
+// Últimos registros
+// ------------------------------------------------------------
+
+function aiLastItems(array, limit) {
+    if (!Array.isArray(array)) {
+        return [];
+    }
+
+    return array.slice(-limit);
+}
+
+
+// ------------------------------------------------------------
+// Remove campos desnecessários
+// ------------------------------------------------------------
+
+function compactAiRecord(record) {
+
+    if (!record || typeof record !== "object") {
+        return {};
+    }
+
+    const allowedFields = [
+        "id",
+        "createdAt",
+        "updatedAt",
+        "status",
+        "temperatura",
+        "pressao",
+        "pas",
+        "pad",
+        "frequencia",
+        "fc",
+        "saturacao",
+        "spo2",
+        "fr",
+        "peso",
+        "altura",
+        "alergia",
+        "queixa",
+        "sintomas",
+        "observacoes",
+        "obs",
+        "diagnostico",
+        "medicacao",
+        "prescricao",
+        "conduta",
+        "motivo",
+        "tipo",
+        "resultado"
+    ];
+
+    const result = {};
+
+    for (const field of allowedFields) {
+
+        if (
+            record[field] !== undefined &&
+            record[field] !== null &&
+            record[field] !== ""
+        ) {
+
+            if (typeof record[field] === "string") {
+                result[field] =
+                    aiTrim(record[field], 300);
+            } else {
+                result[field] =
+                    record[field];
+            }
         }
+    }
 
-        const payload = await response.json();
-        const aiContent = payload.choices?.[0]?.message?.content
-            || payload.output_text
-            || payload.content
-            || payload.message?.content
-            || "";
+    return result;
+}
 
-        const parsed = normalizeAiPayload(aiContent);
-        return {
-            resumo: parsed.resumo || localSummary.resumo,
-            inconsistencias: Array.isArray(parsed.inconsistencias) && parsed.inconsistencias.length
-                ? parsed.inconsistencias
-                : localSummary.inconsistencias,
-            geradoEm: parsed.geradoEm || new Date().toISOString()
+
+// ------------------------------------------------------------
+// Monta contexto reduzido
+// ------------------------------------------------------------
+
+function buildCompactAiContext(
+    paciente,
+    triagens,
+    consultas,
+    atendimentos
+) {
+
+    const context = {
+
+        paciente: {
+            nome: aiTrim(paciente?.nome, 100),
+            cpf: aiTrim(paciente?.cpf, 30),
+            status: aiTrim(paciente?.status, 50)
+        },
+
+        triagens:
+            aiLastItems(triagens, 3)
+                .map(compactAiRecord),
+
+        consultas:
+            aiLastItems(consultas, 4)
+                .map(compactAiRecord),
+
+        atendimentos:
+            aiLastItems(atendimentos, 2)
+                .map(compactAiRecord)
+    };
+
+
+    let serialized =
+        JSON.stringify(context);
+
+
+    if (
+        serialized.length >
+        AI_MAX_INPUT_CHARS
+    ) {
+
+        serialized =
+            serialized.slice(
+                0,
+                AI_MAX_INPUT_CHARS
+            ) +
+            "\n[Dados adicionais omitidos]";
+    }
+
+
+    return serialized;
+}
+
+
+// ------------------------------------------------------------
+// Rate limit
+// ------------------------------------------------------------
+
+function canUseAI(userKey) {
+
+    const key =
+        String(userKey || "anonymous");
+
+    const now =
+        Date.now();
+
+    let entry =
+        aiRateLimit.get(key);
+
+
+    if (!entry) {
+
+        entry = {
+            startedAt: now,
+            requests: 0
         };
-    } catch (error) {
-        console.warn("Resumo IA falhou, usando resumo local:", error.message);
-        return localSummary;
+
+        aiRateLimit.set(
+            key,
+            entry
+        );
+    }
+
+
+    if (
+        now - entry.startedAt >
+        AI_RATE_WINDOW_MS
+    ) {
+
+        entry.startedAt = now;
+        entry.requests = 0;
+    }
+
+
+    if (
+        entry.requests >=
+        AI_MAX_REQUESTS_PER_WINDOW
+    ) {
+
+        return false;
+    }
+
+
+    entry.requests++;
+
+    return true;
+}
+
+
+// ------------------------------------------------------------
+// Cache
+// ------------------------------------------------------------
+
+function getCachedAI(cacheKey) {
+
+    const cached =
+        aiCache.get(cacheKey);
+
+
+    if (!cached) {
+        return null;
+    }
+
+
+    if (
+        Date.now() - cached.createdAt >
+        AI_CACHE_TTL_MS
+    ) {
+
+        aiCache.delete(cacheKey);
+
+        return null;
+    }
+
+
+    return cached.value;
+}
+
+
+function setCachedAI(cacheKey, value) {
+
+    aiCache.set(
+        cacheKey,
+        {
+            createdAt: Date.now(),
+            value
+        }
+    );
+
+
+    if (aiCache.size > 100) {
+
+        const firstKey =
+            aiCache.keys().next().value;
+
+        if (firstKey) {
+            aiCache.delete(firstKey);
+        }
     }
 }
 
+
+// ============================================================
+// RESUMO IA
+// ============================================================
+
+async function resumoIA(
+    paciente,
+    triagens,
+    consultas,
+    atendimentos,
+    user
+) {
+
+    const apiKey =
+        String(
+            process.env.GEMINI_API_KEY || ""
+        ).trim();
+
+
+    const apiUrl =
+        String(
+            process.env.AI_API_URL ||
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        ).trim();
+
+
+    const model =
+        String(
+            process.env.AI_MODEL ||
+            "gemini-3.6-flash"
+        ).trim();
+
+
+    const localSummary =
+        buildLocalClinicalSummary(
+            paciente,
+            triagens,
+            consultas,
+            atendimentos
+        );
+
+
+    // --------------------------------------------------------
+    // Sem chave
+    // --------------------------------------------------------
+
+    if (!apiKey) {
+
+        console.error(
+            "[Sentinela AI] GEMINI_API_KEY não configurada."
+        );
+
+        return {
+            ...localSummary,
+            origem: "local",
+            iaDisponivel: false,
+            erroIA:
+                "GEMINI_API_KEY não configurada."
+        };
+    }
+
+
+    // --------------------------------------------------------
+    // Rate limit
+    // --------------------------------------------------------
+
+    const userKey =
+        user?.usuario ||
+        user?.email ||
+        "anonymous";
+
+
+    if (!canUseAI(userKey)) {
+
+        return {
+            ...localSummary,
+
+            origem: "local",
+
+            iaDisponivel: false,
+
+            rateLimit: true,
+
+            erroIA:
+                "Limite de uso da IA atingido. Tente novamente mais tarde."
+        };
+    }
+
+
+    // --------------------------------------------------------
+    // Contexto reduzido
+    // --------------------------------------------------------
+
+    const compactContext =
+        buildCompactAiContext(
+            paciente,
+            triagens,
+            consultas,
+            atendimentos
+        );
+
+
+    // --------------------------------------------------------
+    // Cache
+    // --------------------------------------------------------
+
+    const cacheKey =
+        `${paciente?.cpf || paciente?.id}:${compactContext}`;
+
+
+    const cached =
+        getCachedAI(cacheKey);
+
+
+    if (cached) {
+
+        console.log(
+            "[Sentinela AI] Resultado recuperado do cache."
+        );
+
+        return {
+            ...cached,
+            cache: true
+        };
+    }
+
+
+    console.log("");
+    console.log(
+        "========================================"
+    );
+
+    console.log(
+        "[Sentinela AI] Nova requisição"
+    );
+
+    console.log(
+        "[Sentinela AI] Modelo:",
+        model
+    );
+
+    console.log(
+        "[Sentinela AI] Entrada:",
+        compactContext.length,
+        "caracteres"
+    );
+
+    console.log(
+        "[Sentinela AI] Saída máxima:",
+        AI_MAX_OUTPUT_TOKENS,
+        "tokens"
+    );
+
+    console.log(
+        "========================================"
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                apiUrl,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        "Authorization":
+                            `Bearer ${apiKey}`
+                    },
+
+                    body: JSON.stringify({
+
+                        model,
+
+                        messages: [
+
+                            {
+                                role: "system",
+
+                                content: `
+Você é o Sentinela AI.
+
+Analise o prontuário fornecido.
+
+Produza um resumo clínico extremamente objetivo.
+
+REGRAS:
+
+- Não diagnostique.
+- Não prescreva medicamentos.
+- Não invente informações.
+- Não repita informações.
+- Priorize registros recentes.
+- Aponte apenas inconsistências relevantes.
+- Responda em português brasileiro.
+- O resumo deve ter no máximo aproximadamente 100 palavras.
+
+Retorne SOMENTE JSON:
+
+{
+  "resumo": "Resumo objetivo.",
+  "inconsistencias": [
+    "Inconsistência relevante."
+  ]
+}
+                                `.trim()
+                            },
+
+                            {
+                                role: "user",
+
+                                content:
+                                    compactContext
+                            }
+
+                        ],
+
+                        temperature: 0.2,
+
+                        max_tokens:
+                            AI_MAX_OUTPUT_TOKENS
+                    })
+                }
+            );
+
+
+        console.log(
+            "[Sentinela AI] HTTP:",
+            response.status
+        );
+
+
+        const rawText =
+            await response.text();
+
+
+        if (!response.ok) {
+
+            console.error(
+                "[Sentinela AI] Erro da Gemini:"
+            );
+
+            console.error(rawText);
+
+            return {
+
+                ...localSummary,
+
+                origem: "local",
+
+                iaDisponivel: false,
+
+                erroIA:
+                    `Gemini respondeu HTTP ${response.status}.`
+            };
+        }
+
+
+        let payload;
+
+
+        try {
+
+            payload =
+                JSON.parse(rawText);
+
+        } catch (_) {
+
+            return {
+
+                ...localSummary,
+
+                origem: "local",
+
+                iaDisponivel: false,
+
+                erroIA:
+                    "A Gemini retornou uma resposta inválida."
+            };
+        }
+
+
+        const aiContent =
+
+            payload
+                ?.choices
+                ?.[0]
+                ?.message
+                ?.content
+
+            ||
+
+            payload?.output_text
+
+            ||
+
+            payload?.content
+
+            ||
+
+            payload
+                ?.message
+                ?.content
+
+            ||
+
+            "";
+
+
+        if (!aiContent) {
+
+            return {
+
+                ...localSummary,
+
+                origem: "local",
+
+                iaDisponivel: false,
+
+                erroIA:
+                    "A Gemini respondeu sem conteúdo."
+            };
+        }
+
+
+        const parsed =
+            normalizeAiPayload(
+                aiContent
+            );
+
+
+        const result = {
+
+            resumo:
+                parsed.resumo ||
+                localSummary.resumo,
+
+            inconsistencias:
+                Array.isArray(
+                    parsed.inconsistencias
+                )
+                    ? parsed.inconsistencias
+                    : localSummary.inconsistencias,
+
+            geradoEm:
+                new Date().toISOString(),
+
+            origem:
+                "gemini",
+
+            iaDisponivel:
+                true,
+
+            erroIA:
+                null,
+
+            cache:
+                false
+        };
+
+
+        setCachedAI(
+            cacheKey,
+            result
+        );
+
+
+        console.log(
+            "[Sentinela AI] Gemini respondeu com sucesso."
+        );
+
+        console.log(
+            "[Sentinela AI] Resultado salvo no cache."
+        );
+
+
+        return result;
+
+    } catch (error) {
+
+        console.error(
+            "[Sentinela AI] Falha ao chamar Gemini:",
+            error
+        );
+
+        return {
+
+            ...localSummary,
+
+            origem: "local",
+
+            iaDisponivel: false,
+
+            erroIA:
+                error.message ||
+                "Erro ao conectar à Gemini."
+        };
+    }
+}
 function ensureTVShape(db) {
     if (!db.tvChamada) db.tvChamada = null;
     if (!db.tvHistorico) db.tvHistorico = [];
@@ -1083,16 +1687,20 @@ app.post("/finalizar", requireAuth(["medico", "cardiologist"]), (req, res) => {
     }
 
     // remove triagem do painel usando a mesma lógica da rota DELETE /triagem
-    if (triagemId) {
-        // remove triagem
-        db.triagens = (db.triagens || []).filter(t => Number(t.id) !== Number(triagemId));
+   if (triagemId) {
 
-        // remove consultas vinculadas (se existirem)
-        db.consultas = (db.consultas || []).filter(c => Number(c.triagemId) !== Number(triagemId));
+    // Remove somente a triagem da fila ativa.
+    //
+    // CONSULTAS e ATENDIMENTOS são histórico.
+    // Eles nunca devem ser apagados ao finalizar.
 
-        // remove atendimentos/imagem associados por CPF
-        db.atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) !== String(pacienteCpf));
-    }
+    db.triagens =
+        (db.triagens || []).filter(
+            t =>
+                Number(t.id) !==
+                Number(triagemId)
+        );
+}
 
     writeDB(db);
     res.json({ ok: true, removedTriagemId: triagemId || null, pacienteStatus: paciente.status });
@@ -1131,7 +1739,13 @@ app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), async (req, 
     const triagens = (db.triagens || []).filter(t => String(t.pacienteCpf) === cpf);
     const consultas = (db.consultas || []).filter(c => String(c.pacienteCpf) === cpf);
     const atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === cpf);
-    const out = await resumoIA(paciente, triagens, consultas, atendimentos);
+    const out = await resumoIA(
+    paciente,
+    triagens,
+    consultas,
+    atendimentos,
+    req.user
+);
     audit(req, "ia_resumo", { pacienteCpf: cpf });
     res.json({ pacienteCpf: cpf, pacienteNome: paciente.nome, ...out, aviso: "Apoio à decisão. Não substitui avaliação clínica." });
 });

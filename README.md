@@ -56,8 +56,8 @@ http://localhost:3000
 - `frontend/layout.js` — layout global e menu lateral
 - `frontend/styles.css` — identidade visual do sistema
 - `frontend/atendimento-casa.html` — módulo de atendimento domiciliar
-- `database.sql` — esquema principal para PostgreSQL
-- `database/schema.sql`, `database/schema2.sql`, `database/seeds.sql` — arquivos complementares do PostgreSQL
+- `database.sql` — schema ÚNICO do PostgreSQL (tabelas + seeds + índices). Execute só ele.
+- `database/seeds.sql` — seed de usuários de demonstração (executar só se o banco estiver vazio)
 - `database/migrate-json-to-postgres.js` — migração do JSON para PostgreSQL
 
 ## Usuários de demonstração

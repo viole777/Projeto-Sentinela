@@ -85,9 +85,7 @@ Em produção o JSON **não** é o banco. Se usa PostgreSQL via `DATABASE_URL`:
 Os usuários no PostgreSQL são criados migrando `db.json`:
 
 ```bash
-psql $DATABASE_URL -f database/schema.sql
-psql $DATABASE_URL -f database/schema2.sql
-psql $DATABASE_URL -f database/seeds.sql
+psql $DATABASE_URL -f database.sql
 DATABASE_URL=... npm run db:migrate   # copia usuarios/pacientes/… ao PostgreSQL
 ```
 

@@ -62,23 +62,24 @@ window.Sentinela = {
 
     document.body.innerHTML =
       '<style>' +
-      '.shell{display:flex;min-height:100vh;background:var(--bg);color:var(--text)}' +
-      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 10px;border-radius:4px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-width:110px;justify-content:center;}' +
+      '.shell{display:flex;height:100vh;overflow:hidden;background:var(--bg);color:var(--text)}' +
+      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 10px;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-width:110px;justify-content:center;}' +
       '.theme-toggle:hover{background:var(--panel-alt)}' +
-      '.side{width:240px;background:var(--panel-soft);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}' +
+      '.side{width:260px;flex:0 0 260px;background:var(--panel);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;transition:width .2s ease,flex-basis .2s ease,padding .2s ease;}' +
+      '.shell.sidebar-collapsed .side{width:72px;flex-basis:72px;padding-inline:10px}.shell.sidebar-collapsed .brand{justify-content:center;padding-inline:0}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:0}.shell.sidebar-collapsed .nav-link{height:40px;padding:0;margin:3px 0}.shell.sidebar-collapsed .nav-link::before{content:"•";font-size:22px;line-height:38px;color:var(--muted);display:block;text-align:center}.shell.sidebar-collapsed .nav-link.active::before{color:var(--brand)}.shell.sidebar-collapsed .nav-logout{height:40px;padding:0}.shell.sidebar-collapsed .nav-logout::before{content:"↪";font-size:20px;line-height:38px;display:block;text-align:center}.shell.sidebar-collapsed .nav-group{margin-bottom:8px}' +
       '.brand{display:flex;align-items:center;gap:10px;padding:8px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}' +
-      '.brand-mark{width:28px;height:28px;border-radius:4px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}' +
+      '.brand-mark{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto;}' +
       '.brand-name{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--text)}' +
       '.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
       '.nav-group{margin-bottom:12px}' +
       '.nav-label{padding:8px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}' +
-      '.nav-link{display:block;padding:8px 10px;border-radius:4px;color:var(--text);font-size:14px;border:1px solid transparent;}' +
+      '.nav-link{display:block;padding:9px 10px;border-radius:var(--radius-sm);color:var(--text);font-size:14px;border:1px solid transparent;}' +
       '.nav-link:hover{background:var(--panel-alt);border-color:var(--border)}' +
-      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#cfe0f6;font-weight:700}' +
+      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#bfe7df;font-weight:700}' +
       '.nav-spacer{flex:1}' +
-      '.nav-logout{display:block;padding:8px 10px;border-radius:4px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
-      '.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}' +
-      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel-soft);position:sticky;top:0;z-index:5}' +
+      '.nav-logout{display:block;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
+      '.main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg)}' +
+      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel);flex:0 0 auto;z-index:5}' +
       '.page-meta{flex:1;min-width:0}' +
       '.page-path{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:700}' +
       '.page-title{font-size:18px;font-weight:800;color:var(--text);margin-top:2px}' +
@@ -89,8 +90,9 @@ window.Sentinela = {
       '.user-text{display:flex;flex-direction:column;gap:2px;line-height:1.1}' +
       '.user-name{font-size:13px;font-weight:700}' +
       '.user-role{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
-      '.content{padding:22px;max-width:1280px;width:100%;margin:0 auto}' +
-      '@media(max-width:860px){.shell{display:block}.side{position:static;width:100%;height:auto}.top{flex-wrap:wrap}.top-search{max-width:none}.content{padding:16px}}' +
+      '.sidebar-toggle{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}.sidebar-toggle:hover{background:var(--panel-alt)}' +
+      '.content{flex:1;min-height:0;overflow-y:auto;padding:22px;max-width:none;width:100%}.content>*{max-width:1280px;margin-left:auto;margin-right:auto}.dashboard-page{padding-bottom:32px}.dashboard-page .panel{box-shadow:0 1px 2px rgba(16,24,40,.04)}' +
+      '@media(max-width:860px){body{overflow:auto}.shell{display:block;height:auto;overflow:visible}.side{position:static;width:100%;height:auto;max-height:none;overflow:visible}.shell.sidebar-collapsed .side{width:100%;padding:18px 14px 12px}.shell.sidebar-collapsed .brand{justify-content:flex-start;padding-inline:10px}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:inherit}.shell.sidebar-collapsed .nav-link{height:auto;padding:9px 10px;margin:0}.shell.sidebar-collapsed .nav-link::before,.shell.sidebar-collapsed .nav-logout::before{display:none}.top{flex-wrap:wrap}.top-search{max-width:none}.content{overflow:visible;padding:16px}}' +
       '</style>' +
       '<div class="shell">' +
         '<aside class="side">' +
@@ -104,6 +106,7 @@ window.Sentinela = {
         '</aside>' +
         '<div class="main">' +
           '<header class="top">' +
+            '<button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu" aria-expanded="true">☰</button>' +
             '<div class="page-meta">' +
               '<div class="page-path">Sistema / ' + (active || 'Sentinela') + '</div>' +
               '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
@@ -120,6 +123,19 @@ window.Sentinela = {
       '</div>';
 
     document.getElementById("app").innerHTML = contentHTML;
+
+    const shell = document.querySelector(".shell");
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    const sidebarCollapsed = localStorage.getItem("sentinela-sidebar-collapsed") === "true";
+    const setSidebar = (collapsed) => {
+      shell.classList.toggle("sidebar-collapsed", collapsed);
+      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+      sidebarToggle.setAttribute("aria-label", collapsed ? "Expandir menu" : "Recolher menu");
+      sidebarToggle.textContent = collapsed ? "☰" : "‹";
+      localStorage.setItem("sentinela-sidebar-collapsed", String(collapsed));
+    };
+    setSidebar(sidebarCollapsed);
+    sidebarToggle.addEventListener("click", () => setSidebar(!shell.classList.contains("sidebar-collapsed")));
 
     const themeToggle = document.getElementById("themeToggle");
     const applyTheme = (theme) => {

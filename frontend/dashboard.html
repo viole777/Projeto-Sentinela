@@ -5,6 +5,7 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("dashboard", `
+  <section class="dashboard-page">
   <div class="page-header">
     <div>
       <div class="eyebrow">Painel operacional</div>
@@ -39,6 +40,7 @@ Sentinela.mount("dashboard", `
       <div id="ativ" class="list"></div>
     </div>
   </div>
+  </section>
 `).then(async () => {
   const d = await fetch("/dashboard").then(r => r.json());
   const hora = new Date().getHours();

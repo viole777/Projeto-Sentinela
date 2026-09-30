@@ -1,5 +1,13 @@
 // Layout unico do Sentinela: sidebar + header operacionais.
 window.Sentinela = {
+  escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  },
   async mount(active, contentHTML) {
     let me = null;
     try {
@@ -53,7 +61,7 @@ window.Sentinela = {
 
     const navHTML = groups.map(([label, items]) => {
       const visibleItems = items.filter(Boolean).join("");
-      return visibleItems ? '<div class="nav-group"><div class="nav-label">' + label + '</div>' + visibleItems + '</div>' : "";
+      return visibleItems ? '<div class="nav-group"><div class="nav-label">' + window.Sentinela.escapeHtml(label) + '</div>' + visibleItems + '</div>' : "";
     }).join("");
 
     const storedTheme = (me.theme === "light" || me.theme === "dark") ? me.theme : (localStorage.getItem("sentinela-theme") || "light");
@@ -62,35 +70,37 @@ window.Sentinela = {
 
     document.body.innerHTML =
       '<style>' +
+      ':root{--bg:#edf2f7;--panel:#ffffff;--panel-alt:#f5f9ff;--text:#1a2432;--muted:#5b6e86;--border:#dfe7f0;--brand:#1f4a73;--brand-strong:#173a5d;--brand-soft:#eaf3ff;--shadow:0 14px 32px rgba(20,32,48,.08)}' +
+      'body[data-theme="dark"]{--bg:#0d1726;--panel:#111f31;--panel-alt:#182a40;--text:#edf4ff;--muted:#a7b8ce;--border:#253a53;--brand:#9ec5ff;--brand-strong:#b9d8ff;--brand-soft:#162d49;--shadow:0 16px 40px rgba(2,8,18,.42)}' +
       '.shell{display:flex;height:100vh;overflow:hidden;background:var(--bg);color:var(--text)}' +
-      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 10px;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-width:110px;justify-content:center;}' +
+      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-width:118px;justify-content:center;box-shadow:0 1px 2px rgba(15,23,42,.04)}' +
       '.theme-toggle:hover{background:var(--panel-alt)}' +
-      '.side{width:260px;flex:0 0 260px;background:var(--panel);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;transition:width .2s ease,flex-basis .2s ease,padding .2s ease;}' +
-      '.shell.sidebar-collapsed .side{width:72px;flex-basis:72px;padding-inline:10px}.shell.sidebar-collapsed .brand{justify-content:center;padding-inline:0}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:0}.shell.sidebar-collapsed .nav-link{height:40px;padding:0;margin:3px 0}.shell.sidebar-collapsed .nav-link::before{content:"•";font-size:22px;line-height:38px;color:var(--muted);display:block;text-align:center}.shell.sidebar-collapsed .nav-link.active::before{color:var(--brand)}.shell.sidebar-collapsed .nav-logout{height:40px;padding:0}.shell.sidebar-collapsed .nav-logout::before{content:"↪";font-size:20px;line-height:38px;display:block;text-align:center}.shell.sidebar-collapsed .nav-group{margin-bottom:8px}' +
+      '.side{width:260px;flex:0 0 260px;background:var(--panel);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;transition:width .2s ease,flex-basis .2s ease,padding .2s ease}' +
+      '.shell.sidebar-collapsed .side{width:72px;flex-basis:72px;padding-inline:10px}.shell.sidebar-collapsed .brand{justify-content:center;padding-inline:0}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:0}.shell.sidebar-collapsed .nav-link{height:40px;padding:0;margin:3px 0}.shell.sidebar-collapsed .nav-link::before{content:"•";font-size:22px;line-height:38px;color:var(--muted);display:block;text-align:center}.shell.sidebar-collapsed .nav-link.active::before{color:var(--brand)}.shell.sidebar-collapsed .nav-logout{height:40px;padding:0}.shell.sidebar-collapsed .nav-logout::before{content:"<";font-size:20px;line-height:38px;display:block;text-align:center}.shell.sidebar-collapsed .nav-group{margin-bottom:8px}' +
       '.brand{display:flex;align-items:center;gap:10px;padding:8px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}' +
-      '.brand-mark{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto;}' +
+      '.brand-mark{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto;box-shadow:var(--shadow)}' +
       '.brand-name{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--text)}' +
       '.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
       '.nav-group{margin-bottom:12px}' +
       '.nav-label{padding:8px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}' +
-      '.nav-link{display:block;padding:9px 10px;border-radius:var(--radius-sm);color:var(--text);font-size:14px;border:1px solid transparent;}' +
+      '.nav-link{display:block;padding:9px 10px;border-radius:10px;color:var(--text);font-size:14px;border:1px solid transparent;}' +
       '.nav-link:hover{background:var(--panel-alt);border-color:var(--border)}' +
-      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#bfe7df;font-weight:700}' +
+      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#cfe3fb;font-weight:700}' +
       '.nav-spacer{flex:1}' +
-      '.nav-logout{display:block;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
+      '.nav-logout{display:block;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
       '.main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg)}' +
       '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel);flex:0 0 auto;z-index:5}' +
       '.page-meta{flex:1;min-width:0}' +
       '.page-path{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:700}' +
       '.page-title{font-size:18px;font-weight:800;color:var(--text);margin-top:2px}' +
       '.top-search{max-width:360px;width:100%}' +
-      '.top-search input{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:9px 10px;color:var(--text)}' +
-      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:var(--panel)}' +
+      '.top-search input{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text)}' +
+      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel)}' +
       '.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}' +
       '.user-text{display:flex;flex-direction:column;gap:2px;line-height:1.1}' +
       '.user-name{font-size:13px;font-weight:700}' +
       '.user-role{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
-      '.sidebar-toggle{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}.sidebar-toggle:hover{background:var(--panel-alt)}' +
+      '.sidebar-toggle{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}.sidebar-toggle:hover{background:var(--panel-alt)}' +
       '.content{flex:1;min-height:0;overflow-y:auto;padding:22px;max-width:none;width:100%}.content>*{max-width:1280px;margin-left:auto;margin-right:auto}.dashboard-page{padding-bottom:32px}.dashboard-page .panel{box-shadow:0 1px 2px rgba(16,24,40,.04)}' +
       '@media(max-width:860px){body{overflow:auto}.shell{display:block;height:auto;overflow:visible}.side{position:static;width:100%;height:auto;max-height:none;overflow:visible}.shell.sidebar-collapsed .side{width:100%;padding:18px 14px 12px}.shell.sidebar-collapsed .brand{justify-content:flex-start;padding-inline:10px}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:inherit}.shell.sidebar-collapsed .nav-link{height:auto;padding:9px 10px;margin:0}.shell.sidebar-collapsed .nav-link::before,.shell.sidebar-collapsed .nav-logout::before{display:none}.top{flex-wrap:wrap}.top-search{max-width:none}.content{overflow:visible;padding:16px}}' +
       '</style>' +
@@ -106,16 +116,16 @@ window.Sentinela = {
         '</aside>' +
         '<div class="main">' +
           '<header class="top">' +
-            '<button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu" aria-expanded="true">☰</button>' +
+            '<button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu" aria-expanded="true">=</button>' +
             '<div class="page-meta">' +
-              '<div class="page-path">Sistema / ' + (active || 'Sentinela') + '</div>' +
-              '<div class="page-title">' + (active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
+              '<div class="page-path">Sistema / ' + window.Sentinela.escapeHtml(active || 'Sentinela') + '</div>' +
+              '<div class="page-title">' + window.Sentinela.escapeHtml(active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
             '</div>' +
             '<div class="top-search"><input id="buscaGlobal" placeholder="Buscar paciente por nome ou CPF"></div>' +
-            '<button class="theme-toggle" id="themeToggle" type="button">' + (storedTheme === 'dark' ? '☀️ Modo claro' : '🌙 Modo escuro') + '</button>' +
+            '<button class="theme-toggle" id="themeToggle" type="button">' + (storedTheme === 'dark' ? 'Modo claro' : 'Modo escuro') + '</button>' +
             '<div class="user-badge">' +
-              '<div class="user-avatar">' + ((me.nome || me.usuario || 'U').charAt(0).toUpperCase()) + '</div>' +
-              '<div class="user-text"><span class="user-name">' + (me.nome || me.usuario) + '</span><span class="user-role">' + (me.role || '').toUpperCase() + '</span></div>' +
+              '<div class="user-avatar">' + window.Sentinela.escapeHtml((me.nome || me.usuario || 'U').charAt(0).toUpperCase()) + '</div>' +
+              '<div class="user-text"><span class="user-name">' + window.Sentinela.escapeHtml(me.nome || me.usuario) + '</span><span class="user-role">' + window.Sentinela.escapeHtml((me.role || '').toUpperCase()) + '</span></div>' +
             '</div>' +
           '</header>' +
           '<main class="content" id="app"></main>' +
@@ -131,7 +141,7 @@ window.Sentinela = {
       shell.classList.toggle("sidebar-collapsed", collapsed);
       sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
       sidebarToggle.setAttribute("aria-label", collapsed ? "Expandir menu" : "Recolher menu");
-      sidebarToggle.textContent = collapsed ? "☰" : "‹";
+      sidebarToggle.textContent = collapsed ? "=" : "<";
       localStorage.setItem("sentinela-sidebar-collapsed", String(collapsed));
     };
     setSidebar(sidebarCollapsed);
@@ -143,7 +153,7 @@ window.Sentinela = {
       localStorage.setItem("sentinela-theme", theme);
       me.theme = theme; // el login de la próxima vez usará esta preferencia
       if (themeToggle) {
-        themeToggle.textContent = theme === 'dark' ? '☀️ Modo claro' : '🌙 Modo escuro';
+        themeToggle.textContent = theme === 'dark' ? 'Modo claro' : 'Modo escuro';
       }
       // Persiste por usuario en el servidor (vale en todos los dispositivos)
       try {

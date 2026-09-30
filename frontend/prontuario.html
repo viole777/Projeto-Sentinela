@@ -24,7 +24,7 @@ Sentinela.mount("prontuario", `
   document.getElementById("nome").textContent = `${p.nome}`;
   const nMed = [...new Set((d.consultas || []).map(c => c.medicacao).filter(Boolean))].length;
   document.getElementById("resumo").innerHTML =
-    `<div class="card kpi"><b>❤️</b>perfil cardiovascular</div>
+    `<div class="card kpi"><b>Cardio</b> perfil cardiovascular</div>
      <div class="card kpi"><b>${(d.alertas || []).filter(a => !a.resolvido).length}</b>alertas</div>
      <div class="card kpi"><b>${nMed}</b>medicamentos</div>
      <div class="card kpi"><b>${(d.examesFull || []).length}</b>exames</div>`;
@@ -35,7 +35,7 @@ Sentinela.mount("prontuario", `
     if (aba === "triagem") el.innerHTML = (d.triagens || []).map(t => `<div>• ${t.createdAt.slice(0, 10)} — ${t.risco} PA ${t.pas || "-"}/${t.pad || "-"} FC ${t.fc || "-"}</div>`).join("") || "Sem triagens.";
     else if (aba === "consultas") el.innerHTML = (d.consultas || []).map(c => `<div>• ${c.createdAt.slice(0, 10)} — ${c.diagnostico || "-"} | ${c.medicacao || "-"}</div>`).join("") || "Sem consultas.";
     else if (aba === "exames") el.innerHTML = ex.map(e => `<div>• ${e.tipo} — ${e.status}${e.resultado ? ": " + (e.resultado.texto || "") : ""}</div>`).join("") || "Sem exames.";
-    else if (aba === "meds") el.innerHTML = [...new Set((d.consultas || []).map(c => c.medicacao).filter(Boolean))].map(m => `<div>• 💊 ${m}</div>`).join("") || "Sem medicamentos.";
+    else if (aba === "meds") el.innerHTML = [...new Set((d.consultas || []).map(c => c.medicacao).filter(Boolean))].map(m => `<div>• ${m}</div>`).join("") || "Sem medicamentos.";
     else if (aba === "alertas") el.innerHTML = (d.alertas || []).map(a => `<div>• [${a.nivel}] ${a.mensagem}</div>`).join("") || "Sem alertas.";
     else if (aba === "inter") el.innerHTML = "Ver internação (leitos).";
     else el.innerHTML = `CPF ${p.cpf} · Hipertensão ${perfil.hipertensao ? "SIM" : "NÃO"} · Diabetes ${perfil.diabetes ? "SIM" : "NÃO"} · Alergias: ${perfil.alergias || "-"}`;

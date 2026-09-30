@@ -20,14 +20,14 @@ Sentinela.mount("pacientes", `
   const p = d.paciente, perfil = p.perfil || {};
   document.getElementById("nome").textContent = `${p.nome}`;
   const crit = (d.alertas || []).find(a => !a.resolvido && (a.nivel === "CRITICO" || a.nivel === "ALTO"));
-  if (crit) document.getElementById("alerta").innerHTML = `<div class="card" style="border:1px solid #ef4444;margin:12px 0;">⚠️ ALERTA — ${crit.mensagem}</div>`;
+  if (crit) document.getElementById("alerta").innerHTML = `<div class="card" style="border:1px solid #ef4444;margin:12px 0;">ALERTA — ${crit.mensagem}</div>`;
   const sim = (v) => v ? "SIM" : "NÃO";
   document.getElementById("info").innerHTML = `<h3>Informações</h3>CPF: ${p.cpf}<br>Nascimento: ${perfil.dataNascimento || "-"}<br>Telefone: ${perfil.telefone || "-"}<br>Emergência: ${perfil.contatoEmergencia || "-"}<br>Status: ${p.status || "-"}`;
   document.getElementById("cardio").innerHTML = `<h3>Cardiovascular</h3>
     Hipertensão: ${sim(perfil.hipertensao)} · Diabetes: ${sim(perfil.diabetes)} · Arritmia: ${sim(perfil.arritmias)}<br>
     Infarto prévio: ${sim(perfil.infartoPrevio)} · AVC prévio: ${sim(perfil.avcPrevio)} · ICC: ${sim(perfil.insuficienciaCardiaca)}<br>
     Tabagismo: ${sim(perfil.tabagismo)} · Marcapasso: ${sim(perfil.marcapasso)} · CDI: ${sim(perfil.desfibrilador)}<br>
-    Alergias: ⚠️ ${perfil.alergias || (d.triagens.slice(-1)[0] || {}).alergia || "-"}<br>
+    Alergias: ${perfil.alergias || (d.triagens.slice(-1)[0] || {}).alergia || "-"}<br>
     Medicamentos: ${(d.consultas || []).map(c => c.medicacao).filter(Boolean).join("; ") || perfil.medicamentosAtuais || "-"}`;
   const ev = [
     ...(d.triagens || []).map(t => `${t.createdAt.slice(0, 10)} — Triagem (${t.risco || "-"}) PA ${t.pas || "-"}/${t.pad || "-"} FC ${t.fc || "-"}`),

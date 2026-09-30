@@ -37,6 +37,9 @@ body[data-theme="dark"] {
 }
 
 *{ box-sizing: border-box; }
+img, svg, video{ max-width: 100%; }
+code, pre{ overflow-wrap: anywhere; }
+.safe-output{ white-space: pre-wrap; word-break: break-word; }
 
 html{ font-size: 16px; }
 
@@ -60,10 +63,24 @@ body[data-theme="dark"] {
   color-scheme: dark;
 }
 
-/* En modo escuro los acentos claros necesitan texto oscuro para mantener contraste */
 body[data-theme="dark"] button,
 body[data-theme="dark"] .brand-mark {
   color: #0b1220;
+}
+
+button, input, select, textarea {
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.safe-output {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 header{ padding: 0; }

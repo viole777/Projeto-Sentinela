@@ -105,7 +105,7 @@
                             <td>${item.endereco || '-'}</td>
                             <td>${item.motivo || '-'}</td>
                             <td>${item.status || 'agendado'}</td>
-                            <td>${item.status === 'concluido' ? '✅ Concluído' : `<button data-id="${item.id}" class="secondary">Concluir</button>`}</td>
+                            <td>${item.status === 'concluido' ? 'Concluído' : `<button data-id="${item.id}" class="secondary">Concluir</button>`}</td>
                         </tr>
                     `).join('') + `</tbody></table>`
                     : '<p>Nenhum atendimento domiciliar cadastrado.</p>';

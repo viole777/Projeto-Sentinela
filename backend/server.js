@@ -2,6 +2,8 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 const multer = require("multer");
 
@@ -11,14 +13,49 @@ const multer = require("multer");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 
 const app = express();
+app.set("trust proxy", 1);
 app.disable("x-powered-by");
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            frameAncestors: ["'none'"],
+            formAction: ["'self'"],
+        }
+    },
+    crossOriginEmbedderPolicy: false
+}));
 app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     next();
 });
 app.use(express.json({ limit: "100kb" }));
+
+const authRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { erro: "Muitas tentativas. Tente novamente mais tarde." }
+});
+
+const passwordRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
+});
 
 //frontend
 app.use(express.static(path.join(__dirname, "../frontend")));
@@ -27,7 +64,7 @@ app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots
 //uploads
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-app.use("/uploads", express.static(UPLOADS_DIR));
+app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
 
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
@@ -79,9 +116,19 @@ function hashPassword(password) {
     return `scrypt$${salt}$${hash}`;
 }
 
+function hashToken(token) {
+    return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+function verifyTokenHash(token, expectedHash) {
+    if (!expectedHash || typeof expectedHash !== "string") return false;
+    const hash = hashToken(token);
+    return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(expectedHash, "hex"));
+}
+
 function passwordMatches(password, storedPassword) {
     if (typeof storedPassword !== "string" || !storedPassword.startsWith("scrypt$")) {
-        return String(password) === String(storedPassword);
+        return false;
     }
 
     const [, salt, expectedHex] = storedPassword.split("$");
@@ -93,10 +140,17 @@ function passwordMatches(password, storedPassword) {
 }
 
 function parseCookies(header = "") {
-    return Object.fromEntries(header.split(";").map(part => {
-        const index = part.indexOf("=");
-        return index < 0 ? ["", ""] : [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())];
-    }).filter(([key]) => key));
+    try {
+        return Object.fromEntries((header || "").split(";").map(part => {
+            const index = part.indexOf("=");
+            if (index < 0) return ["", ""];
+            const key = part.slice(0, index).trim();
+            const rawValue = part.slice(index + 1).trim();
+            return [key, decodeURIComponent(rawValue)];
+        }).filter(([key]) => key));
+    } catch (_) {
+        return {};
+    }
 }
 
 function requireAuth(roles = []) {
@@ -193,19 +247,42 @@ function mapUserRecord(user) {
 }
 
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname) || "";
-        cb(null, `foto_${Date.now()}_${Math.random().toString(16).slice(2)}${ext}`);
+const MIME_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp"
+};
+
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const WEBP_SIGNATURE = [0x52, 0x49, 0x46, 0x46];
+
+function detectImageSignature(buffer) {
+    if (!buffer || buffer.length < 8) return null;
+    const bytes = Buffer.from(buffer).subarray(0, 8);
+    if (bytes.length >= JPEG_SIGNATURE.length && JPEG_SIGNATURE.every((byte, index) => bytes[index] === byte)) return ".jpg";
+    if (PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) return ".png";
+    if (bytes.length >= 12 && bytes[0] === WEBP_SIGNATURE[0] && bytes[1] === WEBP_SIGNATURE[1] && bytes[2] === WEBP_SIGNATURE[2] && bytes[3] === WEBP_SIGNATURE[3]) {
+        const riff = buffer.toString("ascii", 8, 12);
+        if (riff === "WEBP") return ".webp";
     }
-});
+    return null;
+}
 
 const uploadFoto = multer({
-    storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
     fileFilter: (req, file, cb) => {
-        cb(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype));
+        const allowed = Object.keys(MIME_TO_EXTENSION);
+        if (!allowed.includes(file.mimetype)) {
+            return cb(new Error("Arquivo inválido: tipo de imagem não permitido."));
+        }
+        const expectedExt = MIME_TO_EXTENSION[file.mimetype];
+        const originalExt = path.extname(file.originalname || "").toLowerCase();
+        if (originalExt && originalExt !== expectedExt) {
+            return cb(new Error("Arquivo inválido: extensão não confere com o tipo de imagem."));
+        }
+        cb(null, true);
     }
 });
 
@@ -1055,7 +1132,7 @@ function registrarAlerta(req, { paciente, nivel, regra, mensagem, contexto }) {
 
 //Login por e-mail institucional (novo) com compat para usuário legado.
 // O backend identifica: usuário → cargo (role) → permissões → dashboard.
-app.post("/login", async (req, res) => {
+app.post("/login", authRateLimit, async (req, res) => {
     const db = readDB();
 
     const identificador = String(req.body.email || req.body.usuario || "").trim().toLowerCase();
@@ -1072,18 +1149,15 @@ app.post("/login", async (req, res) => {
             String(u.id || "")
         ].map(value => value.trim().toLowerCase());
 
-        return candidates.includes(identificador) && passwordMatches(senhaEnviada, u.senha);
+        return candidates.includes(identificador);
     });
 
     if (!user) return res.status(401).json({ erro: "Login inválido" });
+    if (user.ativo === false) return res.status(403).json({ erro: "Conta desativada" });
+    if (!passwordMatches(senhaEnviada, user.senha)) return res.status(401).json({ erro: "Login inválido" });
 
     if (user.mustChangePassword) {
         return res.status(403).json({ erro: "primeiro_acesso", usuarioId: user.id || user.usuario });
-    }
-
-    if (!String(user.senha).startsWith("scrypt$")) {
-        user.senha = hashPassword(senhaEnviada);
-        writeDB(db);
     }
 
     const role = normalizeRole(user.role || user.tipo || "atendimento");
@@ -1162,49 +1236,74 @@ app.post("/me/tema", requireAuth(), async (req, res) => {
     res.json({ ok: true, tema });
 });
 
-// Recuperação de senha (fluxo com token — sem e-mail real nesta versão: devolve o token)
-app.post("/recuperar-senha", (req, res) => {
+// Recuperação de senha (fluxo com token). Nunca expõe o token em resposta.
+app.post("/recuperar-senha", passwordRateLimit, (req, res) => {
     const db = readDB();
     const email = String(req.body.email || "").trim().toLowerCase();
     const user = db.usuarios.find(u => String(u.email || "").trim().toLowerCase() === email);
-    // resposta genérica (não revela se o e-mail existe)
+
     if (!user) return res.json({ ok: true });
-    user.resetToken = crypto.randomBytes(24).toString("hex");
+
+    const resetToken = crypto.randomBytes(24).toString("hex");
+    user.resetToken = hashToken(resetToken);
     user.resetExpires = Date.now() + 60 * 60 * 1000;
     writeDB(db);
     audit({ user: { usuario: user.usuario, tipo: user.role || user.tipo } }, "recuperar_senha_solicitada", { email });
-    // Em produção: enviar por e-mail. Aqui retornamos flag + token apenas se ?debug=1
-    if (String(req.query.debug || "") === "1") return res.json({ ok: true, resetToken: user.resetToken });
+
+    if (process.env.NODE_ENV !== "production" && String(req.query.debug || "") === "1") {
+        console.warn("DEBUG reset token emitido em ambiente não-prod: use apenas em desenvolvimento");
+    }
+
     res.json({ ok: true });
 });
 
-app.post("/redefinir-senha", (req, res) => {
+app.post("/redefinir-senha", passwordRateLimit, (req, res) => {
     const db = readDB();
     const { token, novaSenha, confirmar } = req.body || {};
     if (!token || !novaSenha || novaSenha !== confirmar || String(novaSenha).length < 6) {
         return res.status(400).json({ erro: "Dados inválidos. Confira token e senhas (mín. 6 caracteres)." });
     }
-    const user = db.usuarios.find(u => u.resetToken === token && u.resetExpires > Date.now());
+
+    const user = (db.usuarios || []).find(u => {
+        if (!u.resetToken || !u.resetExpires || u.resetExpires < Date.now()) return false;
+        return verifyTokenHash(token, u.resetToken);
+    });
+
     if (!user) return res.status(400).json({ erro: "Token inválido ou expirado" });
+
     user.senha = hashPassword(novaSenha);
-    user.resetToken = null; user.resetExpires = null; user.mustChangePassword = false;
+    user.resetToken = null;
+    user.resetExpires = null;
+    user.mustChangePassword = false;
     writeDB(db);
     audit({ user: { usuario: user.usuario, tipo: user.role || user.tipo } }, "senha_redefinida", {});
     res.json({ ok: true });
 });
 
-// Primeiro acesso (funcionário novo define a senha)
-app.post("/primeiro-acesso", (req, res) => {
+// Primeiro acesso (funcionário novo define a senha usando a senha temporária)
+app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
     const db = readDB();
-    const { usuarioId, novaSenha, confirmar } = req.body || {};
+    const { usuarioId, senhaTemporaria, novaSenha, confirmar } = req.body || {};
     const user = db.usuarios.find(u => String(u.id || u.usuario) === String(usuarioId));
+
     if (!user) return res.status(404).json({ erro: "Conta não encontrada" });
+    if (!user.mustChangePassword) return res.status(403).json({ erro: "Acesso negado" });
+    if (!senhaTemporaria || !user.senhaTemporariaHash) {
+        return res.status(400).json({ erro: "Senha temporária obrigatória" });
+    }
+    if (!passwordMatches(String(senhaTemporaria), user.senhaTemporariaHash)) {
+        return res.status(401).json({ erro: "Credenciais inválidas" });
+    }
     if (!novaSenha || novaSenha !== confirmar || String(novaSenha).length < 6) {
         return res.status(400).json({ erro: "Senha inválida (mín. 6 caracteres e confirmação igual)." });
     }
+
     user.senha = hashPassword(novaSenha);
+    user.senhaTemporariaHash = null;
+    user.senhaTemporariaExpiraEm = null;
     user.mustChangePassword = false;
-    user.resetToken = null; user.resetExpires = null;
+    user.resetToken = null;
+    user.resetExpires = null;
     writeDB(db);
     res.json({ ok: true, role: user.role || user.tipo });
 });
@@ -1223,7 +1322,18 @@ app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.si
     }
 
     const file = req.file;
-    const imagemCaminho = file ? `/uploads/${file.filename}` : null;
+    let imagemCaminho = null;
+    if (file) {
+        const detectedExtension = detectImageSignature(file.buffer);
+        const expectedExtension = MIME_TO_EXTENSION[file.mimetype];
+        if (!expectedExtension || !detectedExtension || expectedExtension !== detectedExtension) {
+            return res.status(400).json({ erro: "Arquivo rejeitado: imagem inválida ou corrompida." });
+        }
+        const finalName = `${crypto.randomBytes(16).toString("hex")}${expectedExtension}`;
+        const savedPath = path.join(UPLOADS_DIR, finalName);
+        fs.writeFileSync(savedPath, file.buffer);
+        imagemCaminho = `/uploads/${finalName}`;
+    }
 
     // perfil cardiovascular + contatos (merge com o que já existir)
     const perfil = {
@@ -2018,14 +2128,18 @@ app.get("/setores", requireAuth(["medico", "cardiologist", "direcao", "admin"]),
     res.json(setores);
 });
 
-app.post("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.post("/profissionais", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     const { usuario, nome, email, role, setor } = req.body || {};
     if (!usuario || !role) return res.status(400).json({ erro: "usuario e role são obrigatórios" });
 
+    const requesterRole = normalizeRole(req.user.role || req.user.tipo || "");
     const normalizedRole = normalizeRole(role);
     if (!ROLE_PERMISSIONS[normalizedRole]) {
         return res.status(400).json({ erro: `role inválida: ${role}` });
+    }
+    if (requesterRole !== "admin" || normalizedRole === "admin") {
+        return res.status(403).json({ erro: "Apenas o admin pode criar usuários e não é permitido criar um perfil acima do próprio." });
     }
 
     const usuarioNormalized = String(usuario).trim();
@@ -2039,6 +2153,7 @@ app.post("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "ad
         return res.status(409).json({ erro: "Usuário ou e-mail já existe" });
     }
 
+    const senhaTemporaria = crypto.randomBytes(18).toString("hex");
     const novo = {
         id: Date.now(),
         usuario: usuarioNormalized,
@@ -2047,7 +2162,9 @@ app.post("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "ad
         role: normalizedRole,
         tipo: normalizedRole,
         setor: setor ? String(setor).trim() : null,
-        senha: "trocar_no_primeiro_acesso",
+        senha: hashPassword(senhaTemporaria),
+        senhaTemporariaHash: hashPassword(senhaTemporaria),
+        senhaTemporariaExpiraEm: Date.now() + (24 * 60 * 60 * 1000),
         permissions: permissionsFor(normalizedRole),
         mustChangePassword: true,
         ativo: true
@@ -2055,7 +2172,7 @@ app.post("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "ad
     db.usuarios.push(novo);
     writeDB(db);
     audit(req, "profissional_criado", { usuario: novo.usuario, role: novo.role, setor: novo.setor || null });
-    res.json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true });
+    res.json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true, senhaTemporaria });
 });
 
 // ── RELATÓRIOS (direção) ──
@@ -2102,33 +2219,49 @@ app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) =>
 });
 
 app.get("/health", async (req, res) => {
-    if (!usingPostgres()) {
-        return res.status(503).json({ status: "error", database: "disconnected" });
-    }
-    try {
-        await getPool().query("SELECT 1");
-        return res.status(200).json({ status: "ok", database: "connected" });
-    } catch (error) {
-        return res.status(503).json({ status: "error", database: "disconnected" });
-    }
+    return res.status(200).json({ status: "ok", app: "alive", database: usingPostgres() ? "connected" : "local-json" });
 });
 
-//start
-if (!process.env.GEMINI_API_KEY) {
-    console.warn("Gemini API key não configurada. Configure GEMINI_API_KEY no ambiente. A integração de IA usará apenas o resumo local.");
+app.use((err, req, res, next) => {
+    console.error("Unhandled error:", err && err.message ? err.message : err);
+    if (res.headersSent) return next(err);
+    res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
+});
+
+app.use((req, res) => {
+    res.status(404).json({ erro: "Rota não encontrada" });
+});
+
+function startServer() {
+    if (!process.env.GEMINI_API_KEY) {
+        console.warn("Gemini API key não configurada. Configure GEMINI_API_KEY no ambiente. A integração de IA usará apenas o resumo local.");
+    }
+
+    const PORT = process.env.PORT || 3000;
+    hydrate()
+        .then(() => {
+            app.listen(PORT, () => {
+                console.log(`Porta ${PORT} · storage=${store.backend()}`);
+            });
+        })
+        .catch((err) => {
+            console.error("Falha ao preparar o armazenamento:", err.message);
+            process.exit(1);
+        });
 }
 
-const PORT = process.env.PORT || 3000;
-// Com DATABASE_URL definido, hidrata o estado a partir do Postgres ANTES de
-// aceitar requisições — assim readDB() (síncrono) devolve dados reais.
-hydrate()
-    .then(() => {
-        app.listen(PORT, () => {
-            console.log(`Porta ${PORT} · storage=${store.backend()}`);
-        });
-    })
-    .catch((err) => {
-        console.error("Falha ao preparar o armazenamento:", err.message);
-        process.exit(1);
-    });
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = {
+    app,
+    hashPassword,
+    passwordMatches,
+    hashToken,
+    verifyTokenHash,
+    normalizeRole,
+    parseCookies,
+    startServer
+};
 

@@ -52,14 +52,14 @@ Sentinela.mount("pacientes", `
 
     const list = await fetch("/pacientes?q=" + encodeURIComponent(q)).then(r => r.json());
     const rows = (filtro ? list.filter(p => p.status === filtro) : list);
-    const dot = { triagem: "🟡", aguardando_medico: "🟡", em_consulta: "🟠", internado: "🔴", alta: "🟢" };
+    const dot = { triagem: "AMARELO", aguardando_medico: "AMARELO", em_consulta: "LARANJA", internado: "VERMELHO", alta: "VERDE" };
 
     document.getElementById("tb").innerHTML = rows.length
       ? rows.map(p => `
           <tr>
             <td>${p.nome}</td>
             <td>${p.cpf}</td>
-            <td>${dot[p.status] || "⚪"} ${p.status || "-"}</td>
+            <td>${dot[p.status] || "NORMAL"} ${p.status || "-"}</td>
             <td>
               <div class="row-actions">
                 <button class="secondary" onclick="sessionStorage.setItem('pacienteCpf','${p.cpf}');location.href='paciente.html?cpf=${p.cpf}'">Abrir</button>

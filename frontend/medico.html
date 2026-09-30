@@ -23,16 +23,16 @@
                 <div id="safetyBox" style="margin:10px 0;"></div>
 
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <button onclick="prever()">🔍 Verificar segurança</button>
+                    <button onclick="prever()">Verificar segurança</button>
                     <button onclick="salvar()">Salvar</button>
-                    <button onclick="resumoIA()" style="background:rgba(34,197,94,.9);">🤖 Resumo IA</button>
+                    <button onclick="resumoIA()" style="background:rgba(34,197,94,.9);">Resumo IA</button>
                 </div>
                 <div id="iaBox" style="margin:10px 0;"></div>
                 <hr>
-                <h3>🚨 Alertas</h3>
+                <h3>Alertas</h3>
                 <div id="alertasBox"></div>
                 <hr>
-                <h3>📈 Auditoria recente</h3>
+                <h3>Auditoria recente</h3>
                 <div id="audBox"></div>
             </div>
         `).then(() => {
@@ -207,13 +207,13 @@
 
             function renderSafety(box, achados) {
                 if (!achados.length) {
-                    box.innerHTML = '<div class="card" style="border:1px solid rgba(34,197,94,.5);">✅ Tudo certo. Nenhuma inconsistência encontrada nos registros.</div>';
+                    box.innerHTML = '<div class="card" style="border:1px solid rgba(34,197,94,.5);">Tudo certo. Nenhuma inconsistência encontrada nos registros.</div>';
                     return;
                 }
                 const cor = { CRITICO: '#ef4444', ALTO: '#f59e0b', ATENCAO: '#eab308' };
                 box.innerHTML = achados.map(a => `
                     <div class="card" style="border:1px solid ${cor[a.nivel] || '#888'};margin-bottom:8px;">
-                        <b>${a.nivel === 'CRITICO' ? '🛑' : '⚠️'} ${a.nivel} — ${a.regra}</b><br>${a.mensagem}
+                        <b>${a.nivel === 'CRITICO' ? 'Critico' : 'Atenção'} • ${a.nivel} — ${a.regra}</b><br>${a.mensagem}
                     </div>`).join('') +
                     '<p style="font-size:12px;opacity:.8;">A prescrição requer revisão. A decisão é do profissional.</p>';
             }
@@ -227,8 +227,8 @@
                 if (!r.ok) { box.innerHTML = '<p>Falha ao gerar resumo.</p>'; return; }
                 const d = await r.json();
                 box.innerHTML = `<div class="card" style="border:1px solid rgba(34,197,94,.5);">
-                    <b>🤖 Sentinela AI</b><br><br>${d.resumo}<br><br>
-                    ${(d.inconsistencias || []).length ? '<b>⚠️ Possíveis inconsistências:</b><br>• ' + d.inconsistencias.join('<br>• ') : '✅ Nenhuma inconsistência aparente.'}
+                    <b>Sentinela AI</b><br><br>${d.resumo}<br><br>
+                    ${(d.inconsistencias || []).length ? '<b>Possíveis inconsistências:</b><br>• ' + d.inconsistencias.join('<br>• ') : 'Nenhuma inconsistência aparente.'}
                     <br><br><small>Fonte: prontuário do paciente. ${d.aviso}</small></div>`;
             }
 
@@ -237,7 +237,7 @@
                 if (!r.ok) return;
                 const list = await r.json();
                 const box = document.getElementById('alertasBox');
-                if (!list.length) { box.innerHTML = '<p>Nenhum alerta aberto. ✅</p>'; return; }
+                if (!list.length) { box.innerHTML = '<p>Nenhum alerta aberto.</p>'; return; }
                 const cor = { CRITICO: '#ef4444', ALTO: '#f59e0b', ATENCAO: '#eab308', INFORMATIVO: '#2563eb' };
                 box.innerHTML = list.slice(0, 10).map(a => `
                     <div class="card" style="border:1px solid ${cor[a.nivel] || '#888'};margin-bottom:8px;">
@@ -280,9 +280,9 @@
                     .then((data) => {
                         if (data && data.alertasGerados && data.alertasGerados.length) {
                             const crit = data.alertasGerados.some(a => a.nivel === 'CRITICO');
-                            alert((crit ? "🛑 SAFETY ENGINE — REVISÃO OBRIGATÓRIA\n\n" : "⚠️ Safety Engine encontrou pontos de atenção\n\n") + data.alertasGerados.map(a => `• [${a.nivel}] ${a.mensagem}`).join("\n") + "\n\nConsulta salva. Finalize o atendimento.");
+                            alert((crit ? "SAFETY ENGINE — REVISÃO OBRIGATÓRIA\n\n" : "Safety Engine encontrou pontos de atenção\n\n") + data.alertasGerados.map(a => `• [${a.nivel}] ${a.mensagem}`).join("\n") + "\n\nConsulta salva. Finalize o atendimento.");
                         } else {
-                            alert("✅ Consulta salva! Finalize o atendimento.");
+                            alert("Consulta salva! Finalize o atendimento.");
                         }
                         location.href = 'finalizar_atendimento.html';
                     })

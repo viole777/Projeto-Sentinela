@@ -1,11 +1,16 @@
 {
   "name": "projeto-sentinela-final",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Sistema de gestão clínica e segurança operacional para ambiente hospitalar em demonstração.",
+  "main": "backend/server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node backend/server.js",
+    "dev": "node --watch backend/server.js",
     "db:migrate": "node database/migrate-json-to-postgres.js",
+    "lint": "node --check backend/server.js",
     "test": "node scripts/smoke-test.js"
   },
   "keywords": [],
@@ -16,6 +21,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "multer": "^2.1.1",
     "pg": "^8.23.0",
     "postgres": "^3.4.9",

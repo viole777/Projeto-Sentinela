@@ -40,6 +40,16 @@ function assertCondition(condition, message) {
 async function main() {
   console.log('Iniciando smoke test do Sentinela...');
 
+  // Governança: sem sessão, páginas e regras administrativas não devem ser expostas.
+  const configPublic = await request('/configuracoes.html');
+  assertCondition(configPublic.response.status === 401, 'Configurações não deveria ser pública');
+
+  const safetyPublic = await request('/safety-engine.html');
+  assertCondition(safetyPublic.response.status === 401, 'Safety Engine não deveria ser público');
+
+  const rulesPublic = await request('/safety/regras');
+  assertCondition(rulesPublic.response.status === 401, 'Regras do Safety Engine não deveriam ser públicas');
+
   const loginResult = await request('/login', {
     method: 'POST',
     headers: {

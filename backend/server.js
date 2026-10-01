@@ -227,60 +227,13 @@ const uploadFoto = multer({
     }
 });
 
-function audit(req, acao, detalhes = {}) {
-    try {
-        const db = readDB();
-        if (!Array.isArray(db.auditoria)) db.auditoria = [];
-        db.auditoria.push({
-            id: Date.now() + Math.floor(Math.random() * 1000),
-            quando: new Date().toISOString(),
-            usuario: req.user ? req.user.usuario : "anonimo",
-            perfil: req.user ? req.user.tipo : "-",
-            acao,
-            detalhes,
-            ip: req.ip
-        });
-        // mantém trilha enxuta (últimos 2000 eventos)
-        if (db.auditoria.length > 2000) db.auditoria = db.auditoria.slice(-2000);
-        writeDB(db);
-    } catch (_) { /* auditoria nunca deve quebrar o fluxo */ }
-}
-
-// Serviços de domínio
+// Serviços de infraestrutura e domínio
+const { createAuditService } = require("./src/services/auditService");
+const { createAlertService } = require("./src/services/alertService");
+const audit = createAuditService({ readDB, writeDB });
+const { ensureTVShape, registrarAlerta } = createAlertService({ readDB, writeDB });
 const { safetyCheck } = require("./src/services/safetyEngine");
 const { resumoIA } = require("./src/services/aiService");
-
-function ensureTVShape(db) {
-    if (!db.tvChamada) db.tvChamada = null;
-    if (!db.tvHistorico) db.tvHistorico = [];
-    if (!db.alertas) db.alertas = [];
-    return db;
-}
-
-function registrarAlerta(req, { paciente, nivel, regra, mensagem, contexto }) {
-    const db = readDB();
-    ensureTVShape(db);
-    if (!Array.isArray(db.alertas)) db.alertas = [];
-    const alerta = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        quando: new Date().toISOString(),
-        nivel: nivel || "ATENCAO",
-        regra: regra || "geral",
-        mensagem,
-        pacienteCpf: paciente?.cpf || paciente?.pacienteCpf || null,
-        pacienteNome: paciente?.nome || paciente?.pacienteNome || null,
-        contexto: contexto || {},
-        geradoPor: req.user ? req.user.usuario : "sistema",
-        visualizadoPor: [],
-        resolvido: false,
-        resolvidoPor: null,
-        resolvidoEm: null
-    };
-    db.alertas.unshift(alerta);
-    if (db.alertas.length > 500) db.alertas = db.alertas.slice(0, 500);
-    writeDB(db);
-    return alerta;
-}
 
 //Login por e-mail institucional (novo) com compat para usuário legado.
 // O backend identifica: usuário → cargo (role) → permissões → dashboard.

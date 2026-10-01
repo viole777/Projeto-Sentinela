@@ -2,7 +2,7 @@
 
 // Motor determinístico de segurança clínica do Sentinela.
 // Não diagnostica nem prescreve: apenas aponta inconsistências para revisão profissional.
-const { readDB } = require("./db");
+const { readDB } = require("../db");
 
 function safetyCheck({ paciente, triagem, prescricao }) {
     const alertas = [];

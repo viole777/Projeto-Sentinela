@@ -57,15 +57,6 @@ const passwordRateLimit = rateLimit({
     message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
 });
 
-//frontend
-app.use(express.static(path.join(__dirname, "../frontend")));
-app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
-
-//uploads
-const UPLOADS_DIR = path.join(__dirname, "uploads");
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
-
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
 
@@ -165,6 +156,20 @@ const { parseCookies, requireAuth, requirePermission } = createAuthMiddleware({
     usingPostgres,
     sessionTtlMs: SESSION_TTL_MS
 });
+
+// Conteúdo estático protegido por autenticação quando a página pertence à governança.
+const frontendDir = path.join(__dirname, "../frontend");
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+app.use((req, res, next) => {
+    const adminPages = ["/configuracoes.html", "/safety-engine.html"];
+    if (adminPages.includes(req.path)) return requireAuth(["admin"])(req, res, next);
+    next();
+});
+app.use(express.static(frontendDir));
+app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
+app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
 
 function validateCpf(cpf) {
     return /^\d{11}$/.test(String(cpf).replace(/\D/g, ""));
@@ -1205,29 +1210,29 @@ app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), 
 });
 
 // ── PERFIS / USUÁRIOS / PERMISSÕES / SETORES (Fase 2) ──
-app.get("/usuarios", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/usuarios", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     res.json((db.usuarios || []).map(mapUserRecord));
 });
 
-app.get("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/profissionais", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     res.json((db.usuarios || []).map(mapUserRecord));
 });
 
-app.get("/roles", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/roles", requireAuth(["admin"]), (req, res) => {
     const roles = Object.entries(ROLE_PERMISSIONS).map(([name, permissions]) => ({
         name: normalizeRole(name), permissions: permissions || []
     }));
     res.json(roles);
 });
 
-app.get("/permissoes", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/permissoes", requireAuth(["admin"]), (req, res) => {
     const permissions = Array.from(new Set(Object.values(ROLE_PERMISSIONS).flat())).sort();
     res.json(permissions);
 });
 
-app.get("/setores", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/setores", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     const setores = Array.from(new Set((db.usuarios || []).map(u => u.setor).filter(Boolean))).sort();
     res.json(setores);
@@ -1310,12 +1315,12 @@ app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmac
 });
 
 // ── Regras do Safety Engine (configuráveis) ──
-app.get("/safety/regras", requireAuth([]), (req, res) => {
+app.get("/safety/regras", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
 });
 
-app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.put("/safety/regras", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     db.safetyRules = { ...(db.safetyRules || {}), ...(req.body || {}) };
     writeDB(db);

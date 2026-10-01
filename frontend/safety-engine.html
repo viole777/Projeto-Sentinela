@@ -6,75 +6,65 @@
 <script>
 Sentinela.mount("safety", `
   <div class="page-header">
-    <div>
-      <div class="eyebrow">Segurança</div>
-      <h1>Safety Engine</h1>
-    </div>
+    <div><div class="eyebrow">Governança clínica</div><h1>Safety Engine</h1><div class="dashboard-context">Regras que orientam os alertas de segurança do sistema.</div></div>
+    <div class="header-meta"><span class="admin-mark">Somente administrador</span></div>
   </div>
 
-  <div class="panel">
+  <div class="access-note">
+    <div class="admin-mark">Admin</div>
+    <div><strong>Área de governança.</strong><br><span>O Safety Engine não diagnostica nem prescreve. Ele aplica regras configuradas pelo administrador e sinaliza situações que precisam de revisão profissional.</span></div>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
     <div class="panel-title">Regras ativas</div>
     <div id="regras"></div>
-    <div class="row-actions" style="margin-top:12px;">
-      <button id="salvarRegras">Salvar regras</button>
-    </div>
-  </div>
+    <div class="row-actions" style="margin-top:14px;"><button id="salvarRegras">Salvar regras</button><span id="status" class="dashboard-note"></span></div>
+  </section>
 
-  <div class="section">
+  <section class="panel" style="margin-top:16px;">
     <div class="panel-title">Ocorrências em aberto</div>
     <div id="hist" class="list"></div>
-  </div>
+  </section>
 `).then(async () => {
-  const r = await fetch("/safety/regras").then(r => r.json());
-  const rules = (r && typeof r === "object") ? r : {};
-  const ruleKeys = Object.keys(rules).filter(k => k !== "altoRiscoLista");
+  const esc = Sentinela.escapeHtml;
+  const names = {
+    alergia:["Alergia × medicação","Verifica conflitos entre alergias registradas e medicamentos."],
+    altoRisco:["Medicamentos de alto risco","Sinaliza itens classificados como de maior risco operacional."],
+    duplicidade:["Duplicidade de medicação","Procura possíveis repetições na prescrição."],
+    dadosIncompletos:["Dados clínicos incompletos","Aponta informações essenciais ausentes."],
+    sinalCritico:["Sinais clínicos críticos","Destaca sinais que merecem revisão imediata."]
+  };
 
-  const regrasEl = document.getElementById("regras");
-  function renderRules() {
-    regrasEl.innerHTML = ruleKeys.map((key) => `
-      <div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-        <span>${key}</span>
-        <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""}>
-      </div>
-    `).join("") || "<div class=\"empty-state\">Sem regras configuradas.</div>";
+  const rulesRes = await fetch("/safety/regras");
+  if (!rulesRes.ok) {
+    document.getElementById("status").textContent = "Acesso às regras foi recusado.";
+    return;
   }
+  const rules = await rulesRes.json();
+  const keys = Object.keys(names).filter(k => Object.prototype.hasOwnProperty.call(rules,k));
 
-  renderRules();
+  document.getElementById("regras").innerHTML = keys.map(key => `
+    <div class="rule-row">
+      <div class="rule-copy"><strong>${names[key][0]}</strong><small>${names[key][1]}</small></div>
+      <label class="switch"><input id="rule-${key}" type="checkbox" ${rules[key] !== false ? "checked" : ""}><span class="switch-track"></span></label>
+    </div>
+  `).join("");
 
   document.getElementById("salvarRegras").onclick = async () => {
     const payload = {};
-    ruleKeys.forEach((key) => {
-      payload[key] = document.getElementById(`rule-${key}`).checked;
-    });
-
-    const res = await fetch("/safety/regras", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      alert("Falha ao salvar regras do Safety Engine.");
-      return;
-    }
-
-    alert("Regras atualizadas com sucesso.");
-    const updated = await fetch("/safety/regras").then(r => r.json());
-    Object.assign(rules, updated || {});
-    renderRules();
+    keys.forEach(key => payload[key] = document.getElementById("rule-" + key).checked);
+    const res = await fetch("/safety/regras", {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    document.getElementById("status").textContent = res.ok ? "Regras atualizadas." : "Alteração recusada.";
   };
 
-  const h = await fetch("/alertas?abertos=1").then(r => r.json());
-  document.getElementById("hist").innerHTML = (h || []).slice(0, 20).map(a => `
+  const historyRes = await fetch("/alertas?abertos=1");
+  const alerts = historyRes.ok ? await historyRes.json() : [];
+  document.getElementById("hist").innerHTML = (alerts || []).slice(0,20).map(a => `
     <div class="list-item">
-      <div class="meta-row">
-        <span class="badge ${a.nivel === "CRITICO" ? "critica" : a.nivel === "ALTO" ? "alta" : "info"}">${a.nivel}</span>
-        <span class="meta-chip">${a.regra}</span>
-      </div>
-      <strong>${a.mensagem}</strong>
-      <small>${a.pacienteNome || ""} · ${a.pacienteCpf || "-"}</small>
+      <div class="meta-row"><span class="badge ${String(a.nivel).toUpperCase() === "CRITICO" ? "critica" : String(a.nivel).toUpperCase() === "ALTO" ? "alta" : "info"}">${esc(a.nivel || "INFO")}</span><span class="meta-chip">${esc(a.regra || "sistema")}</span></div>
+      <strong>${esc(a.mensagem || "Ocorrência registrada")}</strong><small>${esc(a.pacienteNome || "Sistema")} · ${esc(a.pacienteCpf || "-")}</small>
     </div>
-  `).join("") || "<div class=\"empty-state\">Sem ocorrências em aberto.</div>";
+  `).join("") || '<div class="empty-state">Nenhuma ocorrência em aberto.</div>';
 });
 </script>
 </body>

@@ -1,26 +1,37 @@
-// Layout unico do Sentinela: sidebar + header operacionais.
+// Shell visual e controle de acesso do Sentinela.
 window.Sentinela = {
   escapeHtml(value) {
     return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   },
+
   async mount(active, contentHTML) {
-    let me = null;
+    let me;
     try {
-      const r = await fetch("/me");
-      if (!r.ok) { location.href = "index.html"; return; }
-      me = await r.json();
-    } catch (e) { location.href = "index.html"; return; }
+      const response = await fetch("/me", { cache: "no-store" });
+      if (!response.ok) { location.href = "index.html"; return; }
+      me = await response.json();
+    } catch (_) {
+      location.href = "index.html";
+      return;
+    }
 
+    const role = String(me.role || me.tipo || "").toLowerCase();
     const perms = Array.isArray(me.permissions) ? me.permissions : [];
-    const can = (p) => perms.includes("*") || perms.includes(p);
+    const isAdmin = role === "admin";
+    const can = (permission) => perms.includes("*") || perms.includes(permission);
 
-    const item = (id, href, label, perm) => {
-      if (perm && !can(perm)) return "";
+    // Configurações e Safety Engine são áreas de governança do sistema.
+    // A regra é repetida no backend para não depender apenas da interface.
+    if ((active === "config" || active === "safety") && !isAdmin) {
+      location.replace("dashboard.html");
+      return;
+    }
+
+    const item = (id, href, label, permission, adminOnly = false) => {
+      if (adminOnly && !isAdmin) return "";
+      if (permission && !can(permission) && !adminOnly) return "";
       return '<a href="' + href + '" class="nav-link ' + (active === id ? "active" : "") + '">' + label + '</a>';
     };
 
@@ -51,82 +62,52 @@ window.Sentinela = {
       ]],
       ["Gestão", [
         item("alertas", "alertas.html", "Alertas", "alerts.read"),
-        item("safety", "safety-engine.html", "Safety Engine", "alerts.read"),
         item("relatorios", "relatorios.html", "Relatórios", "reports.read"),
         item("profissionais", "profissionais.html", "Profissionais", "audit.read"),
         item("auditoria", "auditoria.html", "Auditoria", "audit.read"),
-        item("config", "configuracoes.html", "Configurações", "dashboard.read")
+        item("safety", "safety-engine.html", "Safety Engine", null, true),
+        item("config", "configuracoes.html", "Configurações", null, true)
       ]]
     ];
 
     const navHTML = groups.map(([label, items]) => {
-      const visibleItems = items.filter(Boolean).join("");
-      return visibleItems ? '<div class="nav-group"><div class="nav-label">' + window.Sentinela.escapeHtml(label) + '</div>' + visibleItems + '</div>' : "";
+      const visible = items.filter(Boolean).join("");
+      return visible
+        ? '<div class="nav-group"><div class="nav-label">' + this.escapeHtml(label) + '</div>' + visible + '</div>'
+        : "";
     }).join("");
 
-    const storedTheme = (me.theme === "light" || me.theme === "dark") ? me.theme : (localStorage.getItem("sentinela-theme") || "light");
+    const storedTheme = me.theme === "light" || me.theme === "dark"
+      ? me.theme
+      : (localStorage.getItem("sentinela-theme") || "light");
+
     document.body.dataset.theme = storedTheme;
     localStorage.setItem("sentinela-theme", storedTheme);
 
+    const pageTitles = {
+      dashboard:"Dashboard", atendimento:"Atendimento", casa:"Atendimento Domiciliar",
+      triagem:"Triagem", pacientes:"Pacientes", farmacia:"Farmácia", estoque:"Estoque",
+      exames:"Exames", config:"Configurações", safety:"Safety Engine",
+      consulta:"Consultas", prontuario:"Prontuários", fila:"Fila", internacao:"Internações",
+      leitos:"Leitos", alertas:"Alertas", relatorios:"Relatórios",
+      profissionais:"Profissionais", auditoria:"Auditoria", ai:"Sentinela AI"
+    };
+
     document.body.innerHTML =
-      '<style>' +
-      ':root{--bg:#edf2f7;--panel:#ffffff;--panel-alt:#f5f9ff;--text:#1a2432;--muted:#5b6e86;--border:#dfe7f0;--brand:#1f4a73;--brand-strong:#173a5d;--brand-soft:#eaf3ff;--shadow:0 14px 32px rgba(20,32,48,.08)}' +
-      'body[data-theme="dark"]{--bg:#0d1726;--panel:#111f31;--panel-alt:#182a40;--text:#edf4ff;--muted:#a7b8ce;--border:#253a53;--brand:#9ec5ff;--brand-strong:#b9d8ff;--brand-soft:#162d49;--shadow:0 16px 40px rgba(2,8,18,.42)}' +
-      '.shell{display:flex;height:100vh;overflow:hidden;background:var(--bg);color:var(--text)}' +
-      '.theme-toggle{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-width:118px;justify-content:center;box-shadow:0 1px 2px rgba(15,23,42,.04)}' +
-      '.theme-toggle:hover{background:var(--panel-alt)}' +
-      '.side{width:260px;flex:0 0 260px;background:var(--panel);border-right:1px solid var(--border);padding:18px 14px 12px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;transition:width .2s ease,flex-basis .2s ease,padding .2s ease}' +
-      '.shell.sidebar-collapsed .side{width:72px;flex-basis:72px;padding-inline:10px}.shell.sidebar-collapsed .brand{justify-content:center;padding-inline:0}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:0}.shell.sidebar-collapsed .nav-link{height:40px;padding:0;margin:3px 0}.shell.sidebar-collapsed .nav-link::before{content:"•";font-size:22px;line-height:38px;color:var(--muted);display:block;text-align:center}.shell.sidebar-collapsed .nav-link.active::before{color:var(--brand)}.shell.sidebar-collapsed .nav-logout{height:40px;padding:0}.shell.sidebar-collapsed .nav-logout::before{content:"<";font-size:20px;line-height:38px;display:block;text-align:center}.shell.sidebar-collapsed .nav-group{margin-bottom:8px}' +
-      '.brand{display:flex;align-items:center;gap:10px;padding:8px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}' +
-      '.brand-mark{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto;box-shadow:var(--shadow)}' +
-      '.brand-name{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--text)}' +
-      '.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
-      '.nav-group{margin-bottom:12px}' +
-      '.nav-label{padding:8px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}' +
-      '.nav-link{display:block;padding:9px 10px;border-radius:10px;color:var(--text);font-size:14px;border:1px solid transparent;}' +
-      '.nav-link:hover{background:var(--panel-alt);border-color:var(--border)}' +
-      '.nav-link.active{background:var(--brand-soft);color:var(--brand-strong);border-color:#cfe3fb;font-weight:700}' +
-      '.nav-spacer{flex:1}' +
-      '.nav-logout{display:block;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;font-weight:600;margin-top:8px}' +
-      '.main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg)}' +
-      '.top{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel);flex:0 0 auto;z-index:5}' +
-      '.page-meta{flex:1;min-width:0}' +
-      '.page-path{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:700}' +
-      '.page-title{font-size:18px;font-weight:800;color:var(--text);margin-top:2px}' +
-      '.top-search{max-width:360px;width:100%}' +
-      '.top-search input{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text)}' +
-      '.user-badge{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel)}' +
-      '.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}' +
-      '.user-text{display:flex;flex-direction:column;gap:2px;line-height:1.1}' +
-      '.user-name{font-size:13px;font-weight:700}' +
-      '.user-role{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
-      '.sidebar-toggle{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}.sidebar-toggle:hover{background:var(--panel-alt)}' +
-      '.content{flex:1;min-height:0;overflow-y:auto;padding:22px;max-width:none;width:100%}.content>*{max-width:1280px;margin-left:auto;margin-right:auto}.dashboard-page{padding-bottom:32px}.dashboard-page .panel{box-shadow:0 1px 2px rgba(16,24,40,.04)}' +
-      '@media(max-width:860px){body{overflow:auto}.shell{display:block;height:auto;overflow:visible}.side{position:static;width:100%;height:auto;max-height:none;overflow:visible}.shell.sidebar-collapsed .side{width:100%;padding:18px 14px 12px}.shell.sidebar-collapsed .brand{justify-content:flex-start;padding-inline:10px}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:inherit}.shell.sidebar-collapsed .nav-link{height:auto;padding:9px 10px;margin:0}.shell.sidebar-collapsed .nav-link::before,.shell.sidebar-collapsed .nav-logout::before{display:none}.top{flex-wrap:wrap}.top-search{max-width:none}.content{overflow:visible;padding:16px}}' +
-      '</style>' +
       '<div class="shell">' +
         '<aside class="side">' +
-          '<div class="brand">' +
-            '<div class="brand-mark">S</div>' +
-            '<div><div class="brand-name">SENTINELA</div><div class="brand-sub">Cardiologia</div></div>' +
-          '</div>' +
+          '<div class="brand"><div class="brand-mark">S</div><div><div class="brand-name">SENTINELA</div><div class="brand-sub">Cardiologia</div></div></div>' +
           navHTML +
           '<div class="nav-spacer"></div>' +
-          '<a href="#" class="nav-logout" id="btnSair">Sair</a>' +
+          '<a href="#" class="nav-logout" id="btnSair">Sair da sessão</a>' +
         '</aside>' +
         '<div class="main">' +
           '<header class="top">' +
-            '<button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu" aria-expanded="true">=</button>' +
-            '<div class="page-meta">' +
-              '<div class="page-path">Sistema / ' + window.Sentinela.escapeHtml(active || 'Sentinela') + '</div>' +
-              '<div class="page-title">' + window.Sentinela.escapeHtml(active === 'dashboard' ? 'Dashboard' : active === 'atendimento' ? 'Atendimento' : active === 'casa' ? 'Atendimento Domiciliar' : active === 'triagem' ? 'Triagem' : active === 'pacientes' ? 'Pacientes' : active === 'farmacia' ? 'Farmácia' : active === 'estoque' ? 'Estoque' : active === 'exames' ? 'Exames' : active === 'config' ? 'Configurações' : 'Sentinela') + '</div>' +
-            '</div>' +
-            '<div class="top-search"><input id="buscaGlobal" placeholder="Buscar paciente por nome ou CPF"></div>' +
-            '<button class="theme-toggle" id="themeToggle" type="button">' + (storedTheme === 'dark' ? 'Modo claro' : 'Modo escuro') + '</button>' +
-            '<div class="user-badge">' +
-              '<div class="user-avatar">' + window.Sentinela.escapeHtml((me.nome || me.usuario || 'U').charAt(0).toUpperCase()) + '</div>' +
-              '<div class="user-text"><span class="user-name">' + window.Sentinela.escapeHtml(me.nome || me.usuario) + '</span><span class="user-role">' + window.Sentinela.escapeHtml((me.role || '').toUpperCase()) + '</span></div>' +
-            '</div>' +
+            '<button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu" aria-expanded="true">≡</button>' +
+            '<div class="page-meta"><div class="page-path">Sistema / ' + this.escapeHtml(active || "Sentinela") + '</div><div class="page-title">' + this.escapeHtml(pageTitles[active] || "Sentinela") + '</div></div>' +
+            '<div class="top-search"><input id="buscaGlobal" aria-label="Buscar paciente" placeholder="Buscar paciente por nome ou CPF"></div>' +
+            '<button class="theme-toggle" id="themeToggle" type="button" aria-label="Alternar tema">' + (storedTheme === "dark" ? "Modo claro" : "Modo escuro") + '</button>' +
+            '<div class="user-badge"><div class="user-avatar">' + this.escapeHtml((me.nome || me.usuario || "U").charAt(0).toUpperCase()) + '</div><div class="user-text"><span class="user-name">' + this.escapeHtml(me.nome || me.usuario) + '</span><span class="user-role">' + this.escapeHtml(role) + '</span></div></div>' +
           '</header>' +
           '<main class="content" id="app"></main>' +
         '</div>' +
@@ -136,59 +117,49 @@ window.Sentinela = {
 
     const shell = document.querySelector(".shell");
     const sidebarToggle = document.getElementById("sidebarToggle");
-    const sidebarCollapsed = localStorage.getItem("sentinela-sidebar-collapsed") === "true";
-    const setSidebar = (collapsed) => {
-      shell.classList.toggle("sidebar-collapsed", collapsed);
-      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-      sidebarToggle.setAttribute("aria-label", collapsed ? "Expandir menu" : "Recolher menu");
-      sidebarToggle.textContent = collapsed ? "=" : "<";
-      localStorage.setItem("sentinela-sidebar-collapsed", String(collapsed));
+    const collapsed = localStorage.getItem("sentinela-sidebar-collapsed") === "true";
+    const setSidebar = (value) => {
+      shell.classList.toggle("sidebar-collapsed", value);
+      sidebarToggle.setAttribute("aria-expanded", String(!value));
+      sidebarToggle.setAttribute("aria-label", value ? "Expandir menu" : "Recolher menu");
+      sidebarToggle.textContent = value ? "≡" : "←";
+      localStorage.setItem("sentinela-sidebar-collapsed", String(value));
     };
-    setSidebar(sidebarCollapsed);
+    setSidebar(collapsed);
     sidebarToggle.addEventListener("click", () => setSidebar(!shell.classList.contains("sidebar-collapsed")));
 
     const themeToggle = document.getElementById("themeToggle");
     const applyTheme = (theme) => {
       document.body.dataset.theme = theme;
       localStorage.setItem("sentinela-theme", theme);
-      me.theme = theme; // el login de la próxima vez usará esta preferencia
-      if (themeToggle) {
-        themeToggle.textContent = theme === 'dark' ? 'Modo claro' : 'Modo escuro';
-      }
-      // Persiste por usuario en el servidor (vale en todos los dispositivos)
-      try {
-        fetch("/me/tema", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tema: theme })
-        }).catch(() => {});
-      } catch (_) { /* la preferencia local sigue funcionando */ }
+      if (themeToggle) themeToggle.textContent = theme === "dark" ? "Modo claro" : "Modo escuro";
+      fetch("/me/tema", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ tema:theme })
+      }).catch(() => {});
     };
+    themeToggle?.addEventListener("click", () => applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark"));
 
-    if (themeToggle) {
-      themeToggle.addEventListener("click", () => {
-        const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-        applyTheme(nextTheme);
-      });
-    }
-
-    document.getElementById("btnSair").onclick = () => {
-      fetch("/logout", { method: "POST" }).then(() => location.href = "index.html");
-      return false;
+    document.getElementById("btnSair").onclick = (event) => {
+      event.preventDefault();
+      fetch("/logout", { method:"POST" }).finally(() => { location.href = "index.html"; });
     };
 
     const busca = document.getElementById("buscaGlobal");
-    if (busca) {
-      busca.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && busca.value.trim()) {
-          sessionStorage.setItem("pacienteBusca", busca.value.trim());
-          if (active !== "pacientes") location.href = "pacientes.html";
-          else window.dispatchEvent(new Event("sentinela:buscar"));
-        }
-      });
-    }
+    busca?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && busca.value.trim()) {
+        sessionStorage.setItem("pacienteBusca", busca.value.trim());
+        if (active !== "pacientes") location.href = "pacientes.html";
+        else window.dispatchEvent(new Event("sentinela:buscar"));
+      }
+    });
 
     window.Sentinela.me = me;
   },
-  fmtDate(iso) { try { return new Date(iso).toLocaleString("pt-BR"); } catch (e) { return iso || "-"; } }
+
+  fmtDate(iso) {
+    try { return new Date(iso).toLocaleString("pt-BR"); }
+    catch (_) { return iso || "-"; }
+  }
 };

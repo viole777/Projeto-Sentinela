@@ -5,88 +5,94 @@
 <script src="layout.js"></script>
 <script>
 Sentinela.mount("config", `
-  <h2>Configurações</h2>
-  <div class="card"><h3>Regras do Sentinela (Safety Engine)</h3>
-    <div id="regras"></div>
-    <button style="margin-top:8px;" onclick="salvar()">Salvar regras</button>
+  <div class="page-header">
+    <div><div class="eyebrow">Governança</div><h1>Configurações</h1></div>
+    <div class="header-meta"><span class="admin-mark">Acesso administrativo</span></div>
   </div>
 
-  <div class="card" style="margin-top:12px;">
-    <h3>Gestão de perfis, permissões e setores</h3>
-    <div id="adminOverview"></div>
+  <div class="access-note">
+    <div class="admin-mark">Admin</div>
+    <div><strong>Estas configurações definem o comportamento do sistema.</strong><br>
+    <span>Somente o administrador pode alterar regras de segurança, perfis e permissões.</span></div>
   </div>
 
-  <div class="card" style="margin-top:12px;"><h3>Privacidade e LGPD</h3>
-    <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p></div>
+  <section class="panel" style="margin-top:16px;">
+    <div class="panel-title">Safety Engine</div>
+    <h3>Regras globais de segurança</h3>
+    <p class="dashboard-note">As regras abaixo são aplicadas ao fluxo clínico. Desative uma regra somente quando houver uma decisão administrativa documentada.</p>
+    <div id="regras" style="margin-top:8px;"></div>
+    <div class="row-actions" style="margin-top:14px;"><button id="salvar">Salvar alterações</button><span id="status" class="dashboard-note"></span></div>
+  </section>
+
+  <section class="split">
+    <div class="panel">
+      <div class="panel-title">Estrutura de acesso</div>
+      <div class="cards">
+        <div class="card"><div class="dashboard-stat"><strong id="usuarios">—</strong><span>usuários</span></div></div>
+        <div class="card"><div class="dashboard-stat"><strong id="roles">—</strong><span>perfis</span></div></div>
+        <div class="card"><div class="dashboard-stat"><strong id="permissoes">—</strong><span>permissões</span></div></div>
+        <div class="card"><div class="dashboard-stat"><strong id="setores">—</strong><span>setores</span></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Privacidade</div>
+      <p class="dashboard-note">Ambiente de demonstração com dados fictícios/sintéticos. O acesso é controlado por sessão e RBAC, e as ações administrativas são registradas na auditoria.</p>
+    </div>
+  </section>
+
+  <section class="split">
+    <div class="panel"><div class="panel-title">Perfis</div><div id="rolesList" class="list"></div></div>
+    <div class="panel"><div class="panel-title">Usuários cadastrados</div><div id="usersList" class="list"></div></div>
+  </section>
 `).then(async () => {
-  const r = await fetch("/safety/regras").then(r => r.json());
-  const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
-  document.getElementById("regras").innerHTML = keys.map(k =>
-    `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""}> ${k}</label>`).join("");
+  const esc = Sentinela.escapeHtml;
+  const ruleNames = {
+    alergia:"Alergia × medicação",
+    altoRisco:"Medicamentos de alto risco",
+    duplicidade:"Duplicidade de medicação",
+    dadosIncompletos:"Dados clínicos incompletos",
+    sinalCritico:"Sinais clínicos críticos"
+  };
 
-  const [usuarios, roles, permissoes, setores] = await Promise.all([
-    fetch("/usuarios").then(r => r.json()),
-    fetch("/roles").then(r => r.json()),
-    fetch("/permissoes").then(r => r.json()),
-    fetch("/setores").then(r => r.json())
+  const [rulesRes, usersRes, rolesRes, permissionsRes, sectorsRes] = await Promise.all([
+    fetch("/safety/regras"), fetch("/usuarios"), fetch("/roles"), fetch("/permissoes"), fetch("/setores")
   ]);
+  if (![rulesRes,usersRes,rolesRes,permissionsRes,sectorsRes].every(r => r.ok)) {
+    document.getElementById("status").textContent = "Não foi possível carregar as configurações.";
+    return;
+  }
 
-  const overview = document.getElementById("adminOverview");
-  overview.innerHTML = `
-    <div class="cards">
-      <div class="card">
-        <div class="kpi"><b>${usuarios.length}</b><span>Usuários</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${roles.length}</b><span>Perfis</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${setores.length}</b><span>Setores</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${permissoes.length}</b><span>Permissões</span></div>
-      </div>
+  const rules = await rulesRes.json();
+  const users = await usersRes.json();
+  const roles = await rolesRes.json();
+  const permissions = await permissionsRes.json();
+  const sectors = await sectorsRes.json();
+
+  document.getElementById("regras").innerHTML = Object.keys(ruleNames).map(key => `
+    <div class="rule-row">
+      <div class="rule-copy"><strong>${ruleNames[key]}</strong><small>${key}</small></div>
+      <label class="switch"><input id="rule-${key}" type="checkbox" ${rules[key] !== false ? "checked" : ""}><span class="switch-track"></span></label>
     </div>
+  `).join("");
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px;">
-      <div class="card">
-        <h4>Perfis e permissões</h4>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${roles.map(role => `
-            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
-              <strong>${role.name}</strong>
-              <div style="font-size:12px;opacity:.8;margin-top:6px;">${(role.permissions || []).slice(0, 6).join(", ") || "Sem permissões explícitas"}</div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
+  document.getElementById("usuarios").textContent = users.length;
+  document.getElementById("roles").textContent = roles.length;
+  document.getElementById("permissoes").textContent = permissions.length;
+  document.getElementById("setores").textContent = sectors.length;
 
-      <div class="card">
-        <h4>Setores ativos</h4>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${(setores || []).map(setor => `<span class="badge normal" style="display:inline-block;">${setor}</span>`).join("") || "<span style=\"opacity:.7\">Nenhum setor cadastrado</span>"}
-        </div>
-      </div>
+  document.getElementById("rolesList").innerHTML = roles.map(role => `
+    <div class="list-item"><strong>${esc(role.name)}</strong><small>${role.name === "admin" ? "Controle total do sistema" : (role.permissions || []).length + " permissões atribuídas"}</small></div>
+  `).join("");
 
-      <div class="card">
-        <h4>Usuários cadastrados</h4>
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">
-          ${usuarios.map(user => `
-            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
-              <div><strong>${user.nome || user.usuario}</strong> <span style="opacity:.7;">(${user.role})</span></div>
-              <div style="font-size:12px;opacity:.8;">${user.email || "Sem e-mail"} • ${user.setor || "Sem setor"}</div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    </div>
-  `;
+  document.getElementById("usersList").innerHTML = users.slice(0,30).map(user => `
+    <div class="list-item"><strong>${esc(user.nome || user.usuario)}</strong><small>${esc(user.role)} · ${esc(user.setor || "Sem setor")}</small></div>
+  `).join("") || '<div class="empty-state">Nenhum usuário cadastrado.</div>';
 
-  window.salvar = async () => {
+  document.getElementById("salvar").onclick = async () => {
     const body = {};
-    keys.forEach(k => body[k] = document.getElementById("rg_" + k).checked);
-    await fetch("/safety/regras", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    alert("Regras atualizadas.");
+    Object.keys(ruleNames).forEach(key => body[key] = document.getElementById("rule-" + key).checked);
+    const res = await fetch("/safety/regras", {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    document.getElementById("status").textContent = res.ok ? "Alterações salvas." : "Não foi possível salvar.";
   };
 });
 </script>

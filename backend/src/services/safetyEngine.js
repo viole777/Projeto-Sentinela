@@ -7,11 +7,15 @@ const { readDB } = require("../db");
 function safetyCheck({ paciente, triagem, prescricao }) {
     const alertas = [];
     const norm = (s) => String(s || "").trim().toLowerCase();
+    const defaultRules = { alergia:true, altoRisco:true, duplicidade:true, dadosIncompletos:true, sinalCritico:true };
+    let db = {};
+    try { db = readDB() || {}; } catch (_) {}
+    const rules = { ...defaultRules, ...(db.safetyRules || {}) };
 
     // 1. Alergia x medicação prescrita
     const alergiaTxt = norm(triagem?.alergia || paciente?.alergias);
     const medTxt = norm(prescricao?.medicacao);
-    if (alergiaTxt && alergiaTxt !== "nenhuma" && alergiaTxt !== "-" && medTxt) {
+    if (rules.alergia && alergiaTxt && alergiaTxt !== "nenhuma" && alergiaTxt !== "-" && medTxt) {
         const termos = alergiaTxt.split(/[,;/]+/).map(t => t.trim()).filter(Boolean);
         if (termos.some(t => t.length >= 3 && medTxt.includes(t))) {
             alertas.push({
@@ -25,7 +29,7 @@ function safetyCheck({ paciente, triagem, prescricao }) {
 
     // 2. Medicamento de alto risco (ex.: anticoagulantes — cardiologia)
     const altoRisco = ["varfarina", "rivaroxabana", "apixabana", "dabigatrana", "edoxabana", "heparina", "enoxaparina", "clopidogrel", "ticagrelor", "amiodarona", "digoxina", "insulina"];
-    if (altoRisco.some(m => medTxt.includes(m))) {
+    if (rules.altoRisco && altoRisco.some(m => medTxt.includes(m))) {
         alertas.push({
             nivel: "ALTO",
             regra: "alto_risco",
@@ -36,11 +40,10 @@ function safetyCheck({ paciente, triagem, prescricao }) {
 
     // 3. Duplicidade (mesmo texto de medicação já prescrito e ativo)
     try {
-        const db = readDB();
-        const dup = (db.consultas || []).find(c =>
+        const dup = rules.duplicidade ? (db.consultas || []).find(c =>
             String(c.pacienteCpf) === String(paciente?.cpf) &&
             norm(c.medicacao) && norm(c.medicacao) === medTxt
-        );
+        ) : null;
         if (dup && medTxt) {
             alertas.push({
                 nivel: "ATENCAO",
@@ -52,7 +55,7 @@ function safetyCheck({ paciente, triagem, prescricao }) {
     } catch (_) {}
 
     // 4. Dados incompletos
-    if (!medTxt || !norm(prescricao?.diagnostico)) {
+    if (rules.dadosIncompletos && (!medTxt || !norm(prescricao?.diagnostico))) {
         alertas.push({
             nivel: "ATENCAO",
             regra: "dados_incompletos",
@@ -63,7 +66,7 @@ function safetyCheck({ paciente, triagem, prescricao }) {
 
     // 5. Sinais que exigem avaliação imediata (NÃO é diagnóstico)
     const temp = Number(triagem?.temperatura);
-    if (!Number.isNaN(temp) && triagem?.temperatura !== "" && triagem?.temperatura != null && (temp >= 39 || temp < 35)) {
+    if (rules.sinalCritico && !Number.isNaN(temp) && triagem?.temperatura !== "" && triagem?.temperatura != null && (temp >= 39 || temp < 35)) {
         alertas.push({
             nivel: "ALTO",
             regra: "sinal_critico",

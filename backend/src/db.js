@@ -669,11 +669,12 @@ async function syncExams(pool, list) {
 async function syncInventory(pool, list, movements) {
   for (const item of list) {
     await pool.query(
-      `INSERT INTO inventory (name, quantity, min_stock, high_risk)
-       VALUES ($1,$2,$3,$4)
+      `INSERT INTO inventory (name, category, quantity, min_stock, high_risk)
+       VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (name) DO UPDATE SET
-         quantity = EXCLUDED.quantity, min_stock = EXCLUDED.min_stock, high_risk = EXCLUDED.high_risk`,
-      [item.medicamento, Number(item.quantidade) || 0, Number(item.minimo) || 10, !!item.altoRisco]
+         category = EXCLUDED.category, quantity = EXCLUDED.quantity,
+         min_stock = EXCLUDED.min_stock, high_risk = EXCLUDED.high_risk`,
+      [item.medicamento, item.categoria || 'Outros', Number(item.quantidade) || 0, Number(item.minimo) || 10, !!item.altoRisco]
     );
   }
   for (const m of movements || []) {

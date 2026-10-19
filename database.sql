@@ -257,7 +257,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ============================================================
 -- UPGRADE DE BASES ANTIGAS (idempotente — no-op em bases novas)
 -- Colunas adicionadas ao longo do tempo; mantém um banco
--- Supabase existente alinhado com o código atual.
+-- Bancos PostgreSQL existentes alinhados com o código atual.
 -- ============================================================
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'light';

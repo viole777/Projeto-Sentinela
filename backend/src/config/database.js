@@ -12,9 +12,12 @@ function getPool() {
   if (!usingPostgres()) return null;
   if (!pool) {
     const sslMode = String(process.env.PGSSL || '').toLowerCase();
+    const ssl = sslMode === 'disable'
+      ? false
+      : { rejectUnauthorized: sslMode !== 'insecure' };
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: sslMode === 'disable' ? false : { rejectUnauthorized: false }
+      ssl
     });
   }
   return pool;

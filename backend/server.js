@@ -68,8 +68,8 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
 
-// Sessões: cache em memória + persistência durável (Supabase em produção,
-// backend/sessions.json no dev sem DATABASE_URL). Mesma API do Map —
+// Sessões: cache em memória + persistência durável no PostgreSQL em produção,
+// backend/sessions.json no dev sem DATABASE_URL. Mesma API do Map —
 // get/set/delete continuam funcionando em todo o arquivo.
 const sessions = require("./src/sessions");
 // Ao reidratar uma sessão do banco, as permissões vêm das tabelas de RBAC:

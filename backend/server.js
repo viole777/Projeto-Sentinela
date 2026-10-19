@@ -1330,6 +1330,15 @@ app.get("/health", async (req, res) => {
         return res.status(503).json({ status: "degraded", app: "alive", database: "local-json" });
     }
     try {
+        const writesHealthy = await store.flush();
+        if (!writesHealthy) {
+            return res.status(503).json({
+                status: "degraded",
+                app: "alive",
+                database: "write_failed",
+                message: "A última sincronização de dados falhou; verifique os logs do serviço."
+            });
+        }
         await getPool().query("SELECT 1");
         return res.status(200).json({ status: "ok", app: "alive", database: "connected" });
     } catch (_) {

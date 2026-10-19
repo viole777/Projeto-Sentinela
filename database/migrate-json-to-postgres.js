@@ -92,9 +92,10 @@ async function main() {
 
   for (const e of db.estoque || []) {
     await pool.query(
-      `INSERT INTO inventory (name, quantity, min_stock, high_risk) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (name) DO UPDATE SET quantity = EXCLUDED.quantity, min_stock = EXCLUDED.min_stock`,
-      [e.medicamento, Number(e.quantidade) || 0, Number(e.minimo) || 10, !!e.altoRisco]
+      `INSERT INTO inventory (name, category, quantity, min_stock, high_risk) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category,
+         quantity = EXCLUDED.quantity, min_stock = EXCLUDED.min_stock, high_risk = EXCLUDED.high_risk`,
+      [e.medicamento, e.categoria || 'Outros', Number(e.quantidade) || 0, Number(e.minimo) || 10, !!e.altoRisco]
     );
   }
 

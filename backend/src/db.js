@@ -195,7 +195,7 @@ async function importJsonIfPostgresEmpty(pgDb) {
   console.log('[storage] PostgreSQL vazio e db.json com dados → importando o JSON para o banco (uma única vez)...');
   try {
     await syncToPostgres(local);
-    console.log('[storage] Importação concluída: o PostgreSQL (PostgreSQL) é agora a fonte da verdade.');
+    console.log('[storage] Importação concluída: o PostgreSQL é agora a fonte da verdade.');
     return true;
   } catch (error) {
     console.error('[storage] Importação do JSON para o PostgreSQL falhou:', error.message);
@@ -224,7 +224,7 @@ async function hydrate() {
     jsonFallback = true;
     console.error('');
     console.error('==========================================================');
-    console.error('  ATENÇÃO: PostgreSQL (PostgreSQL) INDISPONÍVEL no arranque.');
+    console.error('  ATENÇÃO: PostgreSQL INDISPONÍVEL no arranque.');
     console.error('  O sistema está rodando com db.json (fallback local).');
     console.error(`  Motivo: ${error.message}`);
     console.error('  Confira a senha/URL em DATABASE_URL (.env) ou no painel do');

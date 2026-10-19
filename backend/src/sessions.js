@@ -5,10 +5,10 @@
 // Por que existe: um `new Map()` morre junto com o processo. No Render, qualquer
 // restart/redeploy zera o Map e todo mundo é chutado para o login. Aqui:
 //
-//   • Com DATABASE_URL (Supabase no Render): a tabela `sessions` é a fonte da
+//   • Com DATABASE_URL (PostgreSQL no Render): a tabela `sessions` é a fonte da
 //     verdade e este módulo funciona como cache de leitura. O token sumiu do
 //     cache? get() reidrata do banco. O servidor caiu? O token continua no
-//     Supabase — o login sobrevive ao restart.
+//     PostgreSQL — o login sobrevive ao restart.
 //   • Sem DATABASE_URL (dev local): persiste em backend/sessions.json com
 //     gravação atômica (escreve no .tmp e renomeia — nunca sobra JSON pela metade).
 //
@@ -65,7 +65,7 @@ class SessionStore {
             if (this.isExpired(cached)) { this.delete(token); return undefined; }
             // Multi-instância: outra instância pode ter apagado o token (logout).
             // Reconfere no banco a cada 60s SEM bloquear a resposta atual — mas
-            // só para sessões que já existem no Supabase (pg=true após o upsert),
+            // só para sessões que já existem no PostgreSQL (pg=true após o upsert),
             // senão uma sessão recém-criada levaria "delete" antes de persistir.
             if (usingPostgres() && cached.pg && Date.now() - (cached.checkedAt || 0) > REVALIDATE_MS) {
                 cached.checkedAt = Date.now();
@@ -77,7 +77,7 @@ class SessionStore {
         return this.rehydrate(token);
     }
 
-    // Cache frio → Supabase. É o que mantém o login vivo após um restart.
+    // Cache frio → PostgreSQL. É o que mantém o login vivo após um restart.
     async rehydrate(token) {
         try {
             const r = await getPool().query(SELECT_SESSION, [token]);
@@ -116,7 +116,7 @@ class SessionStore {
         this.map.set(token, session);
         if (usingPostgres()) {
             this.pending.set(token, { session, attempts: 0 }); // upsert com retry
-            this.scheduleDrain(); // aterrissa no Supabase quase na hora do login
+            this.scheduleDrain(); // aterrissa no PostgreSQL quase na hora do login
         } else {
             this.dirty = true;
         }
@@ -125,7 +125,7 @@ class SessionStore {
 
 
     // Renova a validade (chamado a cada requisição autenticada): atualiza o
-    // cache e, em produção, o expires_at no Supabase. Antes disso a renovação
+    // cache e, em produção, o expires_at no PostgreSQL. Antes disso a renovação
     // nunca chegava ao banco e um token ativo "morria" no restart.
     touch(token, session) {
         if (!token || !session) return;
@@ -166,7 +166,7 @@ class SessionStore {
             }
         }
         if (usingPostgres()) {
-            // vencidas saem do Supabase também — a tabela não cresce pra sempre
+            // vencidas saem do PostgreSQL também — a tabela não cresce pra sempre
             this.track(this.pgQuery(`DELETE FROM sessions WHERE expires_at < NOW()`));
         } else if (this.map.size !== antes) {
             this.dirty = true;
@@ -202,7 +202,7 @@ class SessionStore {
     }
 
     // Descarrega a fila de upserts ~250ms depois da última escrita (coalescido),
-    // em vez de esperar o ciclo de 30s — a sessão chega ao Supabase logo após
+    // em vez de esperar o ciclo de 30s — a sessão chega ao PostgreSQL logo após
     // o login, e o shutdown continua cobrindo o caso de morte súbita.
     scheduleDrain() {
         if (this.drainTimer) return;
@@ -213,7 +213,7 @@ class SessionStore {
         if (this.drainTimer.unref) this.drainTimer.unref();
     }
 
-    // token + usuário → linha na tabela sessions do Supabase.
+    // token + usuário → linha na tabela sessions do PostgreSQL.
     // Mesma resolução de usuário do antigo persistSession (username OU e-mail).
     async upsert(token, session) {
         const identifier = String(session.usuario || session.email || "").trim();
@@ -268,7 +268,7 @@ class SessionStore {
             try {
                 if (usingPostgres()) {
                     this.drainPending();
-                    // dá até 2s para o Supabase receber o que está pendente
+                    // dá até 2s para o PostgreSQL receber o que está pendente
                     await Promise.race([Promise.allSettled([...this.inflight]), delay(SHUTDOWN_GRACE_MS)]);
                 } else {
                     this.flush(); // grava o que mudou desde o último ciclo

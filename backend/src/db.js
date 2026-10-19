@@ -353,6 +353,16 @@ async function readAllFromPostgres() {
     "inventory"
   );
 
+  const inventoryMovements = await safe(
+    `SELECT m.*, i.name AS medicamento
+     FROM inventory_movements m
+     LEFT JOIN inventory i ON i.id = m.inventory_id
+     ORDER BY m.id DESC
+     LIMIT 500`,
+    [],
+    "inventory_movements"
+  );
+
   const hospitalizations = await safe(
     `SELECT *
      FROM hospitalizations
@@ -414,14 +424,14 @@ async function readAllFromPostgres() {
     pacientes: patients.map(p => ({ id: p.id, nome: p.name, cpf: p.cpf, tipo: p.patient_type, perfil: p.perfil || {}, status: p.status, createdAt: p.created_at, updatedAt: p.updated_at })),
     leitos: beds.map(b => ({ id: b.code, ala: b.ala || 'CARDIOLOGIA', status: b.status === 'free' ? 'livre' : 'ocupado', pacienteCpf: b.patient_cpf, pacienteNome: b.patient_name, desde: b.occupied_since })),
     internacoes: hospitalizations.map(h => ({ id: h.id, pacienteCpf: h.patient_cpf, pacienteNome: h.patient_name, leito: h.bed_code, motivo: h.reason, medicoResponsavel: h.doctor, entradaEm: h.admitted_at, altaEm: h.discharged_at })),
-    triagens: triage.map(t => ({ id: t.id, pacienteCpf: t.patient_cpf, pacienteNome: t.patient_name, ...(t.vital_signs || {}), alergia: t.allergy, risco: t.risk, status: t.status, createdAt: t.created_at })),
+    triagens: triage.map(t => ({ id: t.id, pacienteCpf: t.patient_cpf, pacienteNome: t.patient_name, ...(t.vital_signs || {}), alergia: t.allergy, risco: t.risk, status: t.status, createdAt: t.created_at, createdBy: t.created_by })),
     consultas: consultations.map(c => ({ id: c.id, pacienteCpf: c.patient_cpf, pacienteNome: c.patient_name, diagnostico: c.diagnosis, medicacao: c.medication, obs: c.notes, safety: c.safety || [], dispensado: c.dispensed, dispensadoPor: c.dispensed_by, dispensadoEm: c.dispensed_at, createdBy: c.created_by, createdAt: c.created_at })),
     atendimentos: appointments.map(a => ({ id: a.id, pacienteCpf: a.patient_cpf, pacienteNome: a.patient_name, tipo: a.appointment_type, imagem: a.image_path, createdAt: a.created_at })),
     atendimentosCasa: atendimentosCasa.map(c => ({ id: c.id, pacienteCpf: c.patient_cpf, pacienteNome: c.patient_name, endereco: c.endereco, motivo: c.motivo, observacoes: c.observacoes, dataAtendimento: c.data_atendimento, status: c.status, criadoPor: c.criado_por, concluidoPor: c.concluido_por, concluidoEm: c.concluido_em, createdAt: c.created_at })),
     auditoria: audit.map(a => ({ id: a.id, quando: a.happened_at, usuario: a.username, perfil: a.role, acao: a.action, detalhes: a.details })),
     exames: exams.map(e => ({ id: e.id, pacienteCpf: e.patient_cpf, pacienteNome: e.patient_name, tipo: e.exam_type, observacao: e.observation, status: e.status === 'done' ? 'concluido' : 'pendente', resultado: e.resultado, solicitadoPor: e.requested_by, solicitadoEm: e.requested_at })),
-    estoque: inventory.map(e => ({ id: e.id, medicamento: e.name, quantidade: e.quantity, minimo: e.min_stock, altoRisco: !!e.high_risk })),
-    movimentacoes: [], farmacia: [], compras: [], agendamentos: [], prescricoes: [],
+    estoque: inventory.map(e => ({ id: e.id, medicamento: e.name, categoria: e.category || 'Outros', quantidade: e.quantity, minimo: e.min_stock, altoRisco: !!e.high_risk })),
+    movimentacoes: inventoryMovements.map(m => ({ id: m.id, medicamento: m.medicamento, tipo: m.kind, qtd: m.qty, reason: m.reason, por: m.created_by, em: m.created_at })), farmacia: [], compras: [], agendamentos: [], prescricoes: [],
     alertas: alerts.map(a => ({ id: a.id, quando: a.happened_at, nivel: a.level, regra: a.rule, mensagem: a.mensagem || a.message, pacienteCpf: a.patient_cpf, pacienteNome: a.patient_name, contexto: a.details || {}, geradoPor: a.created_by, resolvido: a.resolved, resolvidoPor: a.resolved_by, resolvidoEm: a.resolved_at })),
     safetyRules: (safetyRules[0] || {}).rules || null,
     tvChamada: tvCalls.find(t => t.is_current) || null,
@@ -839,7 +849,16 @@ async function syncTVCalls(pool, currentCall, history) {
 
 async function syncSafetyRules(pool, rules) {
   if (!rules || !Object.keys(rules).length) return;
-  await pool.query(`INSERT INTO safety_rules (rules) VALUES ($1)`, [JSON.stringify(rules)]);
+  const result = await pool.query(
+    `UPDATE safety_rules
+     SET rules = $1, updated_at = NOW()
+     WHERE id = (SELECT id FROM safety_rules ORDER BY id DESC LIMIT 1)
+     RETURNING id`,
+    [JSON.stringify(rules)]
+  );
+  if (!result.rowCount) {
+    await pool.query(`INSERT INTO safety_rules (rules) VALUES ($1)`, [JSON.stringify(rules)]);
+  }
 }
 
 module.exports = {

@@ -191,6 +191,24 @@
             letter-spacing: 0.1em;
         }
 
+        .login-notice {
+            margin: 0 0 14px;
+            padding: 12px 14px;
+            border: 1px solid #ead7a3;
+            border-radius: 10px;
+            background: #fff8e8;
+            color: #604b18;
+            font-size: 12px;
+            line-height: 1.55;
+            text-align: left;
+        }
+        .login-notice a { color: inherit; font-weight: 700; text-decoration: underline; }
+        body[data-theme="dark"] .login-notice {
+            background: #302a1a;
+            border-color: #63552d;
+            color: #f6e6b3;
+        }
+
         .err {
             color: var(--danger);
             font-size: 13px;
@@ -227,6 +245,7 @@
         </div>
         <div class="brand-name">SENTINELA</div>
         <div class="brand-sub">Sistema Hospitalar de Cardiologia</div>
+        <div class="login-notice" role="note"><strong>Ambiente demonstrativo:</strong> não cadastre dados reais de pacientes. Protótipo acadêmico; não substitui prontuário oficial nem decisão profissional. <a href="privacidade.html">Privacidade e uso de dados</a>.</div>
         <div class="card login-card">
             <label for="email">Usuário ou e-mail institucional</label>
             <input id="email" type="text" placeholder="usuário ou e-mail" autocomplete="username">

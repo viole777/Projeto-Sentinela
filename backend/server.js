@@ -1326,7 +1326,15 @@ app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) =>
 });
 
 app.get("/health", async (req, res) => {
-    return res.status(200).json({ status: "ok", app: "alive", database: usingPostgres() ? "connected" : "local-json" });
+    if (store.backend() !== "postgres") {
+        return res.status(503).json({ status: "degraded", app: "alive", database: "local-json" });
+    }
+    try {
+        await getPool().query("SELECT 1");
+        return res.status(200).json({ status: "ok", app: "alive", database: "connected" });
+    } catch (_) {
+        return res.status(503).json({ status: "degraded", app: "alive", database: "unavailable" });
+    }
 });
 
 app.use((err, req, res, next) => {

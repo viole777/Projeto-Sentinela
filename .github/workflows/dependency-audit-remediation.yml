@@ -1,0 +1,51 @@
+name: Dependency audit remediation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/dependency-audit-remediation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit-and-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply compatible dependency security updates
+        run: |
+          npm audit fix --no-fund || true
+          npm audit --json > audit-report.json || true
+          node -e "const r=require('./audit-report.json'); console.log('AUDIT_SUMMARY', JSON.stringify(r.metadata?.vulnerabilities || {})); for (const [name, item] of Object.entries(r.vulnerabilities || {})) console.log('AUDIT_ITEM', name, item.severity, 'direct='+item.isDirect, 'fixAvailable='+JSON.stringify(item.fixAvailable), 'via='+item.via.map(v=>typeof v==='string'?v:v.title).join(' | '));"
+
+      - name: Run syntax and unit regression tests
+        run: |
+          npm run lint
+          npm run test:unit
+
+      - name: Commit compatible lockfile updates
+        run: |
+          rm -f audit-report.json
+          if ! git diff --quiet -- package.json package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package.json package-lock.json
+            git commit -m "chore: apply compatible dependency security updates"
+            git push
+          else
+            echo "No compatible dependency changes were produced."
+          fi
+
+      - name: Fail if high or critical vulnerabilities remain
+        run: npm audit --audit-level=high

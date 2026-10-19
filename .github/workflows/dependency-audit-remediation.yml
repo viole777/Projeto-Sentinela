@@ -29,14 +29,8 @@ jobs:
           npm audit --json > audit-report.json || true
           node -e "const r=require('./audit-report.json'); console.log('AUDIT_SUMMARY', JSON.stringify(r.metadata?.vulnerabilities || {})); for (const [name, item] of Object.entries(r.vulnerabilities || {})) console.log('AUDIT_ITEM', name, item.severity, 'direct='+item.isDirect, 'fixAvailable='+JSON.stringify(item.fixAvailable), 'via='+item.via.map(v=>typeof v==='string'?v:v.title).join(' | '));"
 
-      - name: Run syntax and unit regression tests
+      - name: Commit compatible dependency updates
         run: |
-          npm run lint
-          npm run test:unit
-
-      - name: Commit compatible lockfile updates
-        run: |
-          rm -f audit-report.json
           if ! git diff --quiet -- package.json package-lock.json; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -46,6 +40,20 @@ jobs:
           else
             echo "No compatible dependency changes were produced."
           fi
+
+      - name: Run syntax and unit regression tests
+        run: |
+          npm run lint
+          npm run test:unit
+
+      - name: Publish audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinela-dependency-audit
+          path: audit-report.json
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Fail if high or critical vulnerabilities remain
         run: npm audit --audit-level=high

@@ -149,6 +149,8 @@ Importante: esse material é para ambiente de demonstração e uso controlado. N
 
 ## Fluxo principal
 
+O fluxograma detalhado com decisões, Safety Engine, IA e auditoria está em [docs/FLUXOGRAMA.md](docs/FLUXOGRAMA.md).
+
 1. Login no sistema
 2. Acesso ao painel conforme perfil
 3. Cadastro ou busca de paciente
@@ -300,7 +302,6 @@ O Sentinela agora também oferece suporte para acompanhamento em casa.
 - Executar e manter testes automatizados para os principais fluxos
 - Validar as permissões de cada perfil e o fluxo de recuperação de senha
 - Configurar backup e testar restauração do PostgreSQL no Neon
-- Recuperar o projeto Supabase antigo, se possível, para verificar se existem dados que precisam ser migrados
 - Substituir as credenciais de demonstração antes de qualquer uso fora de uma demonstração escolar
 - Expandir os relatórios cardiológicos e o módulo de atendimento domiciliar
 

@@ -295,23 +295,16 @@ O Sentinela agora também oferece suporte para acompanhamento em casa.
 - Use `atendimento` para registrar pacientes e agendamentos
 - Use `novo.setor` para testar o primeiro acesso e redefinição de senha
 
-## Próximos passos sugeridos
+## Próximos passos
 
-- Integrar autenticação real com e-mail institucional
-- PostgreSQL no Neon configurado no Render; persistência inicial validada pelos logs de produção
-- Expandir relatórios de indicadores cardiológicos
-- Evoluir o módulo domiciliar com escalas, vídeos e coleta de sinais
-- concertar principal erro: app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
-                    ^
-ReferenceError: Cannot access 'requireAuth' before initialization
-    at Object.<anonymous> (/opt/render/project/src/backend/server.js:67:21)
-    at Module._compile (node:internal/modules/cjs/loader:1956:14)
-    at Object..js (node:internal/modules/cjs/loader:2096:10)
-    at Module.load (node:internal/modules/cjs/loader:1678:32)
-    at Module._load (node:internal/modules/cjs/loader:1470:12)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
-    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
-    at node:internal/main/run_main_module:33:47
+- Executar e manter testes automatizados para os principais fluxos
+- Validar as permissões de cada perfil e o fluxo de recuperação de senha
+- Configurar backup e testar restauração do PostgreSQL no Neon
+- Recuperar o projeto Supabase antigo, se possível, para verificar se existem dados que precisam ser migrados
+- Substituir as credenciais de demonstração antes de qualquer uso fora de uma demonstração escolar
+- Expandir os relatórios cardiológicos e o módulo de atendimento domiciliar
+
+**Aviso:** este repositório é um protótipo escolar/demonstrativo. Não inserir dados reais de pacientes nem utilizá-lo para decisões clínicas ou operações hospitalares reais.
 
 ## Licença
 

@@ -169,67 +169,24 @@ function compactAiRecord(record) {
 // Monta contexto reduzido
 // ------------------------------------------------------------
 
-function escapeRegExp(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\function buildCompactAiContext(
-    paciente,
-    triagens,
-    consultas,
-    atendimentos
-) {
-
-    const context = {
-
-        // Não enviar nome nem CPF para o provedor externo de IA.
-        // O identificador local continua disponível no resumo gerado no backend.
-        paciente: {
-            identificador: "Paciente (dados identificadores omitidos)",
-            status: aiTrim(paciente?.status, 50)
-        },
-
-        triagens:
-            aiLastItems(triagens, 3)
-                .map(compactAiRecord),
-
-        consultas:
-            aiLastItems(consultas, 4)
-                .map(compactAiRecord),
-
-        atendimentos:
-            aiLastItems(atendimentos, 2)
-                .map(compactAiRecord)
-    };
-
-
-    let serialized =
-        JSON.stringify(context);
-
-
-    if (
-        serialized.length >
-        AI_MAX_INPUT_CHARS
-    ) {
-
-        serialized =
-            serialized.slice(
-                0,
-                AI_MAX_INPUT_CHARS
-            ) +
-            "\n[Dados adicionais omitidos]";
-    }
-
-
-    return serialized;
-}");
-}
-
 function redactIdentifiers(value, identifiers) {
     if (typeof value === "string") {
         let result = value;
         for (const identifier of identifiers) {
             const candidate = String(identifier || "").trim();
-            if (candidate.length >= 3) {
-                result = result.replace(new RegExp(escapeRegExp(candidate), "gi"), "[identificador removido]");
+            if (candidate.length < 3) continue;
+            const lowerCandidate = candidate.toLowerCase();
+            const lowerResult = result.toLowerCase();
+            let cursor = 0;
+            let index = lowerResult.indexOf(lowerCandidate, cursor);
+            if (index < 0) continue;
+            let redacted = "";
+            while (index >= 0) {
+                redacted += result.slice(cursor, index) + "[identificador removido]";
+                cursor = index + candidate.length;
+                index = lowerResult.indexOf(lowerCandidate, cursor);
             }
+            result = redacted + result.slice(cursor);
         }
         return result;
     }
@@ -247,7 +204,6 @@ function buildCompactAiContext(
     atendimentos
 ) {
     const context = {
-        // O provedor recebe apenas dados clínicos minimizados, sem nome ou CPF.
         paciente: {
             identificador: "Paciente (dados identificadores omitidos)",
             status: aiTrim(paciente?.status, 50)
@@ -260,9 +216,9 @@ function buildCompactAiContext(
     const identifiers = [
         paciente?.nome,
         paciente?.cpf,
-        String(paciente?.cpf || "").replace(/\\D/g, "")
+        String(paciente?.cpf || "").replace(/\D/g, "")
     ].filter(Boolean);
-    let sanitized = redactIdentifiers(context, identifiers);
+    const sanitized = redactIdentifiers(context, identifiers);
     let serialized = JSON.stringify(sanitized);
 
     // Reduz os registros mais antigos até que o JSON continue válido e caiba no limite.
@@ -277,11 +233,6 @@ function buildCompactAiContext(
 
     return serialized;
 }
-
-
-// ------------------------------------------------------------
-// Rate limit
-// ------------------------------------------------------------
 
 function canUseAI(userKey) {
 

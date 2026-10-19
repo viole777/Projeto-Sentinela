@@ -64,7 +64,6 @@ app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots
 //uploads
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
 
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
@@ -165,6 +164,9 @@ const { parseCookies, requireAuth, requirePermission } = createAuthMiddleware({
     usingPostgres,
     sessionTtlMs: SESSION_TTL_MS
 });
+
+//uploads: registrar a rota somente após requireAuth estar inicializado.
+app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
 
 function validateCpf(cpf) {
     return /^\d{11}$/.test(String(cpf).replace(/\D/g, ""));

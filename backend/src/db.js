@@ -179,7 +179,7 @@ function hasAnyData(db) {
   return DATA_COLLECTIONS.some((k) => ((db && db[k]) || []).length > 0);
 }
 
-// Primeira instalação com Supabase: o PostgreSQL está vazio mas o db.json tem
+// Primeira instalação com PostgreSQL: o PostgreSQL está vazio mas o db.json tem
 // dados → importa o JSON uma única vez. Depois disso o Postgres é a fonte da
 // verdade e o db.json vira apenas fallback de desenvolvimento.
 async function importJsonIfPostgresEmpty(pgDb) {
@@ -192,10 +192,10 @@ async function importJsonIfPostgresEmpty(pgDb) {
     return false;
   }
   if (!hasAnyData(local)) return false;
-  console.log('[storage] PostgreSQL vazio e db.json com dados → importando o JSON para o Supabase (uma única vez)...');
+  console.log('[storage] PostgreSQL vazio e db.json com dados → importando o JSON para o banco (uma única vez)...');
   try {
     await syncToPostgres(local);
-    console.log('[storage] Importação concluída: o PostgreSQL (Supabase) é agora a fonte da verdade.');
+    console.log('[storage] Importação concluída: o PostgreSQL (PostgreSQL) é agora a fonte da verdade.');
     return true;
   } catch (error) {
     console.error('[storage] Importação do JSON para o PostgreSQL falhou:', error.message);
@@ -216,7 +216,7 @@ async function hydrate() {
     current = await readAllFromPostgres();
     jsonFallback = false;
     hydrated = true;
-    // Supabase conectado mas vazio → sobe os dados do db.json uma única vez.
+    // PostgreSQL conectado mas vazio → sobe os dados do db.json uma única vez.
     if (await importJsonIfPostgresEmpty(current)) {
       current = await readAllFromPostgres();
     }
@@ -224,11 +224,11 @@ async function hydrate() {
     jsonFallback = true;
     console.error('');
     console.error('==========================================================');
-    console.error('  ATENÇÃO: PostgreSQL (Supabase) INDISPONÍVEL no arranque.');
+    console.error('  ATENÇÃO: PostgreSQL (PostgreSQL) INDISPONÍVEL no arranque.');
     console.error('  O sistema está rodando com db.json (fallback local).');
     console.error(`  Motivo: ${error.message}`);
     console.error('  Confira a senha/URL em DATABASE_URL (.env) ou no painel do');
-    console.error('  Supabase → Project Settings → Database → Connection string.');
+    console.error('  PostgreSQL → Project Settings → Database → Connection string.');
     console.error('==========================================================');
     current = readJSON();
     hydrated = true;

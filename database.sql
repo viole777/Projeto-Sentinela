@@ -1,6 +1,6 @@
 -- Sentinela — Hospital de Cardiologia · SCHEMA ÚNICO PostgreSQL
 -- (tabelas + seeds + índices — substitui database/schema.sql e database/schema2.sql)
--- Supabase/Render: psql $DATABASE_URL -f database.sql
+-- Neon/Render: psql $DATABASE_URL -f database.sql
 -- Depois: DATABASE_URL=... node database/migrate-json-to-postgres.js
 
 CREATE TABLE IF NOT EXISTS roles (

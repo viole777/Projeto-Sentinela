@@ -40,6 +40,22 @@ function assertCondition(condition, message) {
 async function main() {
   console.log('Iniciando smoke test do Sentinela...');
 
+  const healthResult = await request('/health');
+  assertCondition(healthResult.response.ok, `Health check falhou: ${JSON.stringify(healthResult.body)}`);
+  assertCondition(healthResult.body && healthResult.body.database === 'connected', 'Health check não confirmou PostgreSQL conectado');
+
+  const unauthorizedAI = await request('/ia/resumo/00000000000');
+  assertCondition(
+    unauthorizedAI.response.status === 401 || unauthorizedAI.response.status === 403,
+    `Endpoint de IA deveria exigir autenticação: HTTP ${unauthorizedAI.response.status}`
+  );
+
+  const unauthorizedStaff = await request('/profissionais');
+  assertCondition(
+    unauthorizedStaff.response.status === 401 || unauthorizedStaff.response.status === 403,
+    `Lista de profissionais deveria exigir autenticação: HTTP ${unauthorizedStaff.response.status}`
+  );
+
   const loginResult = await request('/login', {
     method: 'POST',
     headers: {

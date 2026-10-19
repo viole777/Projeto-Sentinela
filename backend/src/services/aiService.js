@@ -169,7 +169,8 @@ function compactAiRecord(record) {
 // Monta contexto reduzido
 // ------------------------------------------------------------
 
-function buildCompactAiContext(
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\function buildCompactAiContext(
     paciente,
     triagens,
     consultas,
@@ -216,6 +217,63 @@ function buildCompactAiContext(
             "\n[Dados adicionais omitidos]";
     }
 
+
+    return serialized;
+}");
+}
+
+function redactIdentifiers(value, identifiers) {
+    if (typeof value === "string") {
+        let result = value;
+        for (const identifier of identifiers) {
+            const candidate = String(identifier || "").trim();
+            if (candidate.length >= 3) {
+                result = result.replace(new RegExp(escapeRegExp(candidate), "gi"), "[identificador removido]");
+            }
+        }
+        return result;
+    }
+    if (Array.isArray(value)) return value.map(item => redactIdentifiers(item, identifiers));
+    if (value && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactIdentifiers(item, identifiers)]));
+    }
+    return value;
+}
+
+function buildCompactAiContext(
+    paciente,
+    triagens,
+    consultas,
+    atendimentos
+) {
+    const context = {
+        // O provedor recebe apenas dados clínicos minimizados, sem nome ou CPF.
+        paciente: {
+            identificador: "Paciente (dados identificadores omitidos)",
+            status: aiTrim(paciente?.status, 50)
+        },
+        triagens: aiLastItems(triagens, 3).map(compactAiRecord),
+        consultas: aiLastItems(consultas, 4).map(compactAiRecord),
+        atendimentos: aiLastItems(atendimentos, 2).map(compactAiRecord)
+    };
+
+    const identifiers = [
+        paciente?.nome,
+        paciente?.cpf,
+        String(paciente?.cpf || "").replace(/\\D/g, "")
+    ].filter(Boolean);
+    let sanitized = redactIdentifiers(context, identifiers);
+    let serialized = JSON.stringify(sanitized);
+
+    // Reduz os registros mais antigos até que o JSON continue válido e caiba no limite.
+    const buckets = [sanitized.triagens, sanitized.consultas, sanitized.atendimentos];
+    let bucketIndex = 0;
+    while (serialized.length > AI_MAX_INPUT_CHARS && buckets.some(items => items.length)) {
+        const bucket = buckets[bucketIndex % buckets.length];
+        if (bucket.length) bucket.shift();
+        bucketIndex += 1;
+        serialized = JSON.stringify(sanitized);
+    }
 
     return serialized;
 }

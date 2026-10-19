@@ -1,4 +1,4 @@
-// Migração: JSON atual (backend/db.json) → PostgreSQL (Render/Supabase).
+// Migração: JSON atual (backend/db.json) → PostgreSQL (Neon/Render).
 // Uso: DATABASE_URL=postgres://... node database/migrate-json-to-postgres.js
 const fs = require('fs');
 const path = require('path');
@@ -7,7 +7,8 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true
 
 function sslConfig() {
   const sslMode = String(process.env.PGSSL || process.env.PGSSLMODE || '').toLowerCase();
-  return sslMode === 'disable' || sslMode === 'allow' ? false : { rejectUnauthorized: false };
+  if (sslMode === 'disable') return false;
+  return { rejectUnauthorized: sslMode !== 'insecure' };
 }
 
 async function main() {

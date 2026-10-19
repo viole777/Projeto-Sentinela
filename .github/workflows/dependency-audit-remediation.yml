@@ -55,5 +55,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Publish concise audit result in repository
+        if: always()
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          let report = {};
+          try { report = JSON.parse(fs.readFileSync('audit-report.json', 'utf8')); } catch (_) {}
+          const counts = report.metadata?.vulnerabilities || {};
+          const entries = Object.entries(report.vulnerabilities || {});
+          const lines = [
+            '# Dependency audit result',
+            '',
+            'Generated automatically by GitHub Actions from the current npm lockfile.',
+            '',
+            '- Audit source: `npm audit` after compatible `npm audit fix` updates.',
+            '- Total: **' + (counts.total ?? entries.length) + '**',
+            '- Critical: **' + (counts.critical ?? 'unknown') + '**',
+            '- High: **' + (counts.high ?? 'unknown') + '**',
+            '- Moderate: **' + (counts.moderate ?? 'unknown') + '**',
+            '- Low: **' + (counts.low ?? 'unknown') + '**',
+            '',
+            '## Findings',
+            ''
+          ];
+          if (!entries.length) lines.push('No vulnerabilities were reported by npm audit.');
+          else for (const [name, item] of entries) {
+            const via = (item.via || []).map(v => typeof v === 'string' ? v : v.title).join('; ');
+            lines.push('- **' + name + '** — ' + item.severity + '; direct dependency: ' + item.isDirect + '; fix available: ' + JSON.stringify(item.fixAvailable) + (via ? '; advisories: ' + via : ''));
+          }
+          lines.push('', 'This report is a snapshot from the latest workflow run; check the Actions run date before citing it.');
+          fs.mkdirSync('docs', { recursive: true });
+          fs.writeFileSync('docs/DEPENDENCY_AUDIT.md', lines.join('\n') + '\n');
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/DEPENDENCY_AUDIT.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: publish dependency audit results"
+            git push
+          fi
+
       - name: Fail if high or critical vulnerabilities remain
         run: npm audit --audit-level=high

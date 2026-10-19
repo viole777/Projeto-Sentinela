@@ -7,10 +7,11 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node backend/server.js",
+    "start": "npm run lint && npm run test:unit && node backend/server.js",
     "dev": "node --watch backend/server.js",
     "db:migrate": "node database/migrate-json-to-postgres.js",
     "lint": "node --check backend/server.js && node --check backend/src/services/aiService.js && node --check backend/src/services/safetyEngine.js && node --check scripts/ai-service-test.js && node --check scripts/safety-engine-test.js && node --check scripts/smoke-test.js",
+    "test:unit": "node scripts/ai-service-test.js && node scripts/safety-engine-test.js",
     "test": "node scripts/ai-service-test.js && node scripts/safety-engine-test.js && node scripts/smoke-test.js"
   },
   "keywords": [],

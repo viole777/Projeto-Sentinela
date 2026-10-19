@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela AI</title></head>
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinela AI</title>
+</head>
 <body>
 <script src="layout.js"></script>
 <script>
@@ -9,105 +14,118 @@ Sentinela.mount("ai", `
     <div>
       <div class="eyebrow">Cardiologia</div>
       <h1>Resumo clínico assistido</h1>
+      <p>Resumo de registros para apoiar a revisão profissional. Não substitui avaliação clínica.</p>
     </div>
   </div>
-
   <div class="panel">
     <div class="panel-title">Consulta de prontuário</div>
-    <div class="toolbar">
-      <input id="cpf" placeholder="CPF do paciente">
-      <button onclick="resumir()">Gerar resumo</button>
-    </div>
+    <form id="ai-form" class="toolbar">
+      <label for="cpf">CPF do paciente</label>
+      <input id="cpf" name="cpf" autocomplete="off" inputmode="numeric" placeholder="CPF do paciente" required maxlength="18">
+      <button id="ai-submit" type="submit">Gerar resumo</button>
+    </form>
   </div>
-
-  <div class="section">
+  <section class="section" aria-live="polite" aria-busy="false">
     <div class="panel-title">Resultado</div>
-    <div id="out"></div>
-  </div>
+    <div id="out" role="status"><div class="empty-state">Informe o CPF para gerar um resumo.</div></div>
+  </section>
 `).then(() => {
-  const cpf = sessionStorage.getItem("pacienteCpf");
-  if (cpf) document.getElementById("cpf").value = cpf;
+  const form = document.getElementById("ai-form");
+  const cpfInput = document.getElementById("cpf");
+  const button = document.getElementById("ai-submit");
+  const box = document.getElementById("out");
+  const section = box.closest("section");
+  const cpfSalvo = sessionStorage.getItem("pacienteCpf");
+  if (cpfSalvo) cpfInput.value = cpfSalvo;
 
-  window.resumir = async () => {
-    const c = document.getElementById("cpf").value.trim();
-    if (!c) return alert("Informe o CPF.");
+  function addText(parent, tag, className, value) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    el.textContent = value == null ? "" : String(value);
+    parent.appendChild(el);
+    return el;
+  }
 
-    const box = document.getElementById("out");
-    box.innerHTML = '<div class="empty-state">Gerando resumo...</div>';
+  function showMessage(message) {
+    box.replaceChildren();
+    addText(box, "div", "empty-state", message);
+  }
 
-    const r = await fetch("/ia/resumo/" + encodeURIComponent(c));
-    if (!r.ok) { box.innerHTML = '<div class="empty-state">Paciente não encontrado.</div>'; return; }
+  function renderResult(d) {
+    box.replaceChildren();
+    const card = document.createElement("div");
+    card.className = "list-item";
+    const meta = document.createElement("div");
+    meta.className = "meta-row";
+    addText(meta, "strong", "", "Resumo clínico — " + (d.pacienteNome || "Paciente"));
+    addText(meta, "span", "meta-chip", d.pacienteCpf || "");
+    card.appendChild(meta);
 
-    const d = await r.json();
+    addText(card, "p", "", d.resumo || "Resumo não disponível.");
+    const statusRow = document.createElement("div");
+    statusRow.style.marginTop = "12px";
+    addText(statusRow, "span", d.iaDisponivel === true ? "badge normal" : "badge alta",
+      d.iaDisponivel === true ? "Gemini conectado" : "Resumo local");
+    if (d.cache === true) addText(statusRow, "small", "", "Resultado reutilizado do cache para economizar tokens.");
+    if (d.erroIA) addText(statusRow, "small", "", "IA indisponível: " + d.erroIA);
+    card.appendChild(statusRow);
 
-    const statusIA =
-      d.iaDisponivel === true
-        ? `
-            <span class="badge normal">
-              Gemini conectado
-            </span>
-          `
-        : `
-            <span class="badge alta">
-              Resumo local
-            </span>
-          `;
+    const inconsistencias = Array.isArray(d.inconsistencias)
+      ? d.inconsistencias.filter(item => typeof item === "string")
+      : [];
+    const safety = document.createElement("div");
+    safety.style.marginTop = "12px";
+    if (inconsistencias.length) {
+      addText(safety, "span", "badge alta", "Atenção — revisar");
+      const list = document.createElement("ul");
+      inconsistencias.slice(0, 12).forEach(item => addText(list, "li", "", item));
+      safety.appendChild(list);
+    } else {
+      addText(safety, "span", "badge normal", "Nenhuma inconsistência apontada automaticamente");
+    }
+    card.appendChild(safety);
+    addText(card, "small", "", d.aviso || "Apoio à decisão; não substitui avaliação clínica.");
+    box.appendChild(card);
+  }
 
-    const cacheInfo =
-      d.cache === true
-        ? `
-            <small
-              style="
-                display:block;
-                margin-top:6px;
-                opacity:.7;
-              "
-            >
-              Resultado reutilizado do cache
-              para economizar tokens.
-            </small>
-          `
-        : "";
-
-    const erroIA =
-      d.erroIA
-        ? `
-            <small
-              style="
-                display:block;
-                margin-top:6px;
-                opacity:.75;
-              "
-            >
-              Motivo: ${d.erroIA}
-            </small>
-          `
-        : "";
-
-    box.innerHTML = `
-      <div class="list-item">
-        <div class="meta-row">
-          <strong>Resumo clínico — ${d.pacienteNome}</strong>
-          <span class="meta-chip">${d.pacienteCpf}</span>
-        </div>
-        <div style="margin-top:10px;">
-          ${d.resumo}
-        </div>
-
-        <div style="margin-top:12px;">
-          ${statusIA}
-          ${cacheInfo}
-          ${erroIA}
-        </div>
-        <div style="margin-top:12px;">
-          ${(d.inconsistencias || []).length
-            ? '<div class="meta-row" style="margin-bottom:8px;"><span class="badge alta">Atenção</span></div>' + (d.inconsistencias || []).map(i => `<div>• ${i}</div>`).join("")
-            : '<div class="meta-row"><span class="badge normal">Sem inconsistências</span></div>'}
-        </div>
-        <small style="display:block;margin-top:10px;">${d.aviso}</small>
-      </div>
-    `;
-  };
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const cpf = cpfInput.value.trim();
+    if (!cpf) {
+      showMessage("Informe o CPF.");
+      cpfInput.focus();
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Gerando resumo…";
+    section.setAttribute("aria-busy", "true");
+    showMessage("Consultando o prontuário e preparando o resumo…");
+    try {
+      const response = await fetch("/ia/resumo/" + encodeURIComponent(cpf), {
+        headers: { "Accept": "application/json" }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        showMessage("Sua sessão expirou ou seu perfil não tem acesso à IA. Entre novamente com uma conta médica.");
+        return;
+      }
+      if (response.status === 404) {
+        showMessage("Paciente não encontrado. Confira o CPF e tente novamente.");
+        return;
+      }
+      if (!response.ok) {
+        showMessage("Não foi possível gerar o resumo agora. Tente novamente mais tarde.");
+        return;
+      }
+      renderResult(data);
+    } catch (_) {
+      showMessage("Falha de conexão. Verifique sua internet e tente novamente.");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Gerar resumo";
+      section.setAttribute("aria-busy", "false");
+    }
+  });
 });
 </script>
 </body>

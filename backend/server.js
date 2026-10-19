@@ -281,7 +281,7 @@ app.post("/login", authRateLimit, async (req, res) => {
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
     };
-    // set() persiste no Supabase (produção) ou no sessions.json (dev).
+    // set() persiste no PostgreSQL (produção) ou no sessions.json (dev).
     // O upsert é assíncrono com retry — se o banco engasgar, o flush de 30s
     // tenta de novo e o shutdown espera as gravações pendentes.
     sessions.set(token, session);
@@ -294,7 +294,7 @@ app.post("/login", authRateLimit, async (req, res) => {
 // Sessão atual → o frontend decide o dashboard pelo cargo (sem escolher perfil)
 app.get("/me", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
-    // get() reidrata do Supabase — o /me é a primeira chamada do frontend,
+    // get() reidrata do PostgreSQL — o /me é a primeira chamada do frontend,
     // então é ele que evita o "chute para o login" após um restart.
     const session = token ? await sessions.get(token) : null;
     if (!session) {
@@ -980,7 +980,7 @@ app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), (req, res) => {
 
 app.post("/logout", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
-    // apaga do cache e do Supabase/arquivo — o logout vale em qualquer instância
+    // apaga do cache e do PostgreSQL/arquivo — o logout vale em qualquer instância
     if (token) await sessions.delete(token);
     res.setHeader("Set-Cookie", "sentinela_session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/");
     res.json({ ok: true });

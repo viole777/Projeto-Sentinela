@@ -166,7 +166,7 @@ function writeJSON(data) {
 let current = null;
 let hydrated = false;
 let syncChain = Promise.resolve();
-let jsonFallback = false; // true = Postgres falhou no arranque e estamos no db.json
+let lastSyncError = null; // sinaliza falha de persistência em produção
 
 // Coleções de dados "reais" do usuário. Leitos/estoque não contam porque o
 // database.sql já popula alguns; só estas listas indicam banco já em uso.
@@ -199,7 +199,7 @@ async function importJsonIfPostgresEmpty(pgDb) {
     return true;
   } catch (error) {
     console.error('[storage] Importação do JSON para o PostgreSQL falhou:', error.message);
-    return false;
+    throw error;
   }
 }
 
@@ -207,31 +207,21 @@ async function importJsonIfPostgresEmpty(pgDb) {
 // do app.listen() — as rotas que usam readDB() sincrono recebem dados reais.
 async function hydrate() {
   if (!usingPostgres() || !getPool()) {
-    jsonFallback = false;
     current = readJSON();
     hydrated = true;
     return current;
   }
   try {
     current = await readAllFromPostgres();
-    jsonFallback = false;
     hydrated = true;
-    // PostgreSQL conectado mas vazio → sobe os dados do db.json uma única vez.
+    // PostgreSQL conectado mas vazio → importa dados locais uma única vez.
     if (await importJsonIfPostgresEmpty(current)) {
       current = await readAllFromPostgres();
     }
   } catch (error) {
-    jsonFallback = true;
-    console.error('');
-    console.error('==========================================================');
-    console.error('  ATENÇÃO: PostgreSQL INDISPONÍVEL no arranque.');
-    console.error('  O sistema está rodando com db.json (fallback local).');
-    console.error(`  Motivo: ${error.message}`);
-    console.error('  Confira a senha/URL em DATABASE_URL (.env) ou no painel do');
-    console.error('  PostgreSQL → Project Settings → Database → Connection string.');
-    console.error('==========================================================');
-    current = readJSON();
-    hydrated = true;
+    hydrated = false;
+    console.error('[storage] PostgreSQL indisponível; inicialização interrompida para evitar fallback local em produção:', error.message);
+    throw new Error('PostgreSQL indisponível. O Sentinela não iniciará com banco local como substituto de produção.');
   }
   return current;
 }
@@ -256,9 +246,12 @@ function writeDB(data) {
   current = data;
   syncChain = syncChain
     .then(() => syncToPostgres(data))
+    .then(() => { lastSyncError = null; })
     .catch((err) => {
-      console.error('[storage] Sincronização com Postgres falhou:', err.message);
-      try { writeJSON(data); } catch (_) { /* sem fallback adicional */ }
+      lastSyncError = err;
+      // Não gravar no JSON local quando o PostgreSQL de produção falhar:
+      // isso cria uma falsa confirmação e perde os dados após reinício.
+      console.error('[storage] Sincronização com PostgreSQL falhou; verifique o health check:', err.message);
     });
 }
 
@@ -442,9 +435,14 @@ async function readAllFromPostgres() {
 
 // ── STORE: API pública (mantida para /dashboard e demais leituras diretas) ──
 const store = {
-  // Reporta a verdade: se o Postgres falhou no arranque, está em JSON (fallback).
-  backend() { return usingPostgres() && !jsonFallback ? 'postgres' : 'json'; },
-  async readAll() { return usingPostgres() && !jsonFallback ? readAllFromPostgres() : readDB(); },
+  // Em produção, DATABASE_URL significa PostgreSQL obrigatório, sem fallback silencioso.
+  backend() { return usingPostgres() ? 'postgres' : 'json'; },
+  async readAll() { return usingPostgres() ? readAllFromPostgres() : readDB(); },
+  async flush() {
+    await syncChain;
+    return !lastSyncError;
+  },
+  syncError() { return lastSyncError ? lastSyncError.message : null; },
   hydrate
 };
 // ═══════════════════════════════════════════════════════════════════════

@@ -171,11 +171,14 @@ CREATE TABLE IF NOT EXISTS prescriptions (
 CREATE TABLE IF NOT EXISTS inventory (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
+  category TEXT DEFAULT 'Outros',
   quantity INT DEFAULT 0,
   min_stock INT DEFAULT 10,
   high_risk BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Outros';
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
   id SERIAL PRIMARY KEY,

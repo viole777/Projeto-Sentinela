@@ -298,7 +298,7 @@ O Sentinela agora também oferece suporte para acompanhamento em casa.
 ## Próximos passos sugeridos
 
 - Integrar autenticação real com e-mail institucional
-- Conectar o sistema a um banco PostgreSQL em produção
+- PostgreSQL no Neon configurado no Render; persistência inicial validada pelos logs de produção
 - Expandir relatórios de indicadores cardiológicos
 - Evoluir o módulo domiciliar com escalas, vídeos e coleta de sinais
 - concertar principal erro: app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));

@@ -102,6 +102,7 @@ window.Sentinela = {
       '.user-role{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}' +
       '.sidebar-toggle{width:34px;height:34px;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}.sidebar-toggle:hover{background:var(--panel-alt)}' +
       '.content{flex:1;min-height:0;overflow-y:auto;padding:22px;max-width:none;width:100%}.content>*{max-width:1280px;margin-left:auto;margin-right:auto}.dashboard-page{padding-bottom:32px}.dashboard-page .panel{box-shadow:0 1px 2px rgba(16,24,40,.04)}' +
+      '.demo-notice{padding:10px 22px;background:#fff8e8;border-bottom:1px solid #ead7a3;color:#604b18;font-size:12px;line-height:1.5}.demo-notice strong{font-weight:800}.demo-notice a{color:#604b18;text-decoration:underline;font-weight:700;margin-left:5px}body[data-theme="dark"] .demo-notice{background:#302a1a;border-color:#63552d;color:#f6e6b3}body[data-theme="dark"] .demo-notice a{color:#f6e6b3}@media(max-width:860px){.demo-notice{padding:10px 16px}}' +
       '@media(max-width:860px){body{overflow:auto}.shell{display:block;height:auto;overflow:visible}.side{position:static;width:100%;height:auto;max-height:none;overflow:visible}.shell.sidebar-collapsed .side{width:100%;padding:18px 14px 12px}.shell.sidebar-collapsed .brand{justify-content:flex-start;padding-inline:10px}.shell.sidebar-collapsed .brand>div:last-child,.shell.sidebar-collapsed .nav-label,.shell.sidebar-collapsed .nav-link,.shell.sidebar-collapsed .nav-logout{font-size:inherit}.shell.sidebar-collapsed .nav-link{height:auto;padding:9px 10px;margin:0}.shell.sidebar-collapsed .nav-link::before,.shell.sidebar-collapsed .nav-logout::before{display:none}.top{flex-wrap:wrap}.top-search{max-width:none}.content{overflow:visible;padding:16px}}' +
       '</style>' +
       '<div class="shell">' +
@@ -128,6 +129,7 @@ window.Sentinela = {
               '<div class="user-text"><span class="user-name">' + window.Sentinela.escapeHtml(me.nome || me.usuario) + '</span><span class="user-role">' + window.Sentinela.escapeHtml((me.role || '').toUpperCase()) + '</span></div>' +
             '</div>' +
           '</header>' +
+          '<div class="demo-notice" role="note"><strong>Ambiente demonstrativo.</strong> Não insira dados reais de pacientes. Este protótipo acadêmico não substitui prontuário oficial nem decisão profissional. <a href="privacidade.html">Privacidade e uso de dados</a></div>' +
           '<main class="content" id="app"></main>' +
         '</div>' +
       '</div>';

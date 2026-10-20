@@ -19,10 +19,15 @@ Sentinela.mount("config", `
   <div class="card" style="margin-top:12px;"><h3>Privacidade e LGPD</h3>
     <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p></div>
 `).then(async () => {
-  const r = await fetch("/safety/regras").then(r => r.json());
+  const [me, rulesResponse] = await Promise.all([fetch("/me"), fetch("/safety/regras")]);
+  const currentUser = me.ok ? await me.json() : {};
+  const r = rulesResponse.ok ? await rulesResponse.json() : {};
+  const isAdmin = String(currentUser.role || currentUser.tipo || "").toLowerCase() === "admin";
   const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
-  document.getElementById("regras").innerHTML = keys.map(k =>
-    `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""}> ${k}</label>`).join("");
+  document.getElementById("regras").innerHTML = (isAdmin ? "" : "<p role=\"note\">Somente o administrador pode alterar as regras do Safety Engine. Você pode consultar as configurações.</p>") + keys.map(k =>
+    `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""} ${isAdmin ? "" : "disabled"}> ${k}</label>`).join("");
+  const saveButton = document.querySelector("button[onclick=\"salvar()\"]");
+  if (saveButton) saveButton.hidden = !isAdmin;
 
   const [usuarios, roles, permissoes, setores] = await Promise.all([
     fetch("/usuarios").then(r => r.json()),
@@ -85,7 +90,8 @@ Sentinela.mount("config", `
   window.salvar = async () => {
     const body = {};
     keys.forEach(k => body[k] = document.getElementById("rg_" + k).checked);
-    await fetch("/safety/regras", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const response = await fetch("/safety/regras", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!response.ok) { alert(response.status === 403 ? "Apenas o administrador pode alterar as regras." : "Não foi possível salvar as regras."); return; }
     alert("Regras atualizadas.");
   };
 });

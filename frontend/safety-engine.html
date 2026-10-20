@@ -25,16 +25,23 @@ Sentinela.mount("safety", `
     <div id="hist" class="list"></div>
   </div>
 `).then(async () => {
-  const r = await fetch("/safety/regras").then(r => r.json());
+  const [meResponse, rulesResponse] = await Promise.all([fetch("/me"), fetch("/safety/regras")]);
+  const currentUser = meResponse.ok ? await meResponse.json() : {};
+  const r = rulesResponse.ok ? await rulesResponse.json() : {};
+  const isAdmin = String(currentUser.role || currentUser.tipo || "").toLowerCase() === "admin";
   const rules = (r && typeof r === "object") ? r : {};
   const ruleKeys = Object.keys(rules).filter(k => k !== "altoRiscoLista");
+  if (!isAdmin) {
+    document.querySelector("#salvarRegras").hidden = true;
+    document.querySelector(".panel-title").insertAdjacentHTML("afterend", "<p role=\"note\">Somente o administrador pode alterar as regras. Esta tela está em modo de consulta.</p>");
+  }
 
   const regrasEl = document.getElementById("regras");
   function renderRules() {
     regrasEl.innerHTML = ruleKeys.map((key) => `
       <div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <span>${key}</span>
-        <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""}>
+        <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""} ${isAdmin ? "" : "disabled"}>
       </div>
     `).join("") || "<div class=\"empty-state\">Sem regras configuradas.</div>";
   }

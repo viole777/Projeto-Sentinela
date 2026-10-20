@@ -1317,7 +1317,7 @@ app.get("/safety/regras", requireAuth([]), (req, res) => {
     res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
 });
 
-app.put("/safety/regras", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.put("/safety/regras", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     db.safetyRules = { ...(db.safetyRules || {}), ...(req.body || {}) };
     writeDB(db);

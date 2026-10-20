@@ -8,7 +8,7 @@ Sentinela.mount("config", `
   <h2>Configurações</h2>
   <div class="card"><h3>Regras do Sentinela (Safety Engine)</h3>
     <div id="regras"></div>
-    <button style="margin-top:8px;" onclick="salvar()">Salvar regras</button>
+    <button id="salvarRegrasConfig" style="margin-top:8px;" type="button">Salvar regras</button>
   </div>
 
   <div class="card" style="margin-top:12px;">
@@ -26,7 +26,7 @@ Sentinela.mount("config", `
   const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
   document.getElementById("regras").innerHTML = (isAdmin ? "" : "<p role=\"note\">Somente o administrador pode alterar as regras do Safety Engine. Você pode consultar as configurações.</p>") + keys.map(k =>
     `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""} ${isAdmin ? "" : "disabled"}> ${k}</label>`).join("");
-  const saveButton = document.querySelector("button[onclick=\"salvar()\"]");
+  const saveButton = document.getElementById("salvarRegrasConfig");
   if (saveButton) saveButton.hidden = !isAdmin;
 
   const [usuarios, roles, permissoes, setores] = await Promise.all([
@@ -94,6 +94,8 @@ Sentinela.mount("config", `
     if (!response.ok) { alert(response.status === 403 ? "Apenas o administrador pode alterar as regras." : "Não foi possível salvar as regras."); return; }
     alert("Regras atualizadas.");
   };
+  const saveButton = document.getElementById("salvarRegrasConfig");
+  if (saveButton && isAdmin) saveButton.addEventListener("click", window.salvar);
 });
 </script>
 </body>

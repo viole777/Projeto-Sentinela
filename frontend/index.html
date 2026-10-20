@@ -255,7 +255,7 @@
                 <button type="button" class="password-toggle" id="toggleSenha">Mostrar</button>
             </div>
             <div class="err" id="err"></div>
-            <button id="loginBtn" class="login-btn" onclick="login()">Entrar</button>
+            <button id="loginBtn" class="login-btn" type="button">Entrar</button>
             <div class="row-links">
                 <a href="recuperar-senha.html">Esqueci minha senha</a>
                 <a href="primeiro-acesso.html">Primeiro acesso</a>
@@ -304,6 +304,7 @@
                 btn.textContent = "Entrar";
             }
         }
+        document.getElementById('loginBtn').addEventListener('click', login);
         document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
         document.getElementById('toggleSenha').addEventListener('click', () => {
             const senhaField = document.getElementById('senha');

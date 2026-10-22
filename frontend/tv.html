@@ -1,189 +1,184 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tv</title>
-    <style>
-        * { box-sizing: border-box; margin: 0;
-        padding: 0; font-family: Arial, Helvetica, sans-serif;}
-
-        body{
-            background-color: #5c4033;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .tv-conteiner{
-            display: flex;
-            width: 95vw;
-            height: 90vh;
-            gap: 18px;
-        }
-
-        .left-panel {
-            display: flex;
-            flex-direction: column;
-            width: 35%;
-            gap: 18px;
-        }
-        .right-panel {
-            display: flex;
-            flex-direction: column;
-            width: 65%;
-            gap: 18px;
-        }
-
-
-        .box{
-            background-color: #63d4f4;
-            border: 6px solid #b39b82;
-            border-radius: 15px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .box-title{
-            color: #ffff;
-            font-size: 2.2vw;
-            font-weight: bold;
-            text-transform: uppercase;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
-            margin-bottom: 12px;
-        }
-        /* painel esquerdo */
-
-        .local-box{ flex: 1}
-        .local-number{
-            color: #d12c12;
-            font-size: 9vw;
-            font-weight: bold;
-            line-height: 1;
-        }
-        .local-type{
-            color: #555;
-            font-size: 1.8vw;
-            font-weight: bold;
-            margin-top: 6px;
-        }
-        .history-box{
-            flex:1;
-            justify-content: flex-start;
-            align-items: flex-start;
-        }
-        .box-title{
-            font-size: 1.8vw;
-            align-self: center;
-        }
-        #history-list{
-            list-style: none;
-            width: 100%;
-            color: #d12c12;
-            font-size: 1.5vw;
-            font-weight: bold;
-            text-align: left;
-        }
-
-        #history-list li{
-            margin-bottom:8px ;
-            border-bottom: 1px solid rgba(0,0,0,0.1) ;
-            padding-bottom: 5px;
-        }
-
-        .pattient-box{
-            flex: 3;
-        }
-        .pattient-name{
-            color: #d12c12;
-            font-size: 6.5vw;
-            font-weight: bold;
-            line-height: 1.2;
-            word-break: break-word;
-        }
-        .logo{ flex: 1;}
-        .logo-text{
-            color: #8c3b7a;
-            font-size: 3.5vw;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        @keyframes flash {
-            0%, 100% { opacity: 1;}
-            50% { opacity: 0.3;}
-
-        }
-        .flash{
-            animation: flash 0.5s ease 3;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071827">
+  <title>Sentinela | Painel de chamadas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071827;
+      --panel: #102b3d;
+      --panel-soft: #14364b;
+      --cyan: #43d5e8;
+      --text: #f4f8fb;
+      --muted: #b8cbd6;
+      --line: rgba(184, 203, 214, .22);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: clamp(12px, 2.5vw, 32px);
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+    .tv-container {
+      width: min(1600px, 100%);
+      min-height: calc(100vh - clamp(24px, 5vw, 64px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(250px, .8fr) minmax(0, 2fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: clamp(12px, 2vw, 24px);
+    }
+    .topbar, .footer {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand { font-size: clamp(18px, 2.2vw, 30px); font-weight: 800; letter-spacing: .08em; }
+    .brand span { color: var(--cyan); }
+    .status { color: var(--muted); font-size: clamp(12px, 1.1vw, 16px); }
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      padding: clamp(16px, 2vw, 30px);
+      box-shadow: 0 12px 32px rgba(0,0,0,.16);
+    }
+    .left-column { display: flex; flex-direction: column; gap: clamp(12px, 2vw, 24px); }
+    .kicker { margin: 0 0 12px; color: var(--muted); font-size: clamp(12px, 1.15vw, 17px); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .location-panel { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+    .location-number { color: var(--cyan); font-size: clamp(42px, 7vw, 104px); font-weight: 900; line-height: 1.05; overflow-wrap: anywhere; }
+    .history-panel { flex: 1.2; }
+    #history-list { list-style: none; padding: 0; margin: 0; }
+    #history-list li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: clamp(13px, 1.25vw, 18px); overflow-wrap: anywhere; }
+    #history-list li:last-child { border-bottom: 0; }
+    .call-panel { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 55vh; }
+    .call-label { color: var(--muted); font-size: clamp(16px, 1.7vw, 24px); letter-spacing: .14em; text-transform: uppercase; }
+    .patient-name { width: 100%; margin: clamp(18px, 3vw, 42px) 0; font-size: clamp(34px, 6.2vw, 88px); line-height: 1.1; font-weight: 900; overflow-wrap: anywhere; }
+    .call-hint { color: var(--muted); font-size: clamp(14px, 1.4vw, 20px); }
+    .footer { color: var(--muted); font-size: clamp(12px, 1vw, 15px); }
+    .flash { animation: flash 1.2s ease-out; }
+    .error { color: #ffd38b; }
+    @keyframes flash { 0% { background: #1b5368; } 100% { background: var(--panel); } }
+    @media (max-width: 760px) {
+      .tv-container { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(360px, 1fr) auto; }
+      .topbar, .footer { flex-wrap: wrap; }
+      .left-column { display: grid; grid-template-columns: 1fr 1fr; }
+      .location-panel, .history-panel { min-height: 170px; }
+      .call-panel { min-height: 42vh; }
+      .patient-name { font-size: clamp(32px, 9vw, 60px); }
+    }
+    @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+  </style>
 </head>
-<body >
-    <div class="tv-conteiner">
-        <div class="left-panel">
-            <div class="box local-box">
-                <div class="box-title" id="local-tipo">GUICHE</div>
-                <div class="local-number" id="local-numero">--</div>
-            </div>
-            <div class="bos history-box">
-                <div class="box-title">ULTIMAS CHAMADAS</div>
-                <ul id="history-list"></ul>
-            </div>
-        </div>
-        <div class="right-panel">
-            <div class="box pattient-box">
-                <div class="box-title">PACIENT</div>
-                <div class="pattient-name" id="pattient-name">AGUARDANDO. . .</div>
-            </div>
-            <div class="box logo-box">
-                <div class="logo-text">Sistema Hospitalar</div>
-            </div>
-        </div>
-    </div>
-    <script>
-     let ultimoId = null;
-     
-     function atualizar(){
-        fetch("/tv/chamada")
-        .then(r => r.json())
-        .then( data => {
-            const chamada = data.chamada;
-            const historico = data.historico || [];
-            if (chamada) {
-                document.getElementById("local-tipo").innerText = chamada.localType || chamada.guiche || "GUICHE";
-                document.getElementById("local-numero").innerText = chamada.localNumber || chamada.guiche || "--";
-                document.getElementById("pattient-name").innerText = (chamada.paciente || chamada.pacient || "AGUARDANDO").toUpperCase();
-            
-            if (chamada.id !== ultimoId) {
-             ultimoId = chamada.id;
-             const patientBox = document.querySelector(".pattient-box");
-             if (patientBox) {
-               patientBox.classList.remove("flash");
-               void patientBox.offsetWidth;
-               patientBox.classList.add("flash");
-             }
-            }}
+<body>
+  <main class="tv-container">
+    <header class="topbar">
+      <div class="brand">SENTI<span>NELA</span></div>
+      <div id="connection-status" class="status" role="status" aria-live="polite">Conectando ao painel…</div>
+    </header>
 
-            const list = document.getElementById("history-list");
-            list.innerHTML = "";
-            historico.slice(0, 4).forEach(h => {
-                const li = document.createElement("li");
-                const tipo = (h.localType || h.guiche || "GUICHE").substring(0, 12);
-                li.innerText = `${tipo} - ${h.paciente || h.pacient || "-"}`;
-                list.appendChild(li);
-            });
-        })
-        .catch(err => console.log ("Erro ao buscar chamada:", err));
-     }
-     atualizar();
-     setInterval(atualizar, 2000);
-    </script>
+    <aside class="left-column" aria-label="Local e chamadas anteriores">
+      <section class="panel location-panel">
+        <p class="kicker" id="local-type">GUICHÊ</p>
+        <div class="location-number" id="local-number">—</div>
+      </section>
+      <section class="panel history-panel">
+        <h2 class="kicker">Últimas chamadas</h2>
+        <ul id="history-list"><li>Nenhuma chamada registrada.</li></ul>
+      </section>
+    </aside>
+
+    <section class="panel call-panel" id="call-panel" aria-live="polite">
+      <div class="call-label">Paciente chamado</div>
+      <div class="patient-name" id="patient-name">Aguardando chamada</div>
+      <div class="call-hint" id="call-hint">Por favor, aguarde ser chamado.</div>
+    </section>
+
+    <footer class="footer">
+      <span>Atendimento • Painel de chamadas</span>
+      <span>Em caso de dúvida, procure a recepção.</span>
+    </footer>
+  </main>
+
+  <script>
+    "use strict";
+    let ultimoId = null;
+    let requisicaoEmAndamento = false;
+
+    function setTexto(id, value) {
+      document.getElementById(id).textContent = value;
+    }
+
+    function renderHistorico(historico) {
+      const list = document.getElementById("history-list");
+      list.replaceChildren();
+      historico.slice(0, 5).forEach((item) => {
+        const li = document.createElement("li");
+        const local = item.localNumber || item.guiche || "GUICHÊ";
+        li.textContent = local + " — " + (item.paciente || "Paciente");
+        list.appendChild(li);
+      });
+      if (!list.children.length) {
+        const li = document.createElement("li");
+        li.textContent = "Nenhuma chamada registrada.";
+        list.appendChild(li);
+      }
+    }
+
+    async function atualizar() {
+      if (requisicaoEmAndamento) return;
+      requisicaoEmAndamento = true;
+      try {
+        const response = await fetch("/tv/chamada", {
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        const chamada = data.chamada;
+        const panel = document.getElementById("call-panel");
+
+        if (chamada) {
+          setTexto("local-type", chamada.localType || "GUICHÊ");
+          setTexto("local-number", chamada.localNumber || chamada.guiche || "—");
+          setTexto("patient-name", chamada.paciente || "Aguardando chamada");
+          setTexto("call-hint", "Dirija-se ao local indicado.");
+          if (String(chamada.id) !== String(ultimoId)) {
+            ultimoId = chamada.id;
+            panel.classList.remove("flash");
+            void panel.offsetWidth;
+            panel.classList.add("flash");
+          }
+        } else {
+          setTexto("local-type", "GUICHÊ");
+          setTexto("local-number", "—");
+          setTexto("patient-name", "Aguardando chamada");
+          setTexto("call-hint", "Por favor, aguarde ser chamado.");
+          ultimoId = null;
+        }
+        renderHistorico(Array.isArray(data.historico) ? data.historico : []);
+        setTexto("connection-status", "Painel conectado • Atualização automática");
+        document.getElementById("connection-status").classList.remove("error");
+      } catch (error) {
+        console.error("Erro ao atualizar painel da TV:", error);
+        setTexto("connection-status", "Sem conexão com o servidor. Tentando novamente…");
+        document.getElementById("connection-status").classList.add("error");
+      } finally {
+        requisicaoEmAndamento = false;
+      }
+    }
+
+    atualizar();
+    window.setInterval(atualizar, 2000);
+  </script>
 </body>
 </html>

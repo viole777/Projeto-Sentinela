@@ -950,32 +950,65 @@ app.get("/auditoria", requireAuth(["medico", "cardiologist", "direcao", "admin"]
 });
 
 // ── TV / chamada de guichê ──
-app.get("/tv/chamada", (req, res) => {
-    const db = ensureTVShape(readDB());
-    res.json({ chamada: db.tvChamada, historico: db.tvHistorico || [] });
+// A tela pública recebe somente os campos necessários para exibição.
+// Em produção, lê a fonte persistente para que a TV acompanhe chamadas
+// mesmo quando o painel e a TV forem atendidos por instâncias diferentes.
+app.get("/tv/chamada", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    try {
+        const db = ensureTVShape(await store.readAll());
+        const publicCall = (call) => call ? ({
+            id: call.id,
+            paciente: call.paciente || call.pacienteNome || "",
+            guiche: call.guiche || call.localType || "GUICHÊ 01",
+            localType: call.localType || call.guiche || "GUICHÊ",
+            localNumber: call.localNumber || call.guiche || "01",
+            quando: call.quando || null
+        }) : null;
+        res.json({
+            chamada: publicCall(db.tvChamada),
+            historico: (db.tvHistorico || []).slice(0, 8).map(publicCall)
+        });
+    } catch (error) {
+        console.error("[tv] Falha ao consultar chamadas:", error.message);
+        res.status(503).json({ erro: "Tela de chamadas temporariamente indisponível." });
+    }
 });
 
-app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), (req, res) => {
-    const db = ensureTVShape(readDB());
-    const pacienteCpf = String(req.body.pacienteCpf || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === pacienteCpf);
-    if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
-    const chamada = {
-        id: Date.now(),
-        pacienteCpf: paciente.cpf,
-        paciente: paciente.nome,
-        guiche: String(req.body.guiche || "GUICHÊ 01"),
-        localType: String(req.body.guiche || "GUICHÊ 01"),
-        localNumber: String(req.body.guiche || "GUICHÊ 01"),
-        quando: new Date().toISOString(),
-        chamadoPor: req.user.usuario
-    };
-    db.tvChamada = chamada;
-    db.tvHistorico.unshift(chamada);
-    db.tvHistorico = db.tvHistorico.slice(0, 8);
-    writeDB(db);
-    audit(req, "tv_chamada", { pacienteCpf: paciente.cpf, guiche: chamada.guiche });
-    res.json(chamada);
+app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), async (req, res) => {
+    try {
+        const db = ensureTVShape(await store.readAll());
+        const pacienteCpf = String(req.body.pacienteCpf || "").trim();
+        const paciente = (db.pacientes || []).find(p => String(p.cpf) === pacienteCpf);
+        if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
+
+        const guiche = String(req.body.guiche || "GUICHÊ 01").trim().slice(0, 40) || "GUICHÊ 01";
+        const chamada = {
+            id: Date.now(),
+            pacienteCpf: paciente.cpf,
+            paciente: paciente.nome,
+            guiche,
+            localType: "GUICHÊ",
+            localNumber: guiche,
+            quando: new Date().toISOString(),
+            chamadoPor: req.user.usuario
+        };
+        db.tvChamada = chamada;
+        db.tvHistorico = [chamada, ...(db.tvHistorico || []).filter(item => Number(item.id) !== Number(chamada.id))].slice(0, 8);
+        writeDB(db);
+
+        // Só confirma a chamada depois que a persistência termina sem erro.
+        if (!(await store.flush())) {
+            return res.status(503).json({ erro: "Não foi possível salvar a chamada. Tente novamente." });
+        }
+
+        audit(req, "tv_chamada", { pacienteCpf: paciente.cpf, guiche });
+        res.setHeader("Cache-Control", "no-store");
+        res.status(201).json({ ok: true, chamada: { id: chamada.id, paciente: chamada.paciente, guiche: chamada.guiche, quando: chamada.quando } });
+    } catch (error) {
+        console.error("[tv] Falha ao registrar chamada:", error.message);
+        res.status(503).json({ erro: "Não foi possível registrar a chamada agora." });
+    }
 });
 
 app.post("/logout", async (req, res) => {

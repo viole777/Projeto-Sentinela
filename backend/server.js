@@ -401,6 +401,9 @@ app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
     if (!senhaTemporaria || !user.senhaTemporariaHash) {
         return res.status(400).json({ erro: "Senha temporária obrigatória" });
     }
+    if (user.senhaTemporariaExpiraEm && Number(user.senhaTemporariaExpiraEm) < Date.now()) {
+        return res.status(400).json({ erro: "Senha temporária expirada. Solicite ao administrador uma nova conta ou redefinição." });
+    }
     if (!passwordMatches(String(senhaTemporaria), user.senhaTemporariaHash)) {
         return res.status(401).json({ erro: "Credenciais inválidas" });
     }

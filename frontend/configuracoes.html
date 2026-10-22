@@ -1,101 +1,213 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Configurações</title></head>
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinela — Configurações</title>
+</head>
 <body>
 <script src="layout.js"></script>
 <script>
+"use strict";
 Sentinela.mount("config", `
   <h2>Configurações</h2>
-  <div class="card"><h3>Regras do Sentinela (Safety Engine)</h3>
-    <div id="regras"></div>
-    <button id="salvarRegrasConfig" style="margin-top:8px;" type="button">Salvar regras</button>
-  </div>
+  <section class="card">
+    <h3>Regras do Sentinela (Safety Engine)</h3>
+    <p id="rulesMessage" role="status"></p>
+    <div id="regras">Carregando regras…</div>
+    <button id="salvarRegrasConfig" type="button" style="margin-top:8px;">Salvar regras</button>
+  </section>
 
-  <div class="card" style="margin-top:12px;">
-    <h3>Gestão de perfis, permissões e setores</h3>
+  <section class="card" style="margin-top:12px;">
+    <h3>Gestão de usuários, perfis e setores</h3>
+    <p id="usersMessage" role="status">Carregando usuários…</p>
     <div id="adminOverview"></div>
-  </div>
+    <div id="userManagement" hidden style="margin-top:16px;">
+      <h4>Criar usuário</h4>
+      <p>O novo funcionário receberá uma senha temporária para o primeiro acesso. Não é permitido criar outra conta de administrador por este formulário.</p>
+      <form id="createUserForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+        <label>Usuário
+          <input name="usuario" required minlength="3" maxlength="60" autocomplete="off" placeholder="Ex.: maria.silva">
+        </label>
+        <label>Nome completo
+          <input name="nome" required maxlength="120" placeholder="Nome do funcionário">
+        </label>
+        <label>E-mail
+          <input name="email" type="email" maxlength="120" placeholder="nome@instituicao.org">
+        </label>
+        <label>Perfil
+          <select name="role" id="newUserRole" required></select>
+        </label>
+        <label>Setor
+          <input name="setor" maxlength="80" placeholder="Ex.: Triagem">
+        </label>
+        <div style="align-self:end;">
+          <button type="submit" id="createUserSubmit">Criar usuário</button>
+        </div>
+      </form>
+    </div>
+    <h4 style="margin-top:18px;">Usuários cadastrados</h4>
+    <div id="userList" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </section>
 
-  <div class="card" style="margin-top:12px;"><h3>Privacidade e LGPD</h3>
-    <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p></div>
+  <section class="card" style="margin-top:12px;">
+    <h3>Privacidade e LGPD</h3>
+    <p style="font-size:13px;opacity:.8;">Demonstração com dados fictícios/sintéticos. Acesso por permissão, trilha de auditoria e senhas com scrypt. Para produção: HTTPS obrigatório, backup, banco transacional e gestão de consentimento.</p>
+  </section>
 `).then(async () => {
-  const [me, rulesResponse] = await Promise.all([fetch("/me"), fetch("/safety/regras")]);
-  const currentUser = me.ok ? await me.json() : {};
-  const r = rulesResponse.ok ? await rulesResponse.json() : {};
-  const isAdmin = String(currentUser.role || currentUser.tipo || "").toLowerCase() === "admin";
-  const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
-  document.getElementById("regras").innerHTML = (isAdmin ? "" : "<p role=\"note\">Somente o administrador pode alterar as regras do Safety Engine. Você pode consultar as configurações.</p>") + keys.map(k =>
-    `<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_${k}" style="width:auto;" ${r[k] !== false ? "checked" : ""} ${isAdmin ? "" : "disabled"}> ${k}</label>`).join("");
-  const saveButton = document.getElementById("salvarRegrasConfig");
-  if (saveButton) saveButton.hidden = !isAdmin;
+  const $ = (id) => document.getElementById(id);
+  const escapeHTML = (value) => Sentinela.escapeHtml(value ?? "");
+  const showMessage = (id, message) => { $(id).textContent = message; };
 
-  const [usuarios, roles, permissoes, setores] = await Promise.all([
-    fetch("/usuarios").then(r => r.json()),
-    fetch("/roles").then(r => r.json()),
-    fetch("/permissoes").then(r => r.json()),
-    fetch("/setores").then(r => r.json())
-  ]);
+  let currentUser = {};
+  let usuarios = [];
+  let roles = [];
+  let isAdmin = false;
 
-  const overview = document.getElementById("adminOverview");
-  overview.innerHTML = `
-    <div class="cards">
-      <div class="card">
-        <div class="kpi"><b>${usuarios.length}</b><span>Usuários</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${roles.length}</b><span>Perfis</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${setores.length}</b><span>Setores</span></div>
-      </div>
-      <div class="card">
-        <div class="kpi"><b>${permissoes.length}</b><span>Permissões</span></div>
-      </div>
-    </div>
+  try {
+    const meResponse = await fetch("/me", { cache: "no-store" });
+    if (!meResponse.ok) throw new Error("Sessão expirada. Entre novamente.");
+    currentUser = await meResponse.json();
+    isAdmin = String(currentUser.role || currentUser.tipo || "").toLowerCase() === "admin";
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px;">
-      <div class="card">
-        <h4>Perfis e permissões</h4>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${roles.map(role => `
-            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
-              <strong>${role.name}</strong>
-              <div style="font-size:12px;opacity:.8;margin-top:6px;">${(role.permissions || []).slice(0, 6).join(", ") || "Sem permissões explícitas"}</div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
+    const rulesResponse = await fetch("/safety/regras", { cache: "no-store" });
+    const rules = rulesResponse.ok ? await rulesResponse.json() : {};
+    const keys = ["alergia", "altoRisco", "duplicidade", "dadosIncompletos", "sinalCritico"];
+    $("regras").innerHTML = keys.map(key =>
+      '<label style="display:block;margin:6px 0;"><input type="checkbox" id="rg_' + key + '" style="width:auto;" ' +
+      (rules[key] !== false ? "checked " : "") + (isAdmin ? "" : "disabled ") + '> ' + escapeHTML(key) + '</label>'
+    ).join("");
+    $("salvarRegrasConfig").hidden = !isAdmin;
+    $("salvarRegrasConfig").addEventListener("click", async () => {
+      const body = {};
+      keys.forEach(key => body[key] = $("rg_" + key).checked);
+      const response = await fetch("/safety/regras", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      showMessage("rulesMessage", response.ok ? "Regras atualizadas." : "Não foi possível salvar as regras (HTTP " + response.status + ").");
+    });
+    if (!isAdmin) showMessage("rulesMessage", "Somente o administrador pode alterar as regras.");
 
-      <div class="card">
-        <h4>Setores ativos</h4>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${(setores || []).map(setor => `<span class="badge normal" style="display:inline-block;">${setor}</span>`).join("") || "<span style=\"opacity:.7\">Nenhum setor cadastrado</span>"}
-        </div>
-      </div>
+    const [usersResponse, rolesResponse, permissionsResponse, sectorsResponse] = await Promise.all([
+      fetch("/usuarios", { cache: "no-store" }),
+      fetch("/roles", { cache: "no-store" }),
+      fetch("/permissoes", { cache: "no-store" }),
+      fetch("/setores", { cache: "no-store" })
+    ]);
+    if (!usersResponse.ok) throw new Error("Não foi possível carregar usuários (HTTP " + usersResponse.status + ").");
+    usuarios = await usersResponse.json();
+    roles = rolesResponse.ok ? await rolesResponse.json() : [];
+    const permissoes = permissionsResponse.ok ? await permissionsResponse.json() : [];
+    const setores = sectorsResponse.ok ? await sectorsResponse.json() : [];
 
-      <div class="card">
-        <h4>Usuários cadastrados</h4>
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">
-          ${usuarios.map(user => `
-            <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);">
-              <div><strong>${user.nome || user.usuario}</strong> <span style="opacity:.7;">(${user.role})</span></div>
-              <div style="font-size:12px;opacity:.8;">${user.email || "Sem e-mail"} • ${user.setor || "Sem setor"}</div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    </div>
-  `;
+    $("adminOverview").innerHTML =
+      '<div class="cards">' +
+        '<div class="card"><div class="kpi"><b>' + usuarios.length + '</b><span>Usuários</span></div></div>' +
+        '<div class="card"><div class="kpi"><b>' + roles.length + '</b><span>Perfis</span></div></div>' +
+        '<div class="card"><div class="kpi"><b>' + setores.length + '</b><span>Setores</span></div></div>' +
+        '<div class="card"><div class="kpi"><b>' + permissoes.length + '</b><span>Permissões</span></div></div>' +
+      '</div><h4>Perfis disponíveis</h4><div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+      roles.map(role => '<span class="badge normal">' + escapeHTML(role.name) + '</span>').join("") +
+      '</div><h4>Setores cadastrados</h4><div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+      setores.map(sector => '<span class="badge normal">' + escapeHTML(sector) + '</span>').join("") +
+      '</div>';
 
-  window.salvar = async () => {
-    const body = {};
-    keys.forEach(k => body[k] = document.getElementById("rg_" + k).checked);
-    const response = await fetch("/safety/regras", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!response.ok) { alert(response.status === 403 ? "Apenas o administrador pode alterar as regras." : "Não foi possível salvar as regras."); return; }
-    alert("Regras atualizadas.");
-  };
-  const saveButton = document.getElementById("salvarRegrasConfig");
-  if (saveButton && isAdmin) saveButton.addEventListener("click", window.salvar);
+    $("userManagement").hidden = !isAdmin;
+    $("newUserRole").innerHTML = roles
+      .filter(role => String(role.name).toLowerCase() !== "admin")
+      .map(role => '<option value="' + escapeHTML(role.name) + '">' + escapeHTML(role.name) + '</option>')
+      .join("");
+    if (!$("newUserRole").options.length) {
+      $("newUserRole").innerHTML = '<option value="atendimento">atendimento</option><option value="triagem">triagem</option><option value="medico">medico</option><option value="enfermagem">enfermagem</option><option value="farmacia">farmacia</option><option value="recepcao">recepcao</option><option value="direcao">direcao</option>';
+    }
+
+    function renderUsers() {
+      $("userList").replaceChildren();
+      usuarios.forEach(user => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;";
+        const info = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = user.nome || user.usuario || "Usuário";
+        const detail = document.createElement("div");
+        detail.style.cssText = "font-size:12px;opacity:.8;margin-top:4px;";
+        detail.textContent = (user.usuario || "") + " • " + (user.role || "sem perfil") + " • " + (user.email || "sem e-mail") + " • " + (user.setor || "sem setor");
+        info.append(name, detail);
+        row.appendChild(info);
+        const userRole = String(user.role || user.tipo || "").toLowerCase();
+        const sameUser = String(user.usuario || "").toLowerCase() === String(currentUser.usuario || "").toLowerCase();
+        if (isAdmin && userRole !== "admin" && !sameUser) {
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "Excluir usuário";
+          remove.dataset.username = user.usuario || "";
+          remove.style.cssText = "background:#b42318;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;";
+          row.appendChild(remove);
+        }
+        $("userList").appendChild(row);
+      });
+      if (!usuarios.length) $("userList").textContent = "Nenhum usuário encontrado.";
+    }
+    renderUsers();
+    showMessage("usersMessage", isAdmin ? "Você está no modo administrador." : "Consulta disponível; apenas o administrador pode criar ou excluir usuários.");
+
+    $("userList").addEventListener("click", async event => {
+      const button = event.target.closest("button[data-username]");
+      if (!button) return;
+      const username = button.dataset.username;
+      if (!confirm('Tem certeza de que deseja excluir o usuário "' + username + '"? Esta ação não pode ser desfeita.')) return;
+      button.disabled = true;
+      try {
+        const response = await fetch("/profissionais/" + encodeURIComponent(username), { method: "DELETE" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.erro || "Falha ao excluir (HTTP " + response.status + ").");
+        usuarios = usuarios.filter(user => String(user.usuario).toLowerCase() !== String(username).toLowerCase());
+        renderUsers();
+        showMessage("usersMessage", 'Usuário "' + username + '" excluído.');
+      } catch (error) {
+        showMessage("usersMessage", error.message);
+        button.disabled = false;
+      }
+    });
+
+    $("createUserForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const submit = $("createUserSubmit");
+      const values = new FormData(form);
+      const payload = {
+        usuario: String(values.get("usuario") || "").trim(),
+        nome: String(values.get("nome") || "").trim(),
+        email: String(values.get("email") || "").trim(),
+        role: String(values.get("role") || "").trim(),
+        setor: String(values.get("setor") || "").trim()
+      };
+      submit.disabled = true;
+      showMessage("usersMessage", "Criando usuário e confirmando a gravação no banco…");
+      try {
+        const response = await fetch("/profissionais", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.erro || "Falha ao criar usuário (HTTP " + response.status + ").");
+        alert("Usuário criado: " + result.usuario + "\nPerfil: " + result.role + "\nSenha temporária (copie agora):\n" + result.senhaTemporaria + "\n\nEntregue essa senha ao funcionário por um canal seguro. Ela será solicitada no primeiro acesso.");
+        form.reset();
+        location.reload();
+      } catch (error) {
+        showMessage("usersMessage", error.message);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    showMessage("usersMessage", error.message || "Erro ao carregar a gestão de usuários.");
+    showMessage("rulesMessage", "Não foi possível carregar as configurações.");
+  }
 });
 </script>
 </body>

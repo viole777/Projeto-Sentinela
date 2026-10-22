@@ -413,7 +413,7 @@ async function readAllFromPostgres() {
   );
 
   const db = ensureDBShape({
-    usuarios: users.map(u => ({ id: u.id, usuario: u.username, nome: u.name, email: u.email, role: u.role_name || u.role, tipo: u.role_name || u.role, senha: u.password_hash, setor: u.unit, theme: u.theme || 'light', mustChangePassword: u.must_change_password, resetToken: u.reset_token, resetExpires: u.reset_expires, ativo: u.active })),
+    usuarios: users.map(u => ({ id: u.id, usuario: u.username, nome: u.name, email: u.email, role: u.role_name || u.role, tipo: u.role_name || u.role, senha: u.password_hash, senhaTemporariaHash: u.temporary_password_hash || null, senhaTemporariaExpiraEm: u.temporary_password_expires_at ? new Date(u.temporary_password_expires_at).getTime() : null, setor: u.unit, theme: u.theme || 'light', mustChangePassword: u.must_change_password, resetToken: u.reset_token, resetExpires: u.reset_expires, ativo: u.active })),
     pacientes: patients.map(p => ({ id: p.id, nome: p.name, cpf: p.cpf, tipo: p.patient_type, perfil: p.perfil || {}, status: p.status, createdAt: p.created_at, updatedAt: p.updated_at })),
     leitos: beds.map(b => ({ id: b.code, ala: b.ala || 'CARDIOLOGIA', status: b.status === 'free' ? 'livre' : 'ocupado', pacienteCpf: b.patient_cpf, pacienteNome: b.patient_name, desde: b.occupied_since })),
     internacoes: hospitalizations.map(h => ({ id: h.id, pacienteCpf: h.patient_cpf, pacienteNome: h.patient_name, leito: h.bed_code, motivo: h.reason, medicoResponsavel: h.doctor, entradaEm: h.admitted_at, altaEm: h.discharged_at })),
@@ -518,17 +518,20 @@ async function syncUsers(pool, list) {
       String(u.usuario), u.email || null, u.nome || String(u.usuario),
       String(u.senha || ''), role, u.setor || null, u.theme || 'light',
       !!u.mustChangePassword, roleId ? roleId.id : null, u.resetToken || null,
-      resetExpires, u.ativo === undefined ? true : !!u.ativo
+      resetExpires, u.ativo === undefined ? true : !!u.ativo,
+      u.senhaTemporariaHash || null,
+      u.senhaTemporariaExpiraEm ? new Date(u.senhaTemporariaExpiraEm).toISOString() : null
     ];
     await pool.query(
-      `INSERT INTO users (username, email, name, password_hash, role, unit, theme, must_change_password, role_id, reset_token, reset_expires, active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO users (username, email, name, password_hash, role, unit, theme, must_change_password, role_id, reset_token, reset_expires, active, temporary_password_hash, temporary_password_expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (username) DO UPDATE SET
          email = EXCLUDED.email, name = EXCLUDED.name, password_hash = EXCLUDED.password_hash,
          role = EXCLUDED.role, unit = EXCLUDED.unit, theme = EXCLUDED.theme,
          must_change_password = EXCLUDED.must_change_password, role_id = EXCLUDED.role_id,
          reset_token = EXCLUDED.reset_token, reset_expires = EXCLUDED.reset_expires,
-         active = EXCLUDED.active`,
+         active = EXCLUDED.active, temporary_password_hash = EXCLUDED.temporary_password_hash,
+         temporary_password_expires_at = EXCLUDED.temporary_password_expires_at`,
       params
     );
     const got = await pool.query(`SELECT id FROM users WHERE username = $1`, [String(u.usuario)]);

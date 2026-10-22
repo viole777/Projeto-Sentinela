@@ -402,3 +402,37 @@ table.tbl tbody tr:hover{ background: rgba(31, 74, 115, 0.02); }
   .header-meta{ text-align: left; }
 }
 
+
+/* Sentinela Professional v2 — refined responsive design system */
+:root{--brand:#087f8c;--brand-strong:#086b75;--brand-soft:#e5f6f6;--radius:14px;--radius-sm:10px}
+body{background:var(--bg);letter-spacing:.002em}
+h1{font-size:clamp(1.65rem,2.3vw,2.15rem);font-weight:760;letter-spacing:-.04em;line-height:1.2}
+h2{font-size:1.35rem;font-weight:740;letter-spacing:-.03em}
+h3{font-size:1.02rem;font-weight:720}
+.container,.panel,.card,.inline-box{border-radius:14px;box-shadow:0 4px 16px rgba(16,38,60,.035)}
+.panel,.card,.inline-box{padding:18px}
+.page-header{align-items:center;margin-bottom:22px;padding-bottom:18px}
+.eyebrow{color:var(--brand-strong);font-size:10px;letter-spacing:.15em}
+.panel-title{letter-spacing:.13em;margin-bottom:14px}
+.panel-grid{gap:14px}
+.kpi{position:relative;overflow:hidden;border-radius:14px;padding:18px;box-shadow:0 2px 8px rgba(16,38,60,.025)}
+.kpi:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--brand)}
+.kpi b{font-size:1.8rem;font-weight:760;letter-spacing:-.04em}
+.kpi span{letter-spacing:.09em}
+.list{gap:10px}
+.list-item{border-radius:12px;padding:13px 15px;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+.list-item:hover{border-color:#c6d8e5;box-shadow:0 4px 12px rgba(16,38,60,.04)}
+.tbl{border-collapse:separate;border-spacing:0;width:100%}
+.tbl th{background:var(--panel-alt);color:var(--muted);font-size:10px;letter-spacing:.09em;text-transform:uppercase;font-weight:750}
+.tbl th:first-child{border-top-left-radius:10px}.tbl th:last-child{border-top-right-radius:10px}
+.tbl td,.tbl th{padding:12px 14px}.tbl tbody tr:hover{background:var(--panel-alt)}
+input,select,textarea{border-radius:10px;min-height:42px}
+textarea{min-height:100px}
+button{min-height:40px;border-radius:10px;font-weight:700;box-shadow:0 1px 2px rgba(16,38,60,.04)}
+button:focus-visible,a:focus-visible{outline:3px solid rgba(8,127,140,.28);outline-offset:2px}
+button.secondary,button.ghost{box-shadow:none}
+.badge,.meta-chip{border-radius:999px}
+.empty-state{padding:24px 16px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);text-align:center}
+.section{margin-top:22px}.toolbar{align-items:center}.toolbar>*{min-width:150px}
+@media(max-width:760px){.container{margin:12px;padding:16px}.page-header{align-items:stretch;flex-direction:column}.page-header button{width:100%}.split{grid-template-columns:minmax(0,1fr);gap:12px}.form-grid{grid-template-columns:minmax(0,1fr)}.panel,.card,.inline-box{padding:14px}.tbl th,.tbl td{padding:10px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}

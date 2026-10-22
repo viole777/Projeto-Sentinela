@@ -22,7 +22,7 @@ Sentinela.mount("internacao", `
   async function carregar() {
     const leitos = await fetch("/leitos").then(r => r.json());
     document.getElementById("mapa").innerHTML = leitos.map(l =>
-      '<div class="card kpi"><b>[' + l.id + ']</b>' + (l.status === "livre" ? "LIVRE" : (l.pacienteNome || "Ocupado")) + '<br><small>' + (l.ala || "") + '</small></div>').join("");
+      '<div class="card kpi"><b>[' + Sentinela.escapeHtml(l.id) + ']</b>' + (l.status === "livre" ? "LIVRE" : Sentinela.escapeHtml(l.pacienteNome || "Ocupado")) + '<br><small>' + Sentinela.escapeHtml(l.ala || "") + '</small></div>').join("");
   }
   carregar();
 });

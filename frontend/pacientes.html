@@ -10,7 +10,7 @@ Sentinela.mount("pacientes", `
       <div class="eyebrow">Pacientes</div>
       <h1>Cadastro e acompanhamento</h1>
     </div>
-    <button onclick="location.href='atendimento.html'">Novo atendimento</button>
+    <button id="novoAtendimento" type="button">Novo atendimento</button>
   </div>
 
   <div class="panel">
@@ -44,6 +44,7 @@ Sentinela.mount("pacientes", `
   </div>
 `).then(() => {
   let filtro = "";
+  document.getElementById("novoAtendimento").addEventListener("click", () => { location.href = "atendimento.html"; });
   document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { filtro = b.dataset.f; carregar(); });
 
   async function carregar() {
@@ -55,19 +56,27 @@ Sentinela.mount("pacientes", `
     const dot = { triagem: "AMARELO", aguardando_medico: "AMARELO", em_consulta: "LARANJA", internado: "VERMELHO", alta: "VERDE" };
 
     document.getElementById("tb").innerHTML = rows.length
-      ? rows.map(p => `
+      ? rows.map(p => {
+          const cpf = String(p.cpf ?? "");
+          const status = String(p.status ?? "-");
+          return `
           <tr>
-            <td>${p.nome}</td>
-            <td>${p.cpf}</td>
-            <td>${dot[p.status] || "NORMAL"} ${p.status || "-"}</td>
-            <td>
-              <div class="row-actions">
-                <button class="secondary" onclick="sessionStorage.setItem('pacienteCpf','${p.cpf}');location.href='paciente.html?cpf=${p.cpf}'">Abrir</button>
-              </div>
-            </td>
-          </tr>
-        `).join("")
+            <td>${Sentinela.escapeHtml(p.nome)}</td>
+            <td>${Sentinela.escapeHtml(cpf)}</td>
+            <td>${Sentinela.escapeHtml(dot[status] || "NORMAL")} ${Sentinela.escapeHtml(status)}</td>
+            <td><div class="row-actions">
+              <button class="secondary btnAbrirPaciente" type="button" data-cpf="${Sentinela.escapeHtml(cpf)}">Abrir</button>
+            </div></td>
+          </tr>`;
+        }).join("")
       : '<tr><td colspan="4"><div class="empty-state">Nenhum paciente encontrado.</div></td></tr>';
+    document.querySelectorAll(".btnAbrirPaciente").forEach(button => {
+      button.addEventListener("click", () => {
+        const cpf = button.dataset.cpf || "";
+        sessionStorage.setItem("pacienteCpf", cpf);
+        location.href = "paciente.html?cpf=" + encodeURIComponent(cpf);
+      });
+    });
   }
 
   document.getElementById("busca").addEventListener("input", carregar);

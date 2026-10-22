@@ -212,6 +212,11 @@ async function hydrate() {
     return current;
   }
   try {
+    // Migração leve e idempotente: contas recém-criadas precisam persistir
+    // o hash e a validade da senha temporária também no PostgreSQL.
+    const pool = getPool();
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_hash TEXT");
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ");
     current = await readAllFromPostgres();
     hydrated = true;
     // PostgreSQL conectado mas vazio → importa dados locais uma única vez.

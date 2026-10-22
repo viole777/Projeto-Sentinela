@@ -74,7 +74,7 @@
 
                         const body = document.getElementById("triagemRows");
 
-                        rows.forEach(t => {
+                        rows.forEach((t, index) => {
                             const nomePaciente = t.pacienteNome || t.nome || t?.atendimento?.pacienteNome || "Paciente";
                             const atendimento = t.atendimento || {};
                             const imagem = atendimento.imagem ? `${atendimento.imagem}` : '';
@@ -94,33 +94,33 @@
                                     ${imagem ? `<img src="${imagem}" alt="" style="width:42px; height:42px; object-fit:cover;" />` : `<span style="font-weight:800; color:rgba(229,231,235,.75);">IMG</span>`}
                                   </div>
                                   <div>
-                                    <div style="font-weight:800;">${nomePaciente}</div>
-                                    <div style="font-size:12px; color:rgba(229,231,235,.7); margin-top:2px;">Tipo: ${atendimento.tipo || '-'}</div>
+                                    <div style="font-weight:800;">${Sentinela.escapeHtml(nomePaciente)}</div>
+                                    <div style="font-size:12px; color:rgba(229,231,235,.7); margin-top:2px;">Tipo: ${Sentinela.escapeHtml(atendimento.tipo || '-')}</div>
                                   </div>
                                 </div>
                               </td>
-                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${t.pacienteCpf || '-'}</td>
-                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${t.temperatura || '-'}°C</td>
+                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${Sentinela.escapeHtml(t.pacienteCpf || '-')}</td>
+                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">${Sentinela.escapeHtml(t.temperatura || '-')}°C</td>
                               <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
-                                <span class="badge ${riscoClasse}" style="white-space:nowrap;">${badgeText}</span>
+                                <span class="badge ${riscoClasse}" style="white-space:nowrap;">${Sentinela.escapeHtml(badgeText)}</span>
                               </td>
-                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); max-width:360px;">${t.sintomas || '-'}</td>
+                              <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); max-width:360px;">${Sentinela.escapeHtml(t.sintomas || '-')}</td>
                               <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
                                 ${(() => {
                                     const has = (t.alergia ?? '').toString().trim().toLowerCase();
                                     const isSim = has && has !== 'nenhuma' && has !== 'nao' && has !== 'não' && has !== '0';
                                     if (!isSim) return `<span style="color:rgba(229,231,235,.7); font-weight:700;">Alergia: Não</span>`;
-                                    return `<span class="badge febre" style="background:rgba(239,68,68,.95);">Alergia: Sim</span><div style="margin-top:6px; color:rgba(229,231,235,.85); font-size:12px;">${t.alergia}</div>`;
+                                    return `<span class="badge febre" style="background:rgba(239,68,68,.95);">Alergia: Sim</span><div style="margin-top:6px; color:rgba(229,231,235,.85); font-size:12px;">${Sentinela.escapeHtml(t.alergia)}</div>`;
                                 })()}
                               </td>
                               <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10); text-align:right;">
                                 <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
                                   <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(37,99,235,.95); color:#fff; cursor:pointer;" 
-                                    onclick='selecionar(${JSON.stringify(t.pacienteId)}, ${JSON.stringify(t.alergia || "nenhuma")}, ${JSON.stringify(t.pacienteCpf)}, ${JSON.stringify(nomePaciente)}, ${JSON.stringify(t)})'>
+                                    class="btnAtender" data-index="${index}">
                                     Atender
                                   </button>
                                   <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(239,68,68,.20); border:1px solid rgba(239,68,68,.35); color:#fff; cursor:pointer;"
-                                    onclick='apagar(${JSON.stringify(t.id)})'>
+                                    class="btnApagar" data-index="${index}">
                                     Deletar
                                   </button>
                                 </div>
@@ -128,6 +128,8 @@
                             `;
 
                             body.appendChild(tr);
+                            tr.querySelector('.btnAtender').addEventListener('click', () => selecionar(t.pacienteId, t.alergia || 'nenhuma', t.pacienteCpf, nomePaciente, t));
+                            tr.querySelector('.btnApagar').addEventListener('click', () => apagar(t.id));
                         });
                     });
             }
@@ -213,7 +215,7 @@
                 const cor = { CRITICO: '#ef4444', ALTO: '#f59e0b', ATENCAO: '#eab308' };
                 box.innerHTML = achados.map(a => `
                     <div class="card" style="border:1px solid ${cor[a.nivel] || '#888'};margin-bottom:8px;">
-                        <b>${a.nivel === 'CRITICO' ? 'Critico' : 'Atenção'} • ${a.nivel} — ${a.regra}</b><br>${a.mensagem}
+                        <b>${Sentinela.escapeHtml(a.nivel === 'CRITICO' ? 'Crítico' : 'Atenção')} • ${Sentinela.escapeHtml(a.nivel)} — ${Sentinela.escapeHtml(a.regra)}</b><br>${Sentinela.escapeHtml(a.mensagem)}
                     </div>`).join('') +
                     '<p style="font-size:12px;opacity:.8;">A prescrição requer revisão. A decisão é do profissional.</p>';
             }
@@ -227,9 +229,9 @@
                 if (!r.ok) { box.innerHTML = '<p>Falha ao gerar resumo.</p>'; return; }
                 const d = await r.json();
                 box.innerHTML = `<div class="card" style="border:1px solid rgba(34,197,94,.5);">
-                    <b>Sentinela AI</b><br><br>${d.resumo}<br><br>
+                    <b>Sentinela AI</b><br><br>${Sentinela.escapeHtml(d.resumo)}<br><br>
                     ${(d.inconsistencias || []).length ? '<b>Possíveis inconsistências:</b><br>• ' + d.inconsistencias.join('<br>• ') : 'Nenhuma inconsistência aparente.'}
-                    <br><br><small>Fonte: prontuário do paciente. ${d.aviso}</small></div>`;
+                    <br><br><small>Fonte: prontuário do paciente. ${Sentinela.escapeHtml(d.aviso)}</small></div>`;
             }
 
             async function carregarAlertas() {
@@ -241,8 +243,8 @@
                 const cor = { CRITICO: '#ef4444', ALTO: '#f59e0b', ATENCAO: '#eab308', INFORMATIVO: '#2563eb' };
                 box.innerHTML = list.slice(0, 10).map(a => `
                     <div class="card" style="border:1px solid ${cor[a.nivel] || '#888'};margin-bottom:8px;">
-                        <b>${a.nivel}</b> — ${a.mensagem}<br>
-                        <small>${a.pacienteNome || ''} (${a.pacienteCpf || '-'}) • ${new Date(a.quando).toLocaleString('pt-BR')} • regra: ${a.regra}</small><br>
+                        <b>${Sentinela.escapeHtml(a.nivel)}</b> — ${Sentinela.escapeHtml(a.mensagem)}<br>
+                        <small>${Sentinela.escapeHtml(a.pacienteNome || '')} (${Sentinela.escapeHtml(a.pacienteCpf || '-')}) • ${Sentinela.escapeHtml(new Date(a.quando).toLocaleString('pt-BR'))} • regra: ${Sentinela.escapeHtml(a.regra)}</small><br>
                         <button style="margin-top:6px;padding:6px 10px;" onclick="resolverAlerta(${a.id})">Marcar resolvido</button>
                     </div>`).join('');
             }
@@ -257,7 +259,7 @@
                 if (!r.ok) return;
                 const list = await r.json();
                 document.getElementById('audBox').innerHTML = list.slice(0, 8).map(e =>
-                    `<div style="font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);">${new Date(e.quando).toLocaleString('pt-BR')} — <b>${e.usuario}</b> (${e.perfil}): ${e.acao}</div>`
+                    `<div style="font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);">${new Date(e.quando).toLocaleString('pt-BR')} — <b>${Sentinela.escapeHtml(e.usuario)}</b> (${Sentinela.escapeHtml(e.perfil)}): ${Sentinela.escapeHtml(e.acao)}</div>`
                 ).join('') || '<p>Sem eventos.</p>';
             }
 

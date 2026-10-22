@@ -7,7 +7,7 @@
 Sentinela.mount("leitos", `<h2>Leitos</h2><div class="cards" id="mapa"></div>`).then(async () => {
   const leitos = await fetch("/leitos").then(r => r.json());
   document.getElementById("mapa").innerHTML = leitos.map(l =>
-    `<div class="card kpi"><b>[${l.id}] ${l.status === "livre" ? "Livre" : "Ocupado"}</b>${l.pacienteNome || ""}<br><small>${l.ala || ""}</small></div>`).join("");
+    `<div class="card kpi"><b>[${Sentinela.escapeHtml(l.id)}] ${l.status === "livre" ? "Livre" : "Ocupado"}</b>${Sentinela.escapeHtml(l.pacienteNome || "")}<br><small>${Sentinela.escapeHtml(l.ala || "")}</small></div>`).join("");
 });
 </script>
 </body>

@@ -34,23 +34,30 @@ Sentinela.mount("alertas", `
     const list = await fetch("/alertas" + q).then(r => r.json());
 
     const listHtml = list.length
-      ? list.map(a => `
+      ? list.map(a => {
+          const id = Number(a.id);
+          const nivel = String(a.nivel ?? "INFO");
+          const classe = nivel === "CRITICO" ? "critica" : nivel === "ALTO" ? "alta" : "info";
+          return `
           <div class="list-item">
             <div class="meta-row">
-              <span class="badge ${a.nivel === "CRITICO" ? "critica" : a.nivel === "ALTO" ? "alta" : "info"}">${a.nivel}</span>
-              <span class="meta-chip">${a.regra}</span>
+              <span class="badge ${classe}">${Sentinela.escapeHtml(nivel)}</span>
+              <span class="meta-chip">${Sentinela.escapeHtml(a.regra)}</span>
             </div>
-            <strong>${a.mensagem}</strong>
-            <small>${a.pacienteNome || "Sistema"} (${a.pacienteCpf || "-"}) · ${new Date(a.quando).toLocaleString("pt-BR")} · por ${a.geradoPor}${a.resolvido ? " · resolvido" : ""}</small>
-            ${a.resolvido ? "" : `<div class="row-actions" style="margin-top:8px;"><button class="secondary" onclick=\"resolver(${a.id})\">Revisar</button></div>`}
-          </div>
-        `).join("")
+            <strong>${Sentinela.escapeHtml(a.mensagem)}</strong>
+            <small>${Sentinela.escapeHtml(a.pacienteNome || "Sistema")} (${Sentinela.escapeHtml(a.pacienteCpf || "-")}) · ${Sentinela.escapeHtml(new Date(a.quando).toLocaleString("pt-BR"))} · por ${Sentinela.escapeHtml(a.geradoPor)}${a.resolvido ? " · resolvido" : ""}</small>
+            ${a.resolvido ? "" : `<div class="row-actions" style="margin-top:8px;"><button class="secondary btnResolver" type="button" data-id="${Number.isSafeInteger(id) && id > 0 ? id : 0}">Revisar</button></div>`}
+          </div>`;
+        }).join("")
       : '<div class="empty-state">Nenhum alerta cadastrado.</div>';
 
     document.getElementById("lista").innerHTML = listHtml;
+    document.querySelectorAll(".btnResolver").forEach(button => {
+      button.addEventListener("click", () => resolver(Number(button.dataset.id)));
+    });
   }
 
-  window.resolver = async (id) => { await fetch("/alertas/" + id + "/resolver", { method: "POST" }); carregar(); };
+  window.resolver = async (id) => { if (!Number.isSafeInteger(id) || id <= 0) return; const r = await fetch("/alertas/" + id + "/resolver", { method: "POST" }); if (!r.ok) { alert("Não foi possível atualizar o alerta."); return; } carregar(); };
   carregar(); setInterval(carregar, 10000);
 });
 </script>

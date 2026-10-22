@@ -17,14 +17,14 @@ Sentinela.mount("relatorios", `
     const de = document.getElementById("de").value, ate = document.getElementById("ate").value;
     const r = await fetch("/relatorios?de=" + de + "&ate=" + ate).then(r => r.json());
     document.getElementById("kpis").innerHTML =
-      `<div class="card kpi"><b>${r.atendimentos}</b>atendimentos</div>
-       <div class="card kpi"><b>${r.pacientes}</b>pacientes</div>
-       <div class="card kpi"><b>${r.internacoes}</b>internações</div>
-       <div class="card kpi"><b>${r.ocupacao}%</b>ocupação</div>
-       <div class="card kpi"><b>${r.alertas}</b>alertas</div>
-       <div class="card kpi"><b>${r.alertasResolvidos}</b>resolvidos</div>`;
+      `<div class="card kpi"><b>${Sentinela.escapeHtml(r.atendimentos)}</b>atendimentos</div>
+       <div class="card kpi"><b>${Sentinela.escapeHtml(r.pacientes)}</b>pacientes</div>
+       <div class="card kpi"><b>${Sentinela.escapeHtml(r.internacoes)}</b>internações</div>
+       <div class="card kpi"><b>${Sentinela.escapeHtml(r.ocupacao)}%</b>ocupação</div>
+       <div class="card kpi"><b>${Sentinela.escapeHtml(r.alertas)}</b>alertas</div>
+       <div class="card kpi"><b>${Sentinela.escapeHtml(r.alertasResolvidos)}</b>resolvidos</div>`;
     document.getElementById("cond").innerHTML = "<h3>Pacientes por condição registrada</h3>" +
-      Object.entries(r.porCondicao || {}).map(([k, v]) => `<div>${k}: ${"█".repeat(Math.min(v, 20))} ${v}</div>`).join("");
+      Object.entries(r.porCondicao || {}).map(([k, v]) => `<div>${Sentinela.escapeHtml(k)}: ${"█".repeat(Math.min(Number(v), 20))} ${Sentinela.escapeHtml(v)}</div>`).join("");
   };
   gerar();
 });

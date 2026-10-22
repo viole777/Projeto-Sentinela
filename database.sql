@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS users (
   must_change_password BOOLEAN DEFAULT FALSE,
   reset_token TEXT,
   reset_expires TIMESTAMPTZ,
+  temporary_password_hash TEXT,
+  temporary_password_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -261,6 +263,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ============================================================
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'light';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT;

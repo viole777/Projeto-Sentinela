@@ -57,8 +57,11 @@ const passwordRateLimit = rateLimit({
     message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
 });
 
-//frontend
+// Frontend estático e rota amigável para abrir o painel em uma TV.
 app.use(express.static(path.join(__dirname, "../frontend")));
+app.get(["/tv", "/tv/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/tv.html"));
+});
 app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
 
 //uploads

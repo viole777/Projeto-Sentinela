@@ -230,7 +230,7 @@
                 const d = await r.json();
                 box.innerHTML = `<div class="card" style="border:1px solid rgba(34,197,94,.5);">
                     <b>Sentinela AI</b><br><br>${Sentinela.escapeHtml(d.resumo)}<br><br>
-                    ${(d.inconsistencias || []).length ? '<b>Possíveis inconsistências:</b><br>• ' + d.inconsistencias.join('<br>• ') : 'Nenhuma inconsistência aparente.'}
+                    ${(d.inconsistencias || []).length ? '<b>Possíveis inconsistências:</b><br>• ' + d.inconsistencias.map(Sentinela.escapeHtml).join('<br>• ') : 'Nenhuma inconsistência aparente.'}
                     <br><br><small>Fonte: prontuário do paciente. ${Sentinela.escapeHtml(d.aviso)}</small></div>`;
             }
 
@@ -245,12 +245,15 @@
                     <div class="card" style="border:1px solid ${cor[a.nivel] || '#888'};margin-bottom:8px;">
                         <b>${Sentinela.escapeHtml(a.nivel)}</b> — ${Sentinela.escapeHtml(a.mensagem)}<br>
                         <small>${Sentinela.escapeHtml(a.pacienteNome || '')} (${Sentinela.escapeHtml(a.pacienteCpf || '-')}) • ${Sentinela.escapeHtml(new Date(a.quando).toLocaleString('pt-BR'))} • regra: ${Sentinela.escapeHtml(a.regra)}</small><br>
-                        <button style="margin-top:6px;padding:6px 10px;" onclick="resolverAlerta(${a.id})">Marcar resolvido</button>
+                        <button style="margin-top:6px;padding:6px 10px;" class="btnResolverAlerta" data-id="${Number(a.id)}">Marcar resolvido</button>
                     </div>`).join('');
+                box.querySelectorAll('.btnResolverAlerta').forEach(button => button.addEventListener('click', () => resolverAlerta(Number(button.dataset.id))));
             }
 
             async function resolverAlerta(id) {
-                await fetch('/alertas/' + id + '/resolver', { method: 'POST' });
+                if (!Number.isSafeInteger(id) || id <= 0) return;
+                const response = await fetch('/alertas/' + id + '/resolver', { method: 'POST' });
+                if (!response.ok) { alert('Não foi possível atualizar o alerta.'); return; }
                 carregarAlertas();
             }
 

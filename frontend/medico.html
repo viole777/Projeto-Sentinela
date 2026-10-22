@@ -77,11 +77,11 @@
                         rows.forEach((t, index) => {
                             const nomePaciente = t.pacienteNome || t.nome || t?.atendimento?.pacienteNome || "Paciente";
                             const atendimento = t.atendimento || {};
-                            const imagem = atendimento.imagem ? `${atendimento.imagem}` : '';
+                            const imagemRaw = String(atendimento.imagem || '');
+                            const imagem = /^(\/uploads\/[a-zA-Z0-9._/-]+|data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+)$/.test(imagemRaw) ? imagemRaw : '';
 
-                            const riscoClasse = t.risco === 'amarelo' ? 'febre'
-                                : (t.risco === 'vermelho' ? 'alta'
-                                : (t.risco === 'verde' ? 'normal' : t.risco));
+                            const riscoClasses = { amarelo: 'febre', vermelho: 'alta', verde: 'normal', laranja: 'alta', normal: 'normal' };
+                            const riscoClasse = riscoClasses[String(t.risco || '').toLowerCase()] || 'normal';
 
                             const badgeText = t.risco || '-';
                             const alergiaTxt = t.alergia || 'nenhuma';
@@ -91,7 +91,7 @@
                               <td style="padding:12px; border-bottom:1px solid rgba(255,255,255,.10);">
                                 <div style="display:flex; align-items:center; gap:12px;">
                                   <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                                    ${imagem ? `<img src="${imagem}" alt="" style="width:42px; height:42px; object-fit:cover;" />` : `<span style="font-weight:800; color:rgba(229,231,235,.75);">IMG</span>`}
+                                    ${imagem ? `<img src="${Sentinela.escapeHtml(imagem)}" alt="" style="width:42px; height:42px; object-fit:cover;" />` : `<span style="font-weight:800; color:rgba(229,231,235,.75);">IMG</span>`}
                                   </div>
                                   <div>
                                     <div style="font-weight:800;">${Sentinela.escapeHtml(nomePaciente)}</div>

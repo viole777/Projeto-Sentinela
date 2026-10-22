@@ -41,6 +41,7 @@ Sentinela.mount("exames", `
       <div class="card" style="margin-bottom:8px;"><b>${Sentinela.escapeHtml(e.tipo)}</b> — ${Sentinela.escapeHtml(e.pacienteNome)} (${Sentinela.escapeHtml(e.pacienteCpf)}) · ${Sentinela.escapeHtml(e.status)}<br>
       <small>Solicitado por ${Sentinela.escapeHtml(e.solicitadoPor)} em ${new Date(e.solicitadoEm).toLocaleString("pt-BR")}</small>
       ${e.resultado ? `<br>Laudo: ${Sentinela.escapeHtml(e.resultado.texto)}` : `<br><button style="margin-top:6px;" class="btnLaudar" data-id="${Number(e.id)}">Registrar resultado</button>`}</div>`).join("") || "<p>Nenhum exame.</p>";
+    document.querySelectorAll(".btnLaudar").forEach(button => button.addEventListener("click", () => laudar(Number(button.dataset.id))));
   }
   carregar();
 });

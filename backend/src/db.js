@@ -442,6 +442,41 @@ const store = {
     await syncChain;
     return !lastSyncError;
   },
+  async deleteUser(username) {
+    const target = String(username || "");
+    if (!target) return false;
+    if (usingPostgres()) {
+      await syncChain;
+      const result = await getPool().query(
+        `DELETE FROM users u
+         WHERE LOWER(u.username) = LOWER($1)
+           AND LOWER(COALESCE(u.role, '')) <> 'admin'
+           AND NOT EXISTS (
+             SELECT 1 FROM roles r WHERE r.id = u.role_id AND LOWER(r.name) = 'admin'
+           )
+         RETURNING u.username`,
+        [target]
+      );
+      if (!result.rowCount) return false;
+      if (current && Array.isArray(current.usuarios)) {
+        current.usuarios = current.usuarios.filter(u =>
+          String(u.usuario || "").toLowerCase() !== String(result.rows[0].username).toLowerCase()
+        );
+      }
+      return true;
+    }
+    const db = readDB();
+    const user = (db.usuarios || []).find(u =>
+      String(u.usuario || "").toLowerCase() === target.toLowerCase()
+    );
+    if (!user || String(user.role || user.tipo || "").toLowerCase() === "admin") return false;
+    db.usuarios = db.usuarios.filter(u =>
+      String(u.usuario || "").toLowerCase() !== target.toLowerCase()
+    );
+    writeJSON(db);
+    current = db;
+    return true;
+  },
   syncError() { return lastSyncError ? lastSyncError.message : null; },
   hydrate
 };

@@ -46,12 +46,12 @@ Sentinela.mount("dashboard", `
   const hora = new Date().getHours();
   const turno = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
 
-  document.getElementById("saudacao").textContent = `${turno}, ${d.nome}.`;
+  document.getElementById("saudacao").textContent = `${turno}, ${Sentinela.escapeHtml(d.nome)}.`;
   document.getElementById("unidade").innerHTML = `
     <div class="meta-row">
       <span class="meta-chip">Unidade Cardiológica</span>
-      <span>${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</span>
-      <span class="meta-chip">${(d.role || "").toUpperCase()}</span>
+      <span>${Sentinela.escapeHtml(new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }))}</span>
+      <span class="meta-chip">${Sentinela.escapeHtml((d.role || "").toUpperCase())}</span>
     </div>
   `;
 
@@ -78,8 +78,8 @@ Sentinela.mount("dashboard", `
   document.getElementById("agenda").innerHTML = agenda.length
     ? agenda.map((p, idx) => `
         <div class="list-item">
-          <strong>${String((idx + 1) * 30).padStart(2, "0")}:00 — ${p.nome}</strong>
-          <small>${p.risco || "Normal"} · ${p.status || "Aguardando"}</small>
+          <strong>${String((idx + 1) * 30).padStart(2, "0")}:00 — ${Sentinela.escapeHtml(p.nome)}</strong>
+          <small>${Sentinela.escapeHtml(p.risco || "Normal")} · ${Sentinela.escapeHtml(p.status || "Aguardando")}</small>
         </div>
       `).join("")
     : '<div class="empty-state">Nenhum atendimento agendado.</div>';
@@ -89,10 +89,10 @@ Sentinela.mount("dashboard", `
     ? al.slice(0, 4).map(a => `
         <div class="list-item">
           <div class="meta-row">
-            <span class="badge ${a.nivel === 'crítico' ? 'critica' : a.nivel === 'alto' ? 'alta' : 'info'}">${a.nivel || 'Informação'}</span>
+            <span class="badge ${a.nivel === 'crítico' ? 'critica' : a.nivel === 'alto' ? 'alta' : 'info'}">${Sentinela.escapeHtml(a.nivel || "Informação")}</span>
           </div>
-          <strong>${a.mensagem}</strong>
-          <small>${a.pacienteNome || "Sistema"}</small>
+          <strong>${Sentinela.escapeHtml(a.mensagem)}</strong>
+          <small>${Sentinela.escapeHtml(a.pacienteNome || "Sistema")}</small>
         </div>
       `).join("")
     : '<div class="empty-state">Nenhuma ocorrência pendente.</div>';
@@ -100,9 +100,9 @@ Sentinela.mount("dashboard", `
   document.getElementById("fila").innerHTML = fila.length
     ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Paciente</th><th>Prioridade</th><th>Espera</th><th>Status</th></tr></thead><tbody>${fila.slice(0, 6).map(p => `
         <tr>
-          <td>${p.nome}</td>
-          <td><span class="badge ${p.risco === 'vermelho' ? 'alta' : p.risco === 'amarelo' ? 'febre' : 'normal'}">${p.risco || 'Normal'}</span></td>
-          <td>${p.espera || '-'}</td>
+          <td>${Sentinela.escapeHtml(p.nome)}</td>
+          <td><span class="badge ${p.risco === 'vermelho' ? 'alta' : p.risco === 'amarelo' ? 'febre' : 'normal'}">${Sentinela.escapeHtml(p.risco || "Normal")}</span></td>
+          <td>${Sentinela.escapeHtml(p.espera || "-")}</td>
           <td>${p.status || 'Aguardando'}</td>
         </tr>
       `).join("")}</tbody></table></div>`
@@ -112,8 +112,8 @@ Sentinela.mount("dashboard", `
   document.getElementById("ativ").innerHTML = atv.length
     ? atv.slice(0, 6).map(e => `
         <div class="list-item">
-          <strong>${e.acao}</strong>
-          <small>${(e.quando || '').slice(11, 16)} · ${e.usuario}</small>
+          <strong>${Sentinela.escapeHtml(e.acao)}</strong>
+          <small>${Sentinela.escapeHtml((e.quando || '').slice(11, 16))} · ${Sentinela.escapeHtml(e.usuario)}</small>
         </div>
       `).join("")
     : '<div class="empty-state">Sem atividade recente.</div>';

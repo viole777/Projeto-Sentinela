@@ -1271,7 +1271,7 @@ app.get("/setores", requireAuth(["medico", "cardiologist", "direcao", "admin"]),
     res.json(setores);
 });
 
-app.post("/profissionais", requireAuth(["admin"]), (req, res) => {
+app.post("/profissionais", requireAuth(["admin"]), async (req, res) => {
     const db = readDB();
     const { usuario, nome, email, role, setor } = req.body || {};
     if (!usuario || !role) return res.status(400).json({ erro: "usuario e role são obrigatórios" });
@@ -1314,8 +1314,48 @@ app.post("/profissionais", requireAuth(["admin"]), (req, res) => {
     };
     db.usuarios.push(novo);
     writeDB(db);
+    const persistido = await store.flush();
+    if (!persistido) {
+        db.usuarios = db.usuarios.filter(u => String(u.usuario || "").toLowerCase() !== usuarioNormalized.toLowerCase());
+        return res.status(503).json({
+            erro: "Não foi possível confirmar a gravação no banco de dados. O usuário não foi confirmado; verifique a conexão com o PostgreSQL e tente novamente."
+        });
+    }
     audit(req, "profissional_criado", { usuario: novo.usuario, role: novo.role, setor: novo.setor || null });
-    res.json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true, senhaTemporaria });
+    res.status(201).json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true, senhaTemporaria });
+});
+
+app.delete("/profissionais/:usuario", requireAuth(["admin"]), async (req, res) => {
+    const alvo = String(req.params.usuario || "").trim();
+    if (!alvo) return res.status(400).json({ erro: "Usuário inválido." });
+
+    const db = readDB();
+    const usuarioAlvo = (db.usuarios || []).find(u =>
+        String(u.usuario || "").toLowerCase() === alvo.toLowerCase()
+    );
+    if (!usuarioAlvo) return res.status(404).json({ erro: "Usuário não encontrado." });
+
+    const roleAlvo = normalizeRole(usuarioAlvo.role || usuarioAlvo.tipo);
+    if (roleAlvo === "admin") {
+        return res.status(403).json({ erro: "Contas de administrador não podem ser excluídas por esta tela." });
+    }
+    if (String(req.user.usuario || "").toLowerCase() === String(usuarioAlvo.usuario || "").toLowerCase()) {
+        return res.status(403).json({ erro: "Não é permitido excluir a própria conta." });
+    }
+
+    try {
+        const removido = await store.deleteUser(usuarioAlvo.usuario);
+        if (!removido) return res.status(409).json({ erro: "Não foi possível excluir este usuário." });
+        audit(req, "profissional_excluido", { usuario: usuarioAlvo.usuario, role: roleAlvo });
+        const persisted = await store.flush();
+        if (!persisted) {
+            return res.status(503).json({ erro: "A exclusão não pôde ser confirmada no banco. Verifique a conexão e consulte a lista antes de repetir." });
+        }
+        return res.json({ ok: true, usuario: usuarioAlvo.usuario });
+    } catch (error) {
+        console.error("[users] Falha ao excluir usuário:", error.message);
+        return res.status(503).json({ erro: "Falha ao excluir usuário no banco de dados." });
+    }
 });
 
 // ── RELATÓRIOS (direção) ──

@@ -40,8 +40,8 @@ Sentinela.mount("safety", `
   function renderRules() {
     regrasEl.innerHTML = ruleKeys.map((key) => `
       <div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-        <span>${key}</span>
-        <input id="rule-${key}" type="checkbox" ${rules[key] ? "checked" : ""} ${isAdmin ? "" : "disabled"}>
+        <span>${Sentinela.escapeHtml(key)}</span>
+        <input id="rule-${Sentinela.escapeHtml(key)}" type="checkbox" ${rules[key] ? "checked" : ""} ${isAdmin ? "" : "disabled"}>
       </div>
     `).join("") || "<div class=\"empty-state\">Sem regras configuradas.</div>";
   }
@@ -75,11 +75,11 @@ Sentinela.mount("safety", `
   document.getElementById("hist").innerHTML = (h || []).slice(0, 20).map(a => `
     <div class="list-item">
       <div class="meta-row">
-        <span class="badge ${a.nivel === "CRITICO" ? "critica" : a.nivel === "ALTO" ? "alta" : "info"}">${a.nivel}</span>
-        <span class="meta-chip">${a.regra}</span>
+        <span class="badge ${a.nivel === "CRITICO" ? "critica" : a.nivel === "ALTO" ? "alta" : "info"}">${Sentinela.escapeHtml(a.nivel)}</span>
+        <span class="meta-chip">${Sentinela.escapeHtml(a.regra)}</span>
       </div>
-      <strong>${a.mensagem}</strong>
-      <small>${a.pacienteNome || ""} · ${a.pacienteCpf || "-"}</small>
+      <strong>${Sentinela.escapeHtml(a.mensagem)}</strong>
+      <small>${Sentinela.escapeHtml(a.pacienteNome || "")} · ${Sentinela.escapeHtml(a.pacienteCpf || "-")}</small>
     </div>
   `).join("") || "<div class=\"empty-state\">Sem ocorrências em aberto.</div>";
 });

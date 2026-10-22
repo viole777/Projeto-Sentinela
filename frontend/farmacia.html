@@ -35,22 +35,24 @@ Sentinela.mount("farmacia", `
       ? list.map(p => `
           <div class="list-item">
             <div class="meta-row">
-              <strong>${p.pacienteNome}</strong>
-              <span class="meta-chip">${p.pacienteCpf}</span>
+              <strong>${Sentinela.escapeHtml(p.pacienteNome)}</strong>
+              <span class="meta-chip">${Sentinela.escapeHtml(p.pacienteCpf)}</span>
             </div>
-            <small>${p.diagnostico || "Diagnóstico não informado"}</small>
+            <small>${Sentinela.escapeHtml(p.diagnostico || "Diagnóstico não informado")}</small>
             <div style="margin-top:8px;">
-              ${(p.safety || []).map(s => `<div class="meta-row" style="margin-bottom:4px;"><span class="badge ${s.nivel === 'CRITICO' ? 'critica' : s.nivel === 'ALTO' ? 'alta' : 'info'}">${s.nivel}</span><span>${s.mensagem}</span></div>`).join("") || "<small>Sem alertas de segurança.</small>"}
+              ${(p.safety || []).map(s => `<div class="meta-row" style="margin-bottom:4px;"><span class="badge ${s.nivel === 'CRITICO' ? 'critica' : s.nivel === 'ALTO' ? 'alta' : 'info'}">${Sentinela.escapeHtml(s.nivel)}</span><span>${Sentinela.escapeHtml(s.mensagem)}</span></div>`).join("") || "<small>Sem alertas de segurança.</small>"}
             </div>
             <div class="row-actions" style="margin-top:8px;">
-              <button onclick="dispensar(${p.consultaId})">Dispensar</button>
+              <button class="btnDispensar" data-id="${Number(p.consultaId)}">Dispensar</button>
             </div>
           </div>
         `).join("")
       : '<div class="empty-state">Nenhuma prescrição pendente.</div>';
+    document.querySelectorAll('.btnDispensar').forEach(button => button.addEventListener('click', () => dispensar(Number(button.dataset.id))));
   }
 
   window.dispensar = async (id) => {
+    if (!Number.isSafeInteger(id) || id <= 0) return;
     const r = await fetch("/farmacia/dispensar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consultaId: id }) });
     if (r.status === 409) { const e = await r.json(); alert(e.erro); return; }
     if (!r.ok) { alert("Falha ao dispensar"); return; }

@@ -1,80 +1,183 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head><link rel="stylesheet" href="styles.css"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sentinela — Profissionais</title></head>
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinela — Profissionais</title>
+</head>
 <body>
 <script src="layout.js"></script>
 <script>
+"use strict";
 Sentinela.mount("profissionais", `
   <h2>Profissionais</h2>
-  <div class="card"><h3>+ Novo profissional</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <input id="usuario" placeholder="Usuário" style="max-width:160px;"><input id="nome" placeholder="Nome" style="max-width:200px;">
-      <input id="email" placeholder="E-mail institucional" style="max-width:220px;">
-      <input id="setor" placeholder="Setor" style="max-width:180px;">
-      <select id="role" style="max-width:180px;">
-        <option value="medico">Médico</option><option value="cardiologist">Cardiologista</option>
-        <option value="enfermagem">Enfermagem</option><option value="farmacia">Farmácia</option>
-        <option value="triagem">Triagem</option><option value="atendimento">Atendimento</option>
-        <option value="recepcao">Recepção</option><option value="direcao">Direção</option><option value="admin">Admin</option>
-      </select>
-      <button onclick="criar()">Criar (primeiro acesso)</button>
-    </div></div>
-  <div class="card" style="margin-top:12px;"><table class="tbl"><thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th>E-mail</th></tr></thead><tbody id="tb"></tbody></table></div>
-`).then(() => {
-  window.criar = async () => {
-    const usuario = document.getElementById("usuario").value.trim();
-    const nome = document.getElementById("nome").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const setor = document.getElementById("setor").value.trim();
-    const role = document.getElementById("role").value;
-    if (!usuario || !nome || !role) {
-      alert("Preencha usuário, nome e cargo.");
-      return;
-    }
-    const r = await fetch("/profissionais", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuario, nome, email, setor, role }) });
-    if (!r.ok) { alert("Não foi possível criar o profissional. Verifique os dados e suas permissões."); return; }
-    alert("Profissional criado. Ele deverá definir a própria senha no primeiro acesso.");
-    document.getElementById("usuario").value = "";
-    document.getElementById("nome").value = "";
-    document.getElementById("email").value = "";
-    document.getElementById("setor").value = "";
-    await carregar();
-  };
-  async function carregar() {
-    const response = await fetch("/profissionais", { headers: { "Accept": "application/json" } });
-    const tbody = document.getElementById("tb");
+  <section class="card" id="createCard">
+    <h3>+ Novo profissional</h3>
+    <p id="formMessage" role="status"></p>
+    <form id="createForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+      <label>Usuário
+        <input id="usuario" name="usuario" required minlength="3" maxlength="60" autocomplete="off" placeholder="Ex.: maria.silva">
+      </label>
+      <label>Nome completo
+        <input id="nome" name="nome" required maxlength="120" placeholder="Nome do funcionário">
+      </label>
+      <label>E-mail institucional
+        <input id="email" name="email" type="email" maxlength="120" placeholder="nome@instituicao.org">
+      </label>
+      <label>Setor
+        <input id="setor" name="setor" maxlength="80" placeholder="Ex.: Triagem">
+      </label>
+      <label>Perfil
+        <select id="role" name="role" required>
+          <option value="medico">Médico</option>
+          <option value="cardiologist">Cardiologista</option>
+          <option value="enfermagem">Enfermagem</option>
+          <option value="farmacia">Farmácia</option>
+          <option value="triagem">Triagem</option>
+          <option value="atendimento">Atendimento</option>
+          <option value="recepcao">Recepção</option>
+          <option value="direcao">Direção</option>
+        </select>
+      </label>
+      <div style="align-self:end;"><button id="createButton" type="submit">Criar profissional</button></div>
+    </form>
+    <p style="font-size:12px;opacity:.8;">A senha temporária será exibida após a criação. Compartilhe-a com o funcionário por um canal seguro. O funcionário deverá definir uma senha própria no primeiro acesso.</p>
+  </section>
+  <section class="card" style="margin-top:12px;">
+    <h3>Usuários cadastrados</h3>
+    <p id="listMessage" role="status">Carregando…</p>
+    <div style="overflow-x:auto;">
+      <table class="tbl">
+        <thead><tr><th>Nome</th><th>Usuário</th><th>Cargo</th><th>Setor</th><th>E-mail</th><th>Ações</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </section>
+`).then(async () => {
+  const $ = id => document.getElementById(id);
+  let currentUser = {};
+  let isAdmin = false;
+  let users = [];
+
+  try {
+    const meResponse = await fetch("/me", { cache: "no-store" });
+    if (!meResponse.ok) throw new Error("Sessão expirada. Entre novamente.");
+    currentUser = await meResponse.json();
+    isAdmin = String(currentUser.role || currentUser.tipo || "").toLowerCase() === "admin";
+    $("createCard").hidden = !isAdmin;
+    if (!isAdmin) $("formMessage").textContent = "Somente o administrador pode criar ou excluir usuários.";
+  } catch (error) {
+    $("createCard").hidden = true;
+    $("listMessage").textContent = error.message;
+    return;
+  }
+
+  function render() {
+    const tbody = $("tb");
     tbody.replaceChildren();
-    if (!response.ok) {
+    if (!users.length) {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
-      cell.colSpan = 4;
-      cell.textContent = "Não foi possível carregar os profissionais.";
-      row.appendChild(cell);
-      tbody.appendChild(row);
-      return;
-    }
-    const list = await response.json();
-    if (!Array.isArray(list) || list.length === 0) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.colSpan = 4;
+      cell.colSpan = 6;
       cell.textContent = "Nenhum profissional cadastrado.";
       row.appendChild(cell);
       tbody.appendChild(row);
       return;
     }
-    list.forEach(p => {
+    users.forEach(user => {
       const row = document.createElement("tr");
-      [p.nome, p.role, p.setor || "-", p.email || "-"].forEach(value => {
+      [user.nome || user.usuario, user.usuario, user.role || user.tipo, user.setor || "-", user.email || "-"].forEach(value => {
         const cell = document.createElement("td");
         cell.textContent = value == null ? "" : String(value);
         row.appendChild(cell);
       });
+      const actions = document.createElement("td");
+      const role = String(user.role || user.tipo || "").toLowerCase();
+      const isSelf = String(user.usuario || "").toLowerCase() === String(currentUser.usuario || "").toLowerCase();
+      if (isAdmin && role !== "admin" && !isSelf) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Excluir";
+        button.dataset.username = user.usuario || "";
+        button.style.cssText = "background:#b42318;color:#fff;border:0;border-radius:8px;padding:7px 10px;cursor:pointer;";
+        actions.appendChild(button);
+      } else {
+        actions.textContent = "—";
+      }
+      row.appendChild(actions);
       tbody.appendChild(row);
     });
   }
-  carregar();
+
+  async function carregar() {
+    $("listMessage").textContent = "Carregando usuários…";
+    try {
+      const response = await fetch("/profissionais", { headers: { "Accept": "application/json" }, cache: "no-store" });
+      const result = await response.json().catch(() => []);
+      if (!response.ok) throw new Error((result && result.erro) || "Falha ao carregar usuários (HTTP " + response.status + ").");
+      if (!Array.isArray(result)) throw new Error("Resposta inesperada do servidor.");
+      users = result;
+      render();
+      $("listMessage").textContent = users.length + " usuário(s) encontrado(s).";
+    } catch (error) {
+      $("listMessage").textContent = error.message;
+    }
+  }
+
+  $("createForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!isAdmin) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const payload = {
+      usuario: String(values.get("usuario") || "").trim(),
+      nome: String(values.get("nome") || "").trim(),
+      email: String(values.get("email") || "").trim(),
+      setor: String(values.get("setor") || "").trim(),
+      role: String(values.get("role") || "").trim()
+    };
+    $("createButton").disabled = true;
+    $("formMessage").textContent = "Criando usuário e confirmando a gravação no banco…";
+    try {
+      const response = await fetch("/profissionais", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.erro || "Falha ao criar usuário (HTTP " + response.status + ").");
+      alert("Profissional criado: " + result.usuario + "\nPerfil: " + result.role + "\nSenha temporária (copie agora):\n" + result.senhaTemporaria + "\n\nEntregue essa senha ao funcionário por um canal seguro.");
+      form.reset();
+      $("formMessage").textContent = "Usuário criado e gravação confirmada.";
+      await carregar();
+    } catch (error) {
+      $("formMessage").textContent = error.message;
+    } finally {
+      $("createButton").disabled = false;
+    }
+  });
+
+  $("tb").addEventListener("click", async event => {
+    const button = event.target.closest("button[data-username]");
+    if (!button || !isAdmin) return;
+    const username = button.dataset.username;
+    if (!confirm('Excluir o usuário "' + username + '"? Esta ação não pode ser desfeita.')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch("/profissionais/" + encodeURIComponent(username), { method: "DELETE" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.erro || "Falha ao excluir (HTTP " + response.status + ").");
+      users = users.filter(user => String(user.usuario || "").toLowerCase() !== String(username).toLowerCase());
+      render();
+      $("listMessage").textContent = 'Usuário "' + username + '" excluído.';
+    } catch (error) {
+      $("listMessage").textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  await carregar();
 });
 </script>
 </body>

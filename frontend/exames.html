@@ -19,7 +19,7 @@ Sentinela.mount("exames", `
   <div id="lista"></div>
 `).then(async () => {
   const tipos = await fetch("/exames/tipos").then(r => r.json());
-  document.getElementById("tipo").innerHTML = tipos.map(t => `<option>${t}</option>`).join("");
+  document.getElementById("tipo").innerHTML = tipos.map(t => `<option>${Sentinela.escapeHtml(t)}</option>`).join("");
   let f = "";
   document.querySelectorAll("#filtros button").forEach(b => b.onclick = () => { f = b.dataset.f; carregar(); });
   window.solicitar = async () => {
@@ -29,6 +29,7 @@ Sentinela.mount("exames", `
     carregar();
   };
   window.laudar = async (id) => {
+    if (!Number.isSafeInteger(id) || id <= 0) return;
     const texto = prompt("Resultado/laudo:");
     if (texto == null) return;
     await fetch("/exames/" + id + "/resultado", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }) });
@@ -37,9 +38,9 @@ Sentinela.mount("exames", `
   async function carregar() {
     const list = await fetch("/exames" + (f ? "?status=" + f : "")).then(r => r.json());
     document.getElementById("lista").innerHTML = list.map(e => `
-      <div class="card" style="margin-bottom:8px;"><b>${e.tipo}</b> — ${e.pacienteNome} (${e.pacienteCpf}) · ${e.status}<br>
-      <small>Solicitado por ${e.solicitadoPor} em ${new Date(e.solicitadoEm).toLocaleString("pt-BR")}</small>
-      ${e.resultado ? `<br>Laudo: ${e.resultado.texto}` : `<br><button style="margin-top:6px;" onclick="laudar(${e.id})">Registrar resultado</button>`}</div>`).join("") || "<p>Nenhum exame.</p>";
+      <div class="card" style="margin-bottom:8px;"><b>${Sentinela.escapeHtml(e.tipo)}</b> — ${Sentinela.escapeHtml(e.pacienteNome)} (${Sentinela.escapeHtml(e.pacienteCpf)}) · ${Sentinela.escapeHtml(e.status)}<br>
+      <small>Solicitado por ${Sentinela.escapeHtml(e.solicitadoPor)} em ${new Date(e.solicitadoEm).toLocaleString("pt-BR")}</small>
+      ${e.resultado ? `<br>Laudo: ${Sentinela.escapeHtml(e.resultado.texto)}` : `<br><button style="margin-top:6px;" class="btnLaudar" data-id="${Number(e.id)}">Registrar resultado</button>`}</div>`).join("") || "<p>Nenhum exame.</p>";
   }
   carregar();
 });

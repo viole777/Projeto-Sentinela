@@ -34,6 +34,28 @@ Sentinela.mount("fila", `<h2>Fila de atendimento</h2><div id="lista" role="statu
       ${nome} · Chegada: ${Sentinela.escapeHtml(hora)}<br>
       <button style="margin-top:6px;" class="btnChamarPaciente" data-cpf="${Sentinela.escapeHtml(t.pacienteCpf || "")}">Chamar paciente</button></div>`;
     }).join("") || `<div class="card" style="text-align:center;padding:24px;"><div style="font-size:18px;font-weight:700;margin-bottom:8px;">Fila vazia</div><b>Nenhum paciente com triagem aguardando atendimento médico.</b><br><small>Confira se o paciente já foi registrado na triagem e enviado ao médico.</small></div>`;
+    container.querySelectorAll(".btnChamarPaciente").forEach(button => {
+      button.addEventListener("click", async () => {
+        const pacienteCpf = button.dataset.cpf;
+        if (!pacienteCpf) { alert("Não foi possível identificar o CPF deste paciente."); return; }
+        const guiche = window.prompt("Informe o guichê para chamar o paciente:", "GUICHÊ 01");
+        if (guiche === null) return;
+        button.disabled = true;
+        try {
+          const callResponse = await fetch("/tv/chamar", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ pacienteCpf, guiche })
+          });
+          const result = await callResponse.json().catch(() => ({}));
+          if (!callResponse.ok) throw new Error(result.erro || "Falha ao registrar a chamada (HTTP " + callResponse.status + ").");
+          alert("Paciente chamado no guichê " + (result.chamada?.guiche || guiche) + ".");
+        } catch (error) {
+          alert(error.message || "Não foi possível chamar o paciente.");
+          console.error("[Sentinela fila] Falha ao chamar paciente:", error);
+        } finally { button.disabled = false; }
+      });
+    });
   } catch (error) {
     container.innerHTML = `<div class="card" role="alert" style="padding:18px;"><b>Não foi possível carregar a fila.</b><p>${Sentinela.escapeHtml(error.message || "Erro inesperado.")}</p><button id="tentarNovamente">Tentar novamente</button></div>`;
     const retry = document.getElementById("tentarNovamente");

@@ -628,7 +628,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
 
 
 //triagem para medico (com dados do atendimento via CPF)
-app.get("/triagem", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
+app.get("/triagem", requireAuth(["admin", "medico", "cardiologist", "triagem", "enfermagem", "atendimento", "recepcao"]), (req, res) => {
     const db = readDB();
 
     const triagens = (db.triagens || []).map(t => {

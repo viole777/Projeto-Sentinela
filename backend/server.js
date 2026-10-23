@@ -927,7 +927,7 @@ app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendim
 
 // ── IA assistente: resumo do prontuário + possíveis inconsistências ──
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
-app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), async (req, res) => {
+app.get("/ia/resumo/:cpf", requireAuth(["admin", "medico", "cardiologist"]), async (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);

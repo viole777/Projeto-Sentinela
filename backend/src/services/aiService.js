@@ -31,11 +31,11 @@ function buildLocalClinicalSummary(paciente, triagens, consultas, atendimentos) 
 
 function normalizeAiPayload(content) {
     const safeText = (value, maxLength) =>
-        typeof value === "string" ? value.replace(/\\u0000/g, "").trim().slice(0, maxLength) : "";
+        typeof value === "string" ? value.replace(/\u0000/g, "").trim().slice(0, maxLength) : "";
 
     // Alguns modelos envolvem JSON em blocos Markdown ou acrescentam texto antes/depois.
     const raw = String(content || "").trim();
-    const unfenced = raw.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/i, "").trim();
+    const unfenced = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     let parsed = null;
     try {
         parsed = JSON.parse(unfenced);

@@ -46,6 +46,13 @@ function run() {
   assert.deepEqual(normalized.inconsistencias, ['Revisar dado']);
   assert.equal(typeof normalized.geradoEm, 'string');
 
+  const fenced = normalizeAiPayload('```json\n{"resumo":"Resumo robusto","inconsistencias":["Revisar dado","Revisar dado"]}\n```');
+  assert.equal(fenced.resumo, 'Resumo robusto', 'Deve aceitar JSON válido dentro de bloco Markdown');
+  assert.deepEqual(fenced.inconsistencias, ['Revisar dado'], 'Alertas duplicados devem ser removidos');
+
+  const wrapped = normalizeAiPayload('Resultado:\n{"resumo":"Resumo extraído","inconsistencias":[]}\nFim.');
+  assert.equal(wrapped.resumo, 'Resumo extraído', 'Deve extrair JSON mesmo com texto extra do modelo');
+
   const oversized = normalizeAiPayload(JSON.stringify({
     resumo: 'R'.repeat(3000),
     inconsistencias: ['A'.repeat(1000), 123, null]

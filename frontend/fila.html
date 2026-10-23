@@ -4,17 +4,42 @@
 <body>
 <script src="layout.js"></script>
 <script>
-Sentinela.mount("fila", `<h2>Fila de atendimento</h2><div id="lista"></div>`).then(async () => {
-  const list = await fetch("/triagem").then(r => r.json());
-  const ordem = { vermelho: 0, amarelo: 1, verde: 2 };
-  list.sort((a, b) => (ordem[a.risco] ?? 9) - (ordem[b.risco] ?? 9));
-  const rot = { vermelho: "PRIORIDADE ALTA", amarelo: "PRIORIDADE MODERADA", verde: "PRIORIDADE NORMAL" };
-  const dot = { vermelho: "VERMELHO", amarelo: "AMARELO", verde: "VERDE" };
-  document.getElementById("lista").innerHTML = list.map((t, index) => `
-    <div class="card" style="margin-bottom:8px;"><b>${Sentinela.escapeHtml(dot[t.risco] || "NORMAL")} · ${Sentinela.escapeHtml(rot[t.risco] || t.risco)}</b><br>
-    ${Sentinela.escapeHtml(t.pacienteNome)} · Chegada: ${new Date(t.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}<br>
-    <button style="margin-top:6px;" class="btnChamarPaciente" data-cpf="${Sentinela.escapeHtml(t.pacienteCpf)}">Chamar paciente</button></div>`).join("") ||
-    `<div class="card" style="text-align:center;padding:24px;"><div style="font-size:18px; font-weight:700; margin-bottom:8px;">OK</div><b>Nenhum paciente aguardando</b><br><small>A fila de atendimento está vazia.</small></div>`;
+Sentinela.mount("fila", `<h2>Fila de atendimento</h2><div id="lista" role="status" aria-live="polite">Carregando fila...</div>`).then(async () => {
+  const container = document.getElementById("lista");
+  if (!container) return;
+  try {
+    const response = await fetch("/triagem", { credentials: "same-origin", headers: { "Accept": "application/json" } });
+    if (!response.ok) {
+      let detail = "";
+      try { const body = await response.json(); detail = body.erro || body.error || ""; } catch (_) {}
+      throw new Error(detail || (response.status === 401 || response.status === 403
+        ? "Seu perfil não tem permissão para consultar a fila."
+        : "O servidor não conseguiu carregar a fila (HTTP " + response.status + ")."));
+    }
+    const payload = await response.json();
+    if (!Array.isArray(payload)) throw new Error(payload.erro || "A API retornou um formato inesperado.");
+    const list = payload.filter(t => t && t.status !== "concluido" && t.status !== "finalizado");
+    const ordem = { vermelho: 0, amarelo: 1, verde: 2 };
+    list.sort((a, b) => (ordem[String(a.risco || "").toLowerCase()] ?? 9) - (ordem[String(b.risco || "").toLowerCase()] ?? 9)
+      || new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const rot = { vermelho: "PRIORIDADE ALTA", amarelo: "PRIORIDADE MODERADA", verde: "PRIORIDADE NORMAL" };
+    const dot = { vermelho: "VERMELHO", amarelo: "AMARELO", verde: "VERDE" };
+    container.innerHTML = list.map(t => {
+      const risco = String(t.risco || "").toLowerCase();
+      const nome = Sentinela.escapeHtml(t.pacienteNome || "Paciente sem nome");
+      const hora = t.createdAt && !Number.isNaN(new Date(t.createdAt).getTime())
+        ? new Date(t.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        : "Horário indisponível";
+      return `<div class="card" style="margin-bottom:8px;"><b>${Sentinela.escapeHtml(dot[risco] || "RISCO NÃO CLASSIFICADO")} · ${Sentinela.escapeHtml(rot[risco] || "Prioridade a confirmar")}</b><br>
+      ${nome} · Chegada: ${Sentinela.escapeHtml(hora)}<br>
+      <button style="margin-top:6px;" class="btnChamarPaciente" data-cpf="${Sentinela.escapeHtml(t.pacienteCpf || "")}">Chamar paciente</button></div>`;
+    }).join("") || `<div class="card" style="text-align:center;padding:24px;"><div style="font-size:18px;font-weight:700;margin-bottom:8px;">Fila vazia</div><b>Nenhum paciente com triagem aguardando atendimento médico.</b><br><small>Confira se o paciente já foi registrado na triagem e enviado ao médico.</small></div>`;
+  } catch (error) {
+    container.innerHTML = `<div class="card" role="alert" style="padding:18px;"><b>Não foi possível carregar a fila.</b><p>${Sentinela.escapeHtml(error.message || "Erro inesperado.")}</p><button id="tentarNovamente">Tentar novamente</button></div>`;
+    const retry = document.getElementById("tentarNovamente");
+    if (retry) retry.addEventListener("click", () => location.reload());
+    console.error("[Sentinela fila]", error);
+  }
 });
 </script>
 </body>

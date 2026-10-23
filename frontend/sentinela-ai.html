@@ -61,7 +61,7 @@ Sentinela.mount("ai", `
     addText(meta, "span", "meta-chip", d.pacienteCpf || "");
     card.appendChild(meta);
 
-    addText(card, "p", "", d.resumo || "Resumo não disponível.");
+    let resumoExibido = d.resumo || "Resumo não disponível."; try { if (typeof resumoExibido === "string" && resumoExibido.trim().startsWith("{")) { const objeto = JSON.parse(resumoExibido); resumoExibido = objeto.resumo || objeto.summary || objeto.texto || objeto.conclusao || Object.entries(objeto).filter(([k,v]) => k !== "resumo" && v != null && v !== "").map(([k,v]) => k + ": " + (Array.isArray(v) ? v.join("; ") : String(v))).join("\n\n"); } } catch (_) {} addText(card, "p", "clinical-summary", resumoExibido || "Resumo não disponível.");
 
     function addSection(title, content, items) {
       const section = document.createElement("section");

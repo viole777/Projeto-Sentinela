@@ -223,11 +223,8 @@ const uploadFoto = multer({
         if (!allowed.includes(file.mimetype)) {
             return cb(new Error("Arquivo inválido: tipo de imagem não permitido."));
         }
-        const expectedExt = MIME_TO_EXTENSION[file.mimetype];
-        const originalExt = path.extname(file.originalname || "").toLowerCase();
-        if (originalExt && originalExt !== expectedExt) {
-            return cb(new Error("Arquivo inválido: extensão não confere com o tipo de imagem."));
-        }
+        // A extensão enviada pelo cliente não é confiável. A assinatura binária
+        // será validada após o upload e o servidor definirá a extensão final.
         cb(null, true);
     }
 });
@@ -438,6 +435,8 @@ app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLi
     user.resetToken = null;
     user.resetExpires = null;
     writeDB(db);
+    // Trocar a senha revoga todas as sessões existentes dessa conta.
+    await sessions.deleteForUser(user.usuario, user.email);
     audit(req, "senha_redefinida_admin", { usuario: user.usuario });
     res.json({ ok: true, usuario: user.usuario });
 });
@@ -1447,8 +1446,18 @@ app.get("/health", async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err && err.message ? err.message : err);
     if (res.headersSent) return next(err);
+    // Upload inválido ou acima do limite é erro de entrada (400), não falha 500.
+    if (err instanceof multer.MulterError) {
+        const tooLarge = err.code === "LIMIT_FILE_SIZE";
+        return res.status(400).json({
+            erro: tooLarge ? "A imagem excede o limite de 5 MB." : "Não foi possível processar o arquivo enviado."
+        });
+    }
+    if (typeof err?.message === "string" && err.message.startsWith("Arquivo inválido:")) {
+        return res.status(400).json({ erro: err.message });
+    }
+    console.error("Unhandled error:", err && err.message ? err.message : err);
     res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
 });
 

@@ -431,9 +431,6 @@ app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLi
     const db = readDB();
     const user = (db.usuarios || []).find(u => String(u.usuario || "").trim().toLowerCase() === username);
     if (!user) return res.status(404).json({ erro: "Usuário não encontrado." });
-    if (normalizeRole(user.role || user.tipo) === "admin") {
-        return res.status(403).json({ erro: "A redefinição de senha de outra conta admin não é permitida por esta tela." });
-    }
     user.senha = hashPassword(novaSenha);
     user.senhaTemporariaHash = null;
     user.senhaTemporariaExpiraEm = null;

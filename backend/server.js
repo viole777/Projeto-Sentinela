@@ -421,6 +421,30 @@ app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
     res.json({ ok: true, role: user.role || user.tipo });
 });
 
+// Redefinição administrativa de senha: a nova senha nunca é devolvida nem registrada em logs.
+app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLimit, (req, res) => {
+    const username = String(req.params.usuario || "").trim().toLowerCase();
+    const { novaSenha, confirmar } = req.body || {};
+    if (!username || typeof novaSenha !== "string" || novaSenha.length < 8 || novaSenha.length > 128 || novaSenha !== confirmar) {
+        return res.status(400).json({ erro: "Informe senhas iguais com pelo menos 8 caracteres." });
+    }
+    const db = readDB();
+    const user = (db.usuarios || []).find(u => String(u.usuario || "").trim().toLowerCase() === username);
+    if (!user) return res.status(404).json({ erro: "Usuário não encontrado." });
+    if (normalizeRole(user.role || user.tipo) === "admin") {
+        return res.status(403).json({ erro: "A redefinição de senha de outra conta admin não é permitida por esta tela." });
+    }
+    user.senha = hashPassword(novaSenha);
+    user.senhaTemporariaHash = null;
+    user.senhaTemporariaExpiraEm = null;
+    user.mustChangePassword = false;
+    user.resetToken = null;
+    user.resetExpires = null;
+    writeDB(db);
+    audit(req, "senha_redefinida_admin", { usuario: user.usuario });
+    res.json({ ok: true, usuario: user.usuario });
+});
+
 //atendimento/admissão (cria paciente por CPF; evita duplicados) + salva imagem
 // Perfil cardiovascular estendido (item 1 da spec de cardiologia).
 app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.single("foto"), (req, res) => {

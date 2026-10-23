@@ -1001,7 +1001,7 @@ app.get("/tv/chamada", async (req, res) => {
     }
 });
 
-app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), async (req, res) => {
+app.post("/tv/chamar", requireAuth(["admin", "medico", "cardiologist", "triagem", "atendimento", "recepcao", "enfermagem"]), async (req, res) => {
     try {
         const db = ensureTVShape(await store.readAll());
         const pacienteCpf = String(req.body.pacienteCpf || "").trim();

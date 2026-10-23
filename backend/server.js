@@ -419,7 +419,7 @@ app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
 });
 
 // Redefinição administrativa de senha: a nova senha nunca é devolvida nem registrada em logs.
-app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLimit, (req, res) => {
+app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLimit, async (req, res) => {
     const username = String(req.params.usuario || "").trim().toLowerCase();
     const { novaSenha, confirmar } = req.body || {};
     if (!username || typeof novaSenha !== "string" || novaSenha.length < 8 || novaSenha.length > 128 || novaSenha !== confirmar) {

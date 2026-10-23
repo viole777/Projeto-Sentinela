@@ -139,7 +139,7 @@ Sentinela.mount("config", `
         row.appendChild(info);
         const userRole = String(user.role || user.tipo || "").toLowerCase();
         const sameUser = String(user.usuario || "").toLowerCase() === String(currentUser.usuario || "").toLowerCase();
-        if (isAdmin && userRole !== "admin" && !sameUser) {
+        if (isAdmin && !sameUser) {
           const actions = document.createElement("div");
           actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;";
           const reset = document.createElement("button");

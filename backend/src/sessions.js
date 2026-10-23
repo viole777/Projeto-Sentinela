@@ -152,6 +152,37 @@ class SessionStore {
         return removed;
     }
 
+    // Revoga as sessões da conta após redefinição administrativa de senha.
+    async deleteForUser(username, email) {
+        const identifiers = [...new Set([username, email]
+            .filter(Boolean)
+            .map(value => String(value).trim().toLowerCase())
+            .filter(Boolean))];
+        let removed = 0;
+        for (const [token, session] of this.map) {
+            const sessionIdentifiers = [session.usuario, session.email]
+                .filter(Boolean)
+                .map(value => String(value).trim().toLowerCase());
+            if (sessionIdentifiers.some(value => identifiers.includes(value))) {
+                this.map.delete(token);
+                this.pending.delete(token);
+                removed += 1;
+                if (usingPostgres()) this.pgDelete(token);
+                else this.dirty = true;
+            }
+        }
+        if (usingPostgres() && identifiers.length) {
+            await this.pgQuery(
+                `DELETE FROM sessions s USING users u
+                 WHERE s.user_id = u.id
+                   AND (LOWER(u.username) = ANY($1::text[])
+                     OR LOWER(COALESCE(u.email, '')) = ANY($1::text[]))`,
+                [identifiers]
+            );
+        }
+        return removed;
+    }
+
     get size() { return this.map.size; }
 
     // ── manutenção ─────────────────────────────────────────────

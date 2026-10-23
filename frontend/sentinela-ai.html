@@ -62,6 +62,25 @@ Sentinela.mount("ai", `
     card.appendChild(meta);
 
     addText(card, "p", "", d.resumo || "Resumo não disponível.");
+
+    function addSection(title, content, items) {
+      const section = document.createElement("section");
+      section.style.marginTop = "16px";
+      addText(section, "h3", "", title);
+      if (content) addText(section, "p", "", content);
+      if (Array.isArray(items) && items.length) {
+        const list = document.createElement("ul");
+        items.forEach(item => addText(list, "li", "", item));
+        section.appendChild(list);
+      }
+      if (content || (Array.isArray(items) && items.length)) card.appendChild(section);
+    }
+
+    addSection("Avaliação analítica da IA", d.avaliacaoGeral);
+    addSection("Pontos de atenção", null, d.pontosAtencao);
+    addSection("Informações ausentes", null, d.dadosAusentes);
+    addSection("Perguntas para revisão profissional", null, d.perguntasSugeridas);
+
     const statusRow = document.createElement("div");
     statusRow.style.marginTop = "12px";
     addText(statusRow, "span", d.iaDisponivel === true ? "badge normal" : "badge alta",

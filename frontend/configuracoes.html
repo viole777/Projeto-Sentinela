@@ -140,12 +140,20 @@ Sentinela.mount("config", `
         const userRole = String(user.role || user.tipo || "").toLowerCase();
         const sameUser = String(user.usuario || "").toLowerCase() === String(currentUser.usuario || "").toLowerCase();
         if (isAdmin && userRole !== "admin" && !sameUser) {
+          const actions = document.createElement("div");
+          actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;";
+          const reset = document.createElement("button");
+          reset.type = "button";
+          reset.textContent = "Trocar senha";
+          reset.dataset.resetUsername = user.usuario || "";
+          reset.style.cssText = "background:var(--brand);color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;";
           const remove = document.createElement("button");
           remove.type = "button";
           remove.textContent = "Excluir usuário";
           remove.dataset.username = user.usuario || "";
           remove.style.cssText = "background:#b42318;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;";
-          row.appendChild(remove);
+          actions.append(reset, remove);
+          row.appendChild(actions);
         }
         $("userList").appendChild(row);
       });
@@ -155,6 +163,34 @@ Sentinela.mount("config", `
     showMessage("usersMessage", isAdmin ? "Você está no modo administrador." : "Consulta disponível; apenas o administrador pode criar ou excluir usuários.");
 
     $("userList").addEventListener("click", async event => {
+      const resetButton = event.target.closest("button[data-reset-username]");
+      if (resetButton) {
+        const username = resetButton.dataset.resetUsername;
+        const novaSenha = prompt('Digite a nova senha para "' + username + '" (mínimo 8 caracteres):');
+        if (novaSenha === null) return;
+        const confirmar = prompt("Confirme a nova senha:");
+        if (confirmar === null) return;
+        if (novaSenha.length < 8 || novaSenha !== confirmar) {
+          showMessage("usersMessage", "Senhas diferentes ou com menos de 8 caracteres. Nenhuma alteração foi feita.");
+          return;
+        }
+        resetButton.disabled = true;
+        try {
+          const response = await fetch("/admin/usuarios/" + encodeURIComponent(username) + "/senha", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ novaSenha, confirmar })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.erro || "Falha ao trocar senha (HTTP " + response.status + ").");
+          showMessage("usersMessage", 'Senha do usuário "' + username + '" atualizada. Compartilhe-a por um canal seguro.');
+        } catch (error) {
+          showMessage("usersMessage", error.message);
+        } finally {
+          resetButton.disabled = false;
+        }
+        return;
+      }
       const button = event.target.closest("button[data-username]");
       if (!button) return;
       const username = button.dataset.username;

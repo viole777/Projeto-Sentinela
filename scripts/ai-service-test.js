@@ -57,7 +57,7 @@ function run() {
     resumo: 'R'.repeat(3000),
     inconsistencias: ['A'.repeat(1000), 123, null]
   }));
-  assert.equal(oversized.resumo.length, 1800, 'O resumo de IA deve ser limitado');
+  assert.equal(oversized.resumo.length, 3000, 'O resumo de IA deve respeitar o novo limite ampliado');
   assert.equal(oversized.inconsistencias.length, 1, 'Inconsistências devem ser strings válidas');
   assert.equal(oversized.inconsistencias[0].length, 400, 'Cada inconsistência deve ser limitada');
 

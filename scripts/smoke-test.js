@@ -58,12 +58,14 @@ async function main() {
     `Lista de profissionais deveria exigir autenticação: HTTP ${unauthorizedStaff.response.status}`
   );
 
+  assertCondition(process.env.TEST_ADMIN_PASSWORD, 'TEST_ADMIN_PASSWORD precisa estar configurado no ambiente de teste');
+
   const loginResult = await request('/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ usuario: 'admin', senha: '123' }),
+    body: JSON.stringify({ usuario: 'ci-admin', senha: process.env.TEST_ADMIN_PASSWORD }),
   });
 
   const loginResponse = loginResult.response;

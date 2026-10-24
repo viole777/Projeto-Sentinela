@@ -30,7 +30,7 @@ async function main() {
       }
       const userSalt = crypto.randomBytes(16).toString('hex');
       const userHash = crypto.scryptSync(user.password, userSalt, 64).toString('hex');
-      const storedHash = 'scrypt
+      const storedHash = ['scrypt', userSalt, userHash].join(String.fromCharCode(36));
       await pool.query(
         `INSERT INTO users (username, name, password_hash, role_id, role, active, must_change_password)
          SELECT $1, $2, $3, r.id, $4, TRUE, FALSE

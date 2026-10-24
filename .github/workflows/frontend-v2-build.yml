@@ -1,0 +1,26 @@
+name: Frontend v2 build
+on:
+  pull_request:
+    paths:
+      - 'frontend-v2/**'
+      - '.github/workflows/frontend-v2-build.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend-v2/**'
+      - '.github/workflows/frontend-v2-build.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend-v2/package-lock.json
+      - run: npm install
+      - run: npm run build

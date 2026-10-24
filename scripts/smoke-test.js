@@ -75,6 +75,36 @@ async function main() {
   const sessionCookie = getCookieHeader(loginResponse.headers.get('set-cookie'));
   assertCondition(sessionCookie, 'Cookie de sessão não retornado no login');
 
+  const adminSafetyRules = await request('/safety/regras', { headers: { Cookie: sessionCookie } });
+  assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
+
+  const triageLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.triagem', senha: process.env.TEST_TRIAGE_PASSWORD }),
+  });
+  assertCondition(triageLogin.response.ok, `Login de triagem falhou: ${JSON.stringify(triageLogin.body)}`);
+  assertCondition(triageLogin.body.role === 'triagem', `Role inesperada para triagem: ${JSON.stringify(triageLogin.body)}`);
+  const triageCookie = getCookieHeader(triageLogin.response.headers.get('set-cookie'));
+  assertCondition(triageCookie, 'Cookie de sessão não retornado para triagem');
+
+  const triageSafetyRead = await request('/safety/regras', { headers: { Cookie: triageCookie } });
+  assertCondition(triageSafetyRead.response.status === 403, `Triagem não deveria ler Safety Engine: HTTP ${triageSafetyRead.response.status}`);
+  const triageSafetyWrite = await request('/safety/regras', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: triageCookie },
+    body: JSON.stringify({ alergia: false }),
+  });
+  assertCondition(triageSafetyWrite.response.status === 403, `Triagem não deveria alterar Safety Engine: HTTP ${triageSafetyWrite.response.status}`);
+
+  const triageLogout = await request('/logout', {
+    method: 'POST',
+    headers: { Cookie: triageCookie },
+  });
+  assertCondition(triageLogout.response.ok, `Logout de triagem falhou: HTTP ${triageLogout.response.status}`);
+  const triageMeAfterLogout = await request('/me', { headers: { Cookie: triageCookie } });
+  assertCondition(triageMeAfterLogout.response.status === 401, `Sessão de triagem deveria ser invalidada após logout: HTTP ${triageMeAfterLogout.response.status}`);
+
   const meResult = await request('/me', {
     headers: {
       Cookie: sessionCookie,

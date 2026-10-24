@@ -55,6 +55,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sentinela_test
           PGSSL: disable
           TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
+          TEST_TRIAGE_PASSWORD: ci-triage-${{ github.run_id }}-${{ github.run_attempt }}-zK7!
         run: node scripts/provision-ci-admin.js
 
       - name: Start application
@@ -73,6 +74,7 @@ jobs:
       - name: Run smoke tests against PostgreSQL
         env:
           TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
+          TEST_TRIAGE_PASSWORD: ci-triage-${{ github.run_id }}-${{ github.run_attempt }}-zK7!
         run: |
           if ! npm test; then
             cat /tmp/sentinela.log

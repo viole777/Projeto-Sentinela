@@ -45,8 +45,17 @@ jobs:
       - name: Check backend syntax
         run: npm run lint
 
-      - name: Create schema and import demo fixtures
+      - name: Create schema and import synthetic fixtures
+        env:
+          SENTINELA_FIXTURE_PATH: database/fixtures/demo-db.json
         run: npm run db:migrate
+
+      - name: Provision temporary CI admin
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sentinela_test
+          PGSSL: disable
+          TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
+        run: node scripts/provision-ci-admin.js
 
       - name: Start application
         run: |
@@ -62,6 +71,8 @@ jobs:
           exit 1
 
       - name: Run smoke tests against PostgreSQL
+        env:
+          TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
         run: |
           if ! npm test; then
             cat /tmp/sentinela.log

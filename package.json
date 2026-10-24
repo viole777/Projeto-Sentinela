@@ -13,7 +13,9 @@
     "lint": "node --check backend/server.js && node --check backend/src/services/aiService.js && node --check backend/src/services/safetyEngine.js && node --check scripts/ai-service-test.js && node --check scripts/safety-engine-test.js && node --check scripts/smoke-test.js && node --check tests/security.test.js && node --check scripts/frontend-syntax-test.js && node scripts/frontend-syntax-test.js",
     "test:unit": "node scripts/ai-service-test.js && node scripts/safety-engine-test.js",
     "test": "node tests/security.test.js && node scripts/ai-service-test.js && node scripts/safety-engine-test.js && node scripts/smoke-test.js && node scripts/frontend-syntax-test.js",
-    "test:security": "node tests/security.test.js"
+    "test:security": "node tests/security.test.js",
+    "prestart": "npm install --prefix frontend-v2 --include=dev && npm run build --prefix frontend-v2",
+    "build:frontend": "npm install --prefix frontend-v2 --include=dev && npm run build --prefix frontend-v2"
   },
   "keywords": [],
   "author": "",

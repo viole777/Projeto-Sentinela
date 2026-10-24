@@ -148,3 +148,7 @@ vite.config.ts.timestamp-*
 backend/sessions.json
 backend/sessions.json.tmp
 backend/uploads/
+
+# Local runtime database may contain demo or personal data
+backend/db.json
+backend/sessions.json

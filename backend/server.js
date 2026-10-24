@@ -1411,7 +1411,7 @@ app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmac
 });
 
 // ── Regras do Safety Engine (configuráveis) ──
-app.get("/safety/regras", requireAuth([]), (req, res) => {
+app.get("/safety/regras", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
 });

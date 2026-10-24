@@ -79,14 +79,13 @@ export function PlaceholderPage({ page }: { page: string }) {
   }
   async function updateRule(key: string, value: boolean) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return;
-    const next = { ...(data as Row), [key]: value };
     setSaving(true); setError(''); setNotice('');
     try {
       const response = await fetch('/safety/regras', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ [key]: value }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(result.erro || `Não foi possível salvar a regra (HTTP ${response.status}).`));
       setData(result); setNotice('Regra atualizada e confirmada pelo servidor.');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao salvar regra.'); setData(next); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao salvar regra.'); }
     finally { setSaving(false); }
   }
   const safetyObject = page === 'safety-engine' && data && typeof data === 'object' && !Array.isArray(data) ? data as Row : null;
@@ -99,7 +98,7 @@ export function PlaceholderPage({ page }: { page: string }) {
     {page === 'estoque' && <div className="mb-4"><Button onClick={() => setShowStockForm(v => !v)}><Plus size={15}/>{actionLabel}</Button>{showStockForm && <Card className="mt-3 p-4"><form className="grid gap-3 sm:grid-cols-[1fr_160px_auto]" onSubmit={e => { e.preventDefault(); void postAction('/estoque/entrada', { medicamento: stockName, qtd: Number(stockQty) }, 'Entrada registrada no estoque.'); setStockName(''); setStockQty('1'); setShowStockForm(false); }}><label className="text-xs font-semibold muted">Medicamento<Input required value={stockName} onChange={e => setStockName(e.target.value)} placeholder="Nome do medicamento" className="mt-1"/></label><label className="text-xs font-semibold muted">Quantidade<Input required type="number" min="1" step="1" value={stockQty} onChange={e => setStockQty(e.target.value)} className="mt-1"/></label><div className="flex items-end"><Button type="submit" loading={saving}>Confirmar entrada</Button></div></form><p className="mt-2 text-xs muted">A API valida as permissões do perfil Farmácia antes de registrar.</p></Card>}</div>}
     {loading && !data && <Card className="p-10 text-center text-sm muted">Carregando dados do servidor…</Card>}
     {safetyObject && <Card className="mb-4 p-4"><div className="mb-3 text-sm font-bold">Regras de segurança</div><div className="grid gap-3 sm:grid-cols-2">{Object.entries(safetyObject).map(([key,value])=><label key={key} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm" style={{borderColor:'var(--border)'}}><span>{humanize(key)}</span><input type="checkbox" checked={Boolean(value)} disabled={saving} onChange={e => void updateRule(key,e.target.checked)} aria-label={`Ativar ${humanize(key)}`} className="h-4 w-4 accent-sus-700"/></label>)}</div><p className="mt-3 text-xs muted">As alterações são enviadas à API administrativa. A autorização definitiva é validada no backend.</p></Card>}
-    {reportObject && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(reportObject).filter(([key,value])=>typeof value==='number').map(([key,value])=><Card key={key} className="p-4"><div className="text-xs muted">{humanize(key)}</div><div className="mt-2 text-2xl font-bold">{display(value)}</div></Card>)}</div>}
+    {reportObject && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(reportObject).filter(([,value])=>typeof value==='number').map(([key,value])=><Card key={key} className="p-4"><div className="text-xs muted">{humanize(key)}</div><div className="mt-2 text-2xl font-bold">{display(value)}</div></Card>)}</div>}
     <Card>
       <div className="flex items-center gap-3 border-b px-4 py-3" style={{borderColor:'var(--border)'}}><div className="rounded-md bg-blue-50 p-2 text-sus-900 dark:bg-slate-800 dark:text-blue-200"><Icon size={18}/></div><div><h2 className="text-sm font-bold">{c.title}</h2><p className="mt-1 text-xs muted">{loading ? 'Sincronizando com o servidor' : `${rows.length} registros retornados pela API`}</p></div></div>
       <div className="border-b p-3" style={{borderColor:'var(--border)'}}><div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[200px] flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 muted"/><Input value={query} onChange={e=>setQuery(e.target.value)} className="pl-9" placeholder="Pesquisar nos registros…"/></div><Button variant="secondary" onClick={() => setQuery('')}><Filter size={15}/> Limpar</Button></div></div>

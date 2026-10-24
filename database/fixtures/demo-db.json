@@ -1,0 +1,82 @@
+{
+  "usuarios": [],
+  "pacientes": [],
+  "leitos": [
+    {
+      "id": "101",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "102",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "103",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "104",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "105",
+      "ala": "CARDIOLOGIA",
+      "status": "livre",
+      "pacienteCpf": null
+    },
+    {
+      "id": "UTI-201",
+      "ala": "UTI CARDIOVASCULAR",
+      "status": "livre",
+      "pacienteCpf": null
+    }
+  ],
+  "agendamentos": [],
+  "prescricoes": [],
+  "internacoes": [],
+  "triagens": [],
+  "consultas": [],
+  "atendimentos": [],
+  "atendimentosCasa": [],
+  "auditoria": [],
+  "exames": [],
+  "farmacia": [],
+  "estoque": [
+    {
+      "id": 1,
+      "medicamento": "Dipirona 500mg",
+      "categoria": "Analgésicos",
+      "quantidade": 82,
+      "minimo": 20
+    },
+    {
+      "id": 2,
+      "medicamento": "Varfarina 5mg",
+      "categoria": "Anticoagulantes",
+      "quantidade": 7,
+      "minimo": 15,
+      "altoRisco": true
+    },
+    {
+      "id": 3,
+      "medicamento": "Losartana 50mg",
+      "categoria": "Hipertensão / RAAS",
+      "quantidade": 60,
+      "minimo": 20
+    }
+  ],
+  "movimentacoes": [],
+  "compras": [],
+  "alertas": [],
+  "safetyRules": null,
+  "tvChamada": null,
+  "tvHistorico": []
+}

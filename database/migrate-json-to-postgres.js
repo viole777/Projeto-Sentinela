@@ -1,4 +1,4 @@
-// Migração: JSON atual (backend/db.json) → PostgreSQL (Neon/Render).
+// Importa somente o fixture sintético versionado para PostgreSQL (Neon/Render).
 // Uso: DATABASE_URL=postgres://... node database/migrate-json-to-postgres.js
 const fs = require('fs');
 const path = require('path');
@@ -27,11 +27,9 @@ async function main() {
   const seeds = fs.readFileSync(path.join(__dirname, 'seeds.sql'), 'utf8');
   await pool.query(schema + '\n' + seeds);
 
-  const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
+  const dbPath = path.join(__dirname, 'fixtures', 'demo-db.json');
   if (!fs.existsSync(dbPath)) {
-    console.log('backend/db.json não existe; nada a migrar.');
-    await pool.end();
-    return;
+    throw new Error('Fixture sintético ausente: database/fixtures/demo-db.json');
   }
   const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 

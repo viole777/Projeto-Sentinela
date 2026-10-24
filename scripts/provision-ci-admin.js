@@ -30,7 +30,59 @@ async function main() {
       }
       const userSalt = crypto.randomBytes(16).toString('hex');
       const userHash = crypto.scryptSync(user.password, userSalt, 64).toString('hex');
-      const storedHash = `scrypt${userSalt}${userHash}`;
+      const storedHash = 'scrypt
+      await pool.query(
+        `INSERT INTO users (username, name, password_hash, role_id, role, active, must_change_password)
+         SELECT $1, $2, $3, r.id, $4, TRUE, FALSE
+         FROM roles r WHERE r.name = $4
+         ON CONFLICT (username) DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           role_id = EXCLUDED.role_id,
+           role = EXCLUDED.role,
+           active = TRUE,
+           must_change_password = FALSE`,
+        [user.username, user.name, storedHash, user.role]
+      );
+      const check = await pool.query('SELECT id FROM users WHERE username = $1', [user.username]);
+      if (!check.rows.length) throw new Error(`Could not provision CI user ${user.username}: role seed may be missing.`);
+    }
+    console.log('Temporary CI test users provisioned.');
+  } finally {
+    await pool.end();
+  }
+}
+
+main().catch((error) => {
+  console.error('CI admin provisioning failed:', error.message || error);
+  process.exit(1);
+});
+ + userSalt + '
+      await pool.query(
+        `INSERT INTO users (username, name, password_hash, role_id, role, active, must_change_password)
+         SELECT $1, $2, $3, r.id, $4, TRUE, FALSE
+         FROM roles r WHERE r.name = $4
+         ON CONFLICT (username) DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           role_id = EXCLUDED.role_id,
+           role = EXCLUDED.role,
+           active = TRUE,
+           must_change_password = FALSE`,
+        [user.username, user.name, storedHash, user.role]
+      );
+      const check = await pool.query('SELECT id FROM users WHERE username = $1', [user.username]);
+      if (!check.rows.length) throw new Error(`Could not provision CI user ${user.username}: role seed may be missing.`);
+    }
+    console.log('Temporary CI test users provisioned.');
+  } finally {
+    await pool.end();
+  }
+}
+
+main().catch((error) => {
+  console.error('CI admin provisioning failed:', error.message || error);
+  process.exit(1);
+});
+ + userHash;
       await pool.query(
         `INSERT INTO users (username, name, password_hash, role_id, role, active, must_change_password)
          SELECT $1, $2, $3, r.id, $4, TRUE, FALSE

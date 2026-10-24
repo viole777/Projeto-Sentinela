@@ -71,6 +71,8 @@ jobs:
           exit 1
 
       - name: Run smoke tests against PostgreSQL
+        env:
+          TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
         run: |
           if ! npm test; then
             cat /tmp/sentinela.log

@@ -63,7 +63,7 @@ async function main() {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ usuario: 'admin', senha: '123' }),
+    body: JSON.stringify({ usuario: 'admin', senha: process.env.TEST_ADMIN_PASSWORD }),
   });
 
   const loginResponse = loginResult.response;

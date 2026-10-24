@@ -12,6 +12,9 @@ function isAdminRole() {
 function AdminOnly() {
   return isAdminRole() ? <PlaceholderPage page="safety-engine" /> : <Navigate to="/app/dashboard" replace />;
 }
+function AdminAdvanced({ page }: { page: string }) {
+  return isAdminRole() ? <AdvancedModulePage page={page} /> : <Navigate to="/app/dashboard" replace />;
+}
 const advancedRoutes = [
   'agenda-medica','disponibilidade','recepcao','fila-chamada','transferencias','mapa-leitos','internacoes','alta-hospitalar',
   'evolucao-medica','evolucao-enfermagem','plano-cuidados','sinais-vitais','prescricao-eletronica-avancada','administracao-medicamentos',
@@ -33,7 +36,7 @@ export default function App() {
       {['pacientes', 'triagem', 'consultas', 'farmacia', 'estoque', 'alertas', 'relatorios', 'configuracoes'].map(path =>
         <Route key={path} path={path} element={<PlaceholderPage page={path} />} />
       )}
-      {advancedRoutes.map(path => <Route key={path} path={path} element={<AdvancedModulePage page={path} />} />)}
+      {advancedRoutes.map(path => <Route key={path} path={path} element={['config-safety','gestao-usuarios','gestao-perfis','unidades-setores','acesso-unidade','parametros-unidade','modulos'].includes(path) ? <AdminAdvanced page={path} /> : <AdvancedModulePage page={path} />} />)}
       <Route path="safety-engine" element={<AdminOnly />} />
     </Route>
     <Route path="*" element={<Navigate to="/login" replace />} />

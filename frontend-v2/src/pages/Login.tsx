@@ -26,7 +26,7 @@ export function Login({ mode: initial = 'login' }: { mode?: Mode }) {
         response = await fetch('/recuperar-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: username }) });
         result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(String(result.erro || 'Não foi possível solicitar a recuperação.'));
-        setMessage('Se houver uma conta correspondente, as instruções serão encaminhadas pelo canal cadastrado. Se você já possui um token de recuperação, selecione “Inserir token”.');
+        setMessage('Solicitação registrada. A entrega do token depende da configuração do canal institucional de recuperação da unidade; contate a administração para recebê-lo. Se você já possui um token, selecione “Inserir token”.');
         return;
       }
       if (mode === 'reset') {

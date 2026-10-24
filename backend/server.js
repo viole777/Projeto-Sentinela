@@ -57,12 +57,22 @@ const passwordRateLimit = rateLimit({
     message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
 });
 
-// Frontend estático e rota amigável para abrir o painel em uma TV.
+// Frontend React v2: quando compilado, ele é servido na raiz. As páginas legadas
+// continuam disponíveis como fallback durante a migração gradual.
+const FRONTEND_V2_DIST = path.join(__dirname, "../frontend-v2/dist");
+const hasFrontendV2 = fs.existsSync(path.join(FRONTEND_V2_DIST, "index.html"));
+if (hasFrontendV2) app.use(express.static(FRONTEND_V2_DIST));
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get(["/tv", "/tv/"], (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/tv.html"));
 });
 app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
+
+// Rotas da SPA React. Mantidas depois das rotas de API para não interceptar endpoints.
+app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res, next) => {
+    if (!hasFrontendV2) return next();
+    res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
+});
 
 //uploads
 const UPLOADS_DIR = path.join(__dirname, "uploads");

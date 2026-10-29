@@ -30,7 +30,8 @@ const CLINICAL_WRITE = new Set([
   '/escalas/trocas', '/frequencia', '/ccih', '/encaminhamentos', '/fila',
   '/transferencias', '/agenda/disponibilidade', '/exames/resultados'
 ]);
-const CLINICAL_ROLES = new Set(['admin', 'medico', 'cardiologist', 'enfermagem', 'triagem', 'farmacia', 'atendimento', 'recepcao', 'direcao']);
+const CLINICAL_ROLES = new Set(['admin', 'medico', 'cardiologist', 'enfermagem', 'triagem', 'farmacia']);
+const CLINICAL_READ = new Set(CLINICAL_WRITE);
 
 function actor(req) {
   return String(req.user?.usuario || req.user?.email || 'usuario-autenticado').slice(0, 160);
@@ -152,6 +153,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
     router.get(endpoint, async (req, res) => {
       try {
         if (ADMIN_ONLY.has(endpoint) && roleOf(req) !== 'admin' && !(req.user?.permissions || []).includes('*')) return res.status(403).json({erro:'Acesso restrito ao administrador.'});
+        if (CLINICAL_READ.has(endpoint) && !CLINICAL_ROLES.has(roleOf(req)) && !(req.user?.permissions || []).includes('*')) return res.status(403).json({erro:'Perfil sem permissão para consultar dados clínicos deste módulo.'});
         return res.json(await listRecords(endpoint));
       } catch (error) {
         console.error('[advanced-modules] list failed:', endpoint, error.message);

@@ -55,8 +55,6 @@ function sanitizePayload(body) {
 
 module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgres, getPool, readDB, writeDB }) {
   const router = express.Router();
-  router.use(requireAuth([]));
-
   let tableReady = false;
   let tableInit = null;
   async function ensureTable() {
@@ -150,7 +148,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
   }
 
   for (const endpoint of ENDPOINTS) {
-    router.get(endpoint, async (req, res) => {
+    router.get(endpoint, requireAuth([]), async (req, res) => {
       try {
         if (ADMIN_ONLY.has(endpoint) && roleOf(req) !== 'admin' && !(req.user?.permissions || []).includes('*')) return res.status(403).json({erro:'Acesso restrito ao administrador.'});
         if (CLINICAL_READ.has(endpoint) && !CLINICAL_ROLES.has(roleOf(req)) && !(req.user?.permissions || []).includes('*')) return res.status(403).json({erro:'Perfil sem permissão para consultar dados clínicos deste módulo.'});
@@ -160,7 +158,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
         return res.status(503).json({erro:'Não foi possível consultar os registros no armazenamento.', codigo:'STORAGE_UNAVAILABLE'});
       }
     });
-    router.post(endpoint, async (req, res) => {
+    router.post(endpoint, requireAuth([]), async (req, res) => {
       try {
         if (!canWrite(req, endpoint)) return res.status(403).json({erro:'Perfil sem permissão para cadastrar neste módulo.'});
         const payload = sanitizePayload(req.body);
@@ -171,7 +169,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
         return res.status(503).json({erro:'Não foi possível salvar no armazenamento. O registro não foi confirmado.', codigo:'STORAGE_UNAVAILABLE'});
       }
     });
-    router.put(endpoint + '/:id', async (req, res) => {
+    router.put(endpoint + '/:id', requireAuth([]), async (req, res) => {
       try {
         if (!canWrite(req, endpoint)) return res.status(403).json({erro:'Perfil sem permissão para alterar neste módulo.'});
         const payload = sanitizePayload(req.body);
@@ -183,7 +181,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
         return res.status(503).json({erro:'Não foi possível atualizar o armazenamento.', codigo:'STORAGE_UNAVAILABLE'});
       }
     });
-    router.delete(endpoint + '/:id', async (req, res) => {
+    router.delete(endpoint + '/:id', requireAuth([]), async (req, res) => {
       try {
         if (!canWrite(req, endpoint)) return res.status(403).json({erro:'Perfil sem permissão para excluir neste módulo.'});
         const removed = await deleteRecord(endpoint, req.params.id);
@@ -195,7 +193,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, usingPostgr
     });
   }
 
-  router.get('/api/advanced-modules/health', async (req, res) => {
+  router.get('/api/advanced-modules/health', requireAuth([]), async (req, res) => {
     try {
       await ensureTable();
       res.json({ok:true, storage:usingPostgres() ? 'postgresql' : 'json-dev', endpoints:ENDPOINTS.length});

@@ -1473,7 +1473,7 @@ app.use((err, req, res, next) => {
 
 // Navegação da SPA: servir o React apenas para requisições de documento HTML.
 // Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
-app.get("*", (req, res, next) => {
+app.get("/{*splat}", (req, res, next) => {
     if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
     const legacyPages = {
         "/configuracoes/modulos": "/app/modulos",

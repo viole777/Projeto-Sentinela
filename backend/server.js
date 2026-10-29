@@ -20,10 +20,10 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:"],
             connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             frameAncestors: ["'none'"],
@@ -1471,8 +1471,49 @@ app.use((err, req, res, next) => {
     res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
 });
 
+// Navegação da SPA: servir o React apenas para requisições de documento HTML.
+// Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
+app.get("/{*splat}", (req, res, next) => {
+    if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
+    const legacyPages = {
+        "/configuracoes/modulos": "/app/modulos",
+        "/configuracoes/unidades": "/app/parametros-unidade",
+        "/configuracoes/protocolos": "/app/configuracao-protocolos",
+        "/acessos/unidades": "/app/acesso-unidade",
+        "/unidades": "/app/unidades-setores",
+        "/portal-paciente": "/app/portal-paciente",
+        "/encaminhamentos": "/app/encaminhamentos",
+        "/comunicados": "/app/comunicados",
+        "/notificacoes": "/app/notificacoes",
+        "/lgpd/consentimentos": "/app/lgpd-consentimentos",
+        "/ccih": "/app/ccih-infeccao",
+        "/indicadores/qualidade": "/app/indicadores-qualidade",
+        "/incidentes": "/app/incidentes",
+        "/frequencia": "/app/frequencia",
+        "/escalas/trocas": "/app/troca-plantao",
+        "/escalas": "/app/escalas",
+        "/faturamento": "/app/faturamento-dashboard",
+        "/faturamento/glosas": "/app/glosas",
+        "/producao-sus": "/app/producao-sus",
+        "/compras": "/app/solicitacao-compras",
+        "/estoque/validade": "/app/validade-perdas",
+        "/estoque/movimentacoes": "/app/movimentacao-estoque",
+        "/farmacia/controlados": "/app/controlados",
+        "/farmacia/avaliacoes": "/app/farmacia-clinica",
+        "/cardiologia": "/app/cardiologia",
+        "/exames/imagem": "/app/exames-imagem",
+        "/alergias": "/app/alergias",
+        "/protocolos": "/app/protocolos-clinicos",
+        "/medicamentos/administracao": "/app/administracao-medicamentos",
+        "/prescricoes": "/app/prescricao-eletronica-avancada",
+        "/sinais-vitais": "/app/sinais-vitais"
+    };
+    const target = legacyPages[req.path];
+    if (target) return res.redirect(302, target);
+    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
+});
 app.use((req, res) => {
-    res.status(404).json({ erro: "Rota não encontrada" });
+    res.status(404).json({ erro: "Rota não encontrada", caminho: req.path, metodo: req.method });
 });
 
 function startServer() {

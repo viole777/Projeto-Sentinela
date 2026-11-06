@@ -14,7 +14,7 @@ Build de produção: `npm run build`; prévia: `npm run preview`.
 O login usa `POST /login` com `{ usuario, senha }` e sessão por cookie. O Vite deve ser configurado com proxy para o backend local antes de testar a autenticação local. Os demais módulos atualmente contêm dados sintéticos para demonstração e não devem ser usados em atendimento real. Não substituem a interface de produção nem validam decisões clínicas.
 
 ## Design system
-Tokens institucionais SUS (azul #003366 / #0055A4), teal clínico #0D9488, superfícies neutras, tema escuro por classe `dark`, foco acessível, tabelas densas e componentes em `src/components/ui.tsx`.
+Identidade própria Sentinela: grafite profundo, cobre suave e superfícies em marfim, com acentos verde-sálvia, tema escuro por classe `dark`, foco acessível, tabelas densas e componentes em `src/components/ui.tsx`.
 
 ## Estrutura
 - `src/components/AppShell.tsx`: navegação, cabeçalho, sidebar colapsável e tema.

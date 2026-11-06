@@ -113,7 +113,7 @@ const LEGACY_PAGE_ROUTES = {
   "/safety/regras": "/app/safety-engine"
 };
 app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
+    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
     const target = LEGACY_PAGE_ROUTES[req.path];
     if (target) return res.redirect(302, target);
     return next();
@@ -1550,7 +1550,7 @@ app.use((err, req, res, next) => {
 // Navegação da SPA: servir o React apenas para requisições de documento HTML.
 // Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
 app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
+    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
     const target = LEGACY_PAGE_ROUTES[req.path];
     if (target) return res.redirect(302, target);
     return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));

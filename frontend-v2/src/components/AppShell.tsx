@@ -6,7 +6,7 @@ import {
   ChevronRight, ClipboardCheck, ClipboardList, FileBarChart, FileText, HeartPulse,
   LayoutDashboard, LogOut, Menu, Moon, Pill, Search, Settings, ShieldCheck,
   Stethoscope, Sun, Users, X, BedDouble, Building2, UserCog, BellRing,
-  PackageSearch
+  PackageSearch, BrainCircuit
 } from 'lucide-react';
 
 type NavItem = [label: string, path: string, icon: LucideIcon];
@@ -42,6 +42,7 @@ const nav: NavGroup[] = [
     ['Exames laboratoriais','/app/exames-laboratoriais',Activity],
     ['Imagem e laudos','/app/exames-imagem',FileText],
     ['Cardiologia','/app/cardiologia',HeartPulse],
+    ['Resumo clínico com IA','/app/sentinela-ai',BrainCircuit],
   ]},
   { label: 'Farmácia e suprimentos', items: [
     ['Farmácia','/app/farmacia',Pill],

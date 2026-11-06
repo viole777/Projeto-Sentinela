@@ -712,33 +712,20 @@ Retorne SOMENTE JSON válido, sem Markdown ou texto fora do JSON:
             );
 
 
+        // Preserva todos os campos estruturados retornados pelo modelo.
+        // A versão anterior descartava avaliação, pontos de atenção, lacunas e perguntas.
         const result = {
-
-            resumo:
-                parsed.resumo ||
-                localSummary.resumo,
-
-            inconsistencias:
-                Array.isArray(
-                    parsed.inconsistencias
-                )
-                    ? parsed.inconsistencias
-                    : localSummary.inconsistencias,
-
-            geradoEm:
-                new Date().toISOString(),
-
-            origem:
-                "gemini",
-
-            iaDisponivel:
-                true,
-
-            erroIA:
-                null,
-
-            cache:
-                false
+            resumo: parsed.resumo || localSummary.resumo,
+            avaliacaoGeral: parsed.avaliacaoGeral || localSummary.avaliacaoGeral,
+            pontosAtencao: Array.isArray(parsed.pontosAtencao) ? parsed.pontosAtencao : localSummary.pontosAtencao,
+            dadosAusentes: Array.isArray(parsed.dadosAusentes) ? parsed.dadosAusentes : localSummary.dadosAusentes,
+            perguntasSugeridas: Array.isArray(parsed.perguntasSugeridas) ? parsed.perguntasSugeridas : localSummary.perguntasSugeridas,
+            inconsistencias: Array.isArray(parsed.inconsistencias) ? parsed.inconsistencias : localSummary.inconsistencias,
+            geradoEm: new Date().toISOString(),
+            origem: "gemini",
+            iaDisponivel: true,
+            erroIA: null,
+            cache: false
         };
 
 

@@ -95,7 +95,7 @@ const nav: NavGroup[] = [
   ]},
 ];
 
-const adminPaths = ['/app/safety-engine','/app/config-safety','/app/gestao-usuarios','/app/gestao-perfis','/app/unidades-setores','/app/acesso-unidade','/app/parametros-unidade','/app/modulos'];
+const adminPaths = ['/app/safety-engine','/app/config-safety','/app/gestao-usuarios','/app/gestao-perfis','/app/unidades-setores','/app/acesso-unidade','/app/parametros-unidade','/app/modulos','/app/configuracao-protocolos','/app/lgpd-consentimentos'];
 function isAdminRole() {
   const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return ['admin','administrador','administrator','superadmin','super_admin'].includes(role);

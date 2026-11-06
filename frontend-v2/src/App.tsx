@@ -7,7 +7,7 @@ import { AdvancedModulePage } from './pages/AdvancedModules';
 import { SentinelaAiPage } from './pages/SentinelaAi';
 
 function isAdminRole() {
-  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return ['admin', 'administrador', 'administrator', 'superadmin', 'super_admin'].includes(role);
 }
 function AdminOnly() {

@@ -14,7 +14,9 @@ function AdminOnly() {
   return isAdminRole() ? <PlaceholderPage page="safety-engine" /> : <Navigate to="/app/dashboard" replace />;
 }
 function AdminAdvanced({ page }: { page: string }) {
-  return isAdminRole() ? <AdvancedModulePage page={page} /> : <Navigate to="/app/dashboard" replace />;
+  if (!isAdminRole()) return <Navigate to="/app/dashboard" replace />;
+  if (page === 'config-safety') return <PlaceholderPage page="safety-engine" />;
+  return <AdvancedModulePage page={page} />;
 }
 const advancedRoutes = [
   'agenda-medica','disponibilidade','recepcao','fila-chamada','transferencias','mapa-leitos','internacoes','alta-hospitalar',
@@ -38,7 +40,7 @@ export default function App() {
       {['pacientes', 'triagem', 'consultas', 'farmacia', 'estoque', 'alertas', 'relatorios', 'configuracoes'].map(path =>
         <Route key={path} path={path} element={<PlaceholderPage page={path} />} />
       )}
-      {advancedRoutes.map(path => <Route key={path} path={path} element={['config-safety','gestao-usuarios','gestao-perfis','unidades-setores','acesso-unidade','parametros-unidade','modulos'].includes(path) ? <AdminAdvanced page={path} /> : <AdvancedModulePage page={path} />} />)}
+      {advancedRoutes.map(path => <Route key={path} path={path} element={['config-safety','gestao-usuarios','gestao-perfis','unidades-setores','acesso-unidade','parametros-unidade','modulos','configuracao-protocolos','lgpd-consentimentos'].includes(path) ? <AdminAdvanced page={path} /> : <AdvancedModulePage page={path} />} />)}
       <Route path="safety-engine" element={<AdminOnly />} />
     </Route>
     <Route path="*" element={<Navigate to="/login" replace />} />

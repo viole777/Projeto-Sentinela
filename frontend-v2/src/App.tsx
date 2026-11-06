@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AdvancedModulePage } from './pages/AdvancedModules';
+import { SentinelaAiPage } from './pages/SentinelaAi';
 
 function isAdminRole() {
   const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
@@ -33,6 +34,7 @@ export default function App() {
     <Route path="/app" element={<AppShell />}>
       <Route index element={<Navigate to="dashboard" replace />} />
       <Route path="dashboard" element={<Dashboard />} />
+      <Route path="sentinela-ai" element={<SentinelaAiPage />} />
       {['pacientes', 'triagem', 'consultas', 'farmacia', 'estoque', 'alertas', 'relatorios', 'configuracoes'].map(path =>
         <Route key={path} path={path} element={<PlaceholderPage page={path} />} />
       )}

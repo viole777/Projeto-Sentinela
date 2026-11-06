@@ -39,10 +39,18 @@ function run() {
 
   const normalized = normalizeAiPayload(JSON.stringify({
     resumo: 'Resumo de teste',
+    avaliacaoGeral: 'Avaliação prudente',
+    pontosAtencao: ['Revisar histórico'],
+    dadosAusentes: ['Data ausente'],
+    perguntasSugeridas: ['Confirmar registro'],
     inconsistencias: ['Revisar dado'],
     campoExtra: 'ignorar'
   }));
   assert.equal(normalized.resumo, 'Resumo de teste');
+  assert.equal(normalized.avaliacaoGeral, 'Avaliação prudente');
+  assert.deepEqual(normalized.pontosAtencao, ['Revisar histórico']);
+  assert.deepEqual(normalized.dadosAusentes, ['Data ausente']);
+  assert.deepEqual(normalized.perguntasSugeridas, ['Confirmar registro']);
   assert.deepEqual(normalized.inconsistencias, ['Revisar dado']);
   assert.equal(typeof normalized.geradoEm, 'string');
 

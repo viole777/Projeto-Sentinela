@@ -6,7 +6,7 @@ import {
   ChevronRight, ClipboardCheck, ClipboardList, FileBarChart, FileText, HeartPulse,
   LayoutDashboard, LogOut, Menu, Moon, Pill, Search, Settings, ShieldCheck,
   Stethoscope, Sun, Users, X, BedDouble, Building2, UserCog, BellRing,
-  PackageSearch
+  PackageSearch, BrainCircuit
 } from 'lucide-react';
 
 type NavItem = [label: string, path: string, icon: LucideIcon];
@@ -42,6 +42,7 @@ const nav: NavGroup[] = [
     ['Exames laboratoriais','/app/exames-laboratoriais',Activity],
     ['Imagem e laudos','/app/exames-imagem',FileText],
     ['Cardiologia','/app/cardiologia',HeartPulse],
+    ['Resumo clínico com IA','/app/sentinela-ai',BrainCircuit],
   ]},
   { label: 'Farmácia e suprimentos', items: [
     ['Farmácia','/app/farmacia',Pill],
@@ -99,6 +100,10 @@ function isAdminRole() {
   const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return ['admin','administrador','administrator','superadmin','super_admin'].includes(role);
 }
+function canAccessAiSummary() {
+  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return ['admin', 'medico', 'cardiologist', 'cardiologista'].includes(role);
+}
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
@@ -109,10 +114,12 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const admin = isAdminRole();
+  const canUseAi = canAccessAiSummary();
   const visibleGroups = useMemo(() => nav.map(group => ({
     ...group,
     items: group.items.filter(([label, path]) =>
       (!adminPaths.includes(path) || admin) &&
+      (path !== '/app/sentinela-ai' || canUseAi) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
   })).filter(group => group.items.length), [admin, query]);

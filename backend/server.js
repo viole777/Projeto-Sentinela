@@ -939,21 +939,24 @@ app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendim
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
 app.get("/ia/resumo/:cpf", requireAuth(["admin", "medico", "cardiologist"]), async (req, res) => {
     const db = readDB();
-    const cpf = String(req.params.cpf || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const cpf = String(req.params.cpf || "").replace(/\D/g, "");
+    if (!/^\d{11}$/.test(cpf)) {
+        return res.status(400).json({ erro: "Informe um CPF válido com 11 dígitos." });
+    }
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const paciente = (db.pacientes || []).find(p => normalizeCpf(p.cpf) === cpf);
     if (!paciente) return res.status(404).json({ erro: "Paciente não encontrado" });
-    const triagens = (db.triagens || []).filter(t => String(t.pacienteCpf) === cpf);
-    const consultas = (db.consultas || []).filter(c => String(c.pacienteCpf) === cpf);
-    const atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === cpf);
-    const out = await resumoIA(
-    paciente,
-    triagens,
-    consultas,
-    atendimentos,
-    req.user
-);
-    audit(req, "ia_resumo", { pacienteCpf: cpf });
-    res.json({ pacienteCpf: cpf, pacienteNome: paciente.nome, ...out, aviso: "Apoio à decisão. Não substitui avaliação clínica." });
+    const triagens = (db.triagens || []).filter(t => normalizeCpf(t.pacienteCpf) === cpf);
+    const consultas = (db.consultas || []).filter(c => normalizeCpf(c.pacienteCpf) === cpf);
+    const atendimentos = (db.atendimentos || []).filter(a => normalizeCpf(a.pacienteCpf) === cpf);
+    const out = await resumoIA(paciente, triagens, consultas, atendimentos, req.user);
+    // A trilha registra o identificador interno, nunca o CPF do paciente.
+    audit(req, "ia_resumo", { pacienteId: paciente.id || null });
+    res.json({
+        pacienteNome: paciente.nome || "Paciente",
+        ...out,
+        aviso: "Apoio à decisão. Não substitui avaliação clínica."
+    });
 });
 
 // ── Alertas ──

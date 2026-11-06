@@ -701,7 +701,7 @@ app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
 
 //tabela de atendimentos por CPF (para triagem.html)
-app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico"]), (req, res) => {
+app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico", "cardiologist"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.query.cpf || "").trim();
     const list = cpf ? db.atendimentos.filter(a => String(a.pacienteCpf) === cpf) : db.atendimentos;
@@ -1248,6 +1248,21 @@ app.get("/compras/sugestao", requireAuth(["farmacia", "direcao"]), (req, res) =>
 app.get("/leitos", requireAuth([]), (req, res) => {
     const db = readDB();
     res.json(db.leitos || []);
+});
+
+app.get("/internacoes", requireAuth(["admin", "medico", "cardiologist", "enfermagem"]), (req, res) => {
+    const db = readDB();
+    const records = Array.isArray(db.internacoes) ? db.internacoes : [];
+    res.json(records.slice(-200).reverse().map(item => ({
+        id: item.id,
+        pacienteNome: item.pacienteNome || "Paciente",
+        leito: item.leito || null,
+        ala: item.ala || null,
+        entradaEm: item.entradaEm || null,
+        medicoResponsavel: item.medicoResponsavel || null,
+        motivo: item.motivo || null,
+        status: item.altaEm ? "Encerrada" : "Em andamento"
+    })));
 });
 
 app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), (req, res) => {

@@ -100,6 +100,10 @@ function isAdminRole() {
   const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return ['admin','administrador','administrator','superadmin','super_admin'].includes(role);
 }
+function canAccessAiSummary() {
+  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return ['admin', 'medico', 'cardiologist', 'cardiologista'].includes(role);
+}
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
@@ -110,10 +114,12 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const admin = isAdminRole();
+  const canUseAi = canAccessAiSummary();
   const visibleGroups = useMemo(() => nav.map(group => ({
     ...group,
     items: group.items.filter(([label, path]) =>
       (!adminPaths.includes(path) || admin) &&
+      (path !== '/app/sentinela-ai' || canUseAi) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
   })).filter(group => group.items.length), [admin, query]);

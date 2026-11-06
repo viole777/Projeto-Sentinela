@@ -67,7 +67,7 @@ function normalizeRows(data:unknown):Row[]{if(Array.isArray(data))return data.fi
 const human=(s:string)=>s.replace(/([A-Z])/g,' $1').replace(/^./,x=>x.toUpperCase());
 const valueText=(v:unknown)=>v==null||v===''?'—':typeof v==='object'?JSON.stringify(v):String(v);
 export function AdvancedModulePage({page}:{page:string}){
- const key=aliases[page]||page;const unsupported=!modules[key];const c=modules[key]||{title:'Módulo não mapeado',description:'Esta rota ainda não possui uma configuração de tela e API.',endpoint:'',columns:[],fields:[],icon:AlertCircle,group:'Rotas'};const Icon=c.icon;
+ const key=aliases[page]||page;const unsupported=!modules[key];const c=modules[key]||{title:'Módulo não mapeado',description:'Esta rota ainda não possui uma configuração de tela e API.',endpoint:'',columns:[],fields:[],icon:AlertCircle,group:'Rotas',readOnly:true,createRoles:[]};const Icon=c.icon;
  const role=(sessionStorage.getItem('sentinelaRole')||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const canCreate=!unsupported&&!c.readOnly&&(!c.createRoles||c.createRoles.includes(role));
  const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[notice,setNotice]=useState(''),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState<Record<string,string>>({}),[temporaryPassword,setTemporaryPassword]=useState('');

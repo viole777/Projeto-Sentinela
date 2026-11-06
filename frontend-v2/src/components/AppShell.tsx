@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, Bell, Boxes, CalendarDays, ChevronDown, ChevronLeft,
+  Activity, Bell, Boxes, CalendarDays, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardCheck, ClipboardList, FileBarChart, FileText, HeartPulse,
   LayoutDashboard, LogOut, Menu, Moon, Pill, Search, Settings, ShieldCheck,
   Stethoscope, Sun, Users, X, BedDouble, Building2, UserCog, BellRing,
   PackageSearch
 } from 'lucide-react';
 
-const nav = [
+type NavItem = [label: string, path: string, icon: LucideIcon];
+type NavGroup = { label: string; items: NavItem[] };
+
+const nav: NavGroup[] = [
   { label: 'Visão geral', items: [
     ['Dashboard','/app/dashboard',LayoutDashboard],
     ['Painel gerencial','/app/dashboard-gerencial',Activity],
@@ -88,7 +92,7 @@ const nav = [
     ['Relatórios','/app/relatorios',FileBarChart],
     ['Configurações','/app/configuracoes',Settings],
   ]},
-] as const;
+];
 
 const adminPaths = ['/app/safety-engine','/app/config-safety','/app/gestao-usuarios','/app/gestao-perfis','/app/unidades-setores','/app/acesso-unidade','/app/parametros-unidade','/app/modulos'];
 function isAdminRole() {

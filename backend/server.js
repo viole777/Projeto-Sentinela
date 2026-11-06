@@ -74,6 +74,52 @@ app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res,
     res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });
 
+// Browser navigation to legacy module URLs must enter the React shell.
+// API fetches accepting JSON continue to the real handlers below.
+const LEGACY_PAGE_ROUTES = {
+  "/dashboard": "/app/dashboard", "/pacientes": "/app/pacientes",
+  "/triagem": "/app/triagem", "/atendimentos": "/app/consultas",
+  "/atendimentos-casa": "/app/consultas", "/farmacia/prescricoes": "/app/farmacia",
+  "/estoque": "/app/estoque", "/alertas": "/app/alertas",
+  "/relatorios": "/app/relatorios", "/usuarios": "/app/gestao-usuarios",
+  "/profissionais": "/app/profissionais", "/leitos": "/app/mapa-leitos",
+  "/internacoes": "/app/internacoes", "/exames": "/app/exames-laboratoriais",
+  "/agenda": "/app/agenda-medica", "/enfermagem/evolucoes": "/app/evolucao-enfermagem",
+  "/prescricoes": "/app/prescricao-eletronica-avancada", "/altas": "/app/alta-hospitalar",
+  "/perfis": "/app/gestao-perfis", "/unidades": "/app/unidades-setores",
+  "/sinais-vitais": "/app/sinais-vitais", "/exames/imagem": "/app/exames-imagem",
+  "/cardiologia": "/app/cardiologia", "/evolucoes-medicas": "/app/evolucao-medica",
+  "/enfermagem/plano-cuidados": "/app/plano-cuidados",
+  "/medicamentos/administracao": "/app/administracao-medicamentos",
+  "/incidentes": "/app/incidentes", "/protocolos": "/app/protocolos-clinicos",
+  "/alergias": "/app/alergias", "/farmacia/avaliacoes": "/app/farmacia-clinica",
+  "/farmacia/controlados": "/app/controlados", "/estoque/movimentacoes": "/app/movimentacao-estoque",
+  "/estoque/validade": "/app/validade-perdas", "/compras": "/app/solicitacao-compras",
+  "/faturamento": "/app/faturamento-dashboard", "/faturamento/glosas": "/app/glosas",
+  "/escalas": "/app/escalas", "/escalas/trocas": "/app/troca-plantao",
+  "/frequencia": "/app/frequencia", "/indicadores/qualidade": "/app/indicadores-qualidade",
+  "/relatorios/gerencial": "/app/dashboard-gerencial", "/ccih": "/app/ccih-infeccao",
+  "/notificacoes": "/app/notificacoes", "/comunicados": "/app/comunicados",
+  "/encaminhamentos": "/app/encaminhamentos", "/portal-paciente": "/app/portal-paciente",
+  "/configuracoes/protocolos": "/app/configuracao-protocolos",
+  "/configuracoes/unidades": "/app/parametros-unidade",
+  "/configuracoes/modulos": "/app/modulos", "/fila": "/app/fila-chamada",
+  "/transferencias": "/app/transferencias", "/producao-sus": "/app/producao-sus",
+  "/faturamento/dashboard": "/app/faturamento-dashboard",
+  "/acessos/unidades": "/app/acesso-unidade",
+  "/agenda/disponibilidade": "/app/disponibilidade",
+  "/exames/resultados": "/app/resultados-laboratoriais",
+  "/lgpd/consentimentos": "/app/lgpd-consentimentos",
+  "/safety/regras": "/app/safety-engine"
+};
+app.get("/{*splat}", (req, res, next) => {
+    if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
+    const target = LEGACY_PAGE_ROUTES[req.path];
+    if (target) return res.redirect(302, target);
+    return next();
+});
+
+
 //uploads
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -701,7 +747,7 @@ app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
 
 //tabela de atendimentos por CPF (para triagem.html)
-app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico"]), (req, res) => {
+app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico", "cardiologist"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.query.cpf || "").trim();
     const list = cpf ? db.atendimentos.filter(a => String(a.pacienteCpf) === cpf) : db.atendimentos;
@@ -1139,8 +1185,9 @@ app.get("/exames/tipos", requireAuth([]), (req, res) => res.json(TIPOS_EXAME));
 
 app.post("/exames", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
-    const cpf = String(req.body.pacienteCpf || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const cpf = normalizeCpf(req.body.pacienteCpf);
+    const paciente = db.pacientes.find(p => normalizeCpf(p.cpf) === cpf);
     if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
     const tipo = String(req.body.tipo || "").trim();
     if (!TIPOS_EXAME.includes(tipo)) return res.status(400).json({ erro: "Tipo de exame inválido" });
@@ -1250,11 +1297,27 @@ app.get("/leitos", requireAuth([]), (req, res) => {
     res.json(db.leitos || []);
 });
 
+app.get("/internacoes", requireAuth(["admin", "medico", "cardiologist", "enfermagem"]), (req, res) => {
+    const db = readDB();
+    const records = Array.isArray(db.internacoes) ? db.internacoes : [];
+    res.json(records.slice(-200).reverse().map(item => ({
+        id: item.id,
+        pacienteNome: item.pacienteNome || "Paciente",
+        leito: item.leito || null,
+        ala: item.ala || null,
+        entradaEm: item.entradaEm || null,
+        medicoResponsavel: item.medicoResponsavel || null,
+        motivo: item.motivo || null,
+        status: item.altaEm ? "Encerrada" : "Em andamento"
+    })));
+});
+
 app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), (req, res) => {
     const db = readDB();
-    const cpf = String(req.body.pacienteCpf || "").trim();
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const cpf = normalizeCpf(req.body.pacienteCpf);
     const leitoId = String(req.body.leito || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const paciente = db.pacientes.find(p => normalizeCpf(p.cpf) === cpf);
     const leito = (db.leitos || []).find(l => String(l.id) === leitoId);
     if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
     if (!leito) return res.status(400).json({ erro: "Leito não encontrado" });
@@ -1488,40 +1551,7 @@ app.use((err, req, res, next) => {
 // Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
 app.get("/{*splat}", (req, res, next) => {
     if (!hasFrontendV2 || !req.accepts("html") || req.accepts("json")) return next();
-    const legacyPages = {
-        "/configuracoes/modulos": "/app/modulos",
-        "/configuracoes/unidades": "/app/parametros-unidade",
-        "/configuracoes/protocolos": "/app/configuracao-protocolos",
-        "/acessos/unidades": "/app/acesso-unidade",
-        "/unidades": "/app/unidades-setores",
-        "/portal-paciente": "/app/portal-paciente",
-        "/encaminhamentos": "/app/encaminhamentos",
-        "/comunicados": "/app/comunicados",
-        "/notificacoes": "/app/notificacoes",
-        "/lgpd/consentimentos": "/app/lgpd-consentimentos",
-        "/ccih": "/app/ccih-infeccao",
-        "/indicadores/qualidade": "/app/indicadores-qualidade",
-        "/incidentes": "/app/incidentes",
-        "/frequencia": "/app/frequencia",
-        "/escalas/trocas": "/app/troca-plantao",
-        "/escalas": "/app/escalas",
-        "/faturamento": "/app/faturamento-dashboard",
-        "/faturamento/glosas": "/app/glosas",
-        "/producao-sus": "/app/producao-sus",
-        "/compras": "/app/solicitacao-compras",
-        "/estoque/validade": "/app/validade-perdas",
-        "/estoque/movimentacoes": "/app/movimentacao-estoque",
-        "/farmacia/controlados": "/app/controlados",
-        "/farmacia/avaliacoes": "/app/farmacia-clinica",
-        "/cardiologia": "/app/cardiologia",
-        "/exames/imagem": "/app/exames-imagem",
-        "/alergias": "/app/alergias",
-        "/protocolos": "/app/protocolos-clinicos",
-        "/medicamentos/administracao": "/app/administracao-medicamentos",
-        "/prescricoes": "/app/prescricao-eletronica-avancada",
-        "/sinais-vitais": "/app/sinais-vitais"
-    };
-    const target = legacyPages[req.path];
+    const target = LEGACY_PAGE_ROUTES[req.path];
     if (target) return res.redirect(302, target);
     return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });

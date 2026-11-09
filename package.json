@@ -4,7 +4,7 @@
   "description": "Sistema de gestão clínica e segurança operacional para ambiente hospitalar em demonstração.",
   "main": "backend/server.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "start": "npm run lint && npm run test:unit && node backend/server.js",
@@ -28,8 +28,6 @@
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "multer": "^2.4.0",
-    "pg": "^8.23.0",
-    "postgres": "^3.4.9",
-    "sqlite3": "^6.0.1"
+    "pg": "^8.23.0"
   }
 }

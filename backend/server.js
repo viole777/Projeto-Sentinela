@@ -80,8 +80,8 @@ function isHtmlDocumentNavigation(req) {
     const accept = String(req.get("accept") || "");
     // Accept: */* é comum em fetch/clients HTTP e não deve ser tratado como
     // navegação do navegador. Só redirecionamos documentos HTML explícitos.
-    return /(?:^|,)\\s*text\\/html(?:\\s*;|,|$)/i.test(accept)
-        && !/application\\/json/i.test(accept);
+    return /(?:^|,)\s*text\/html(?:\s*;|,|$)/i.test(accept)
+        && !/application\/json/i.test(accept);
 }
 
 const LEGACY_PAGE_ROUTES = {

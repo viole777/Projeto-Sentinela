@@ -98,7 +98,7 @@ npm run lint
 │   ├── seeds.sql
 │   └── sql/
 ├── docs/
-│   ├── CREDENCIALES.md
+│   ├── DEMO_ACCESS.md
 │   └── screenshots/
 ├── frontend/
 │   ├── *.html
@@ -143,7 +143,7 @@ Também há integração com Gemini para resumo clínico assistido. Quando a cha
 
 A base local do projeto já inclui usuários de exemplo para testes de fluxo. A lista completa de acessos e perfis está em:
 
-- [docs/CREDENCIALES.md](docs/CREDENCIALES.md)
+- [docs/DEMO_ACCESS.md](docs/DEMO_ACCESS.md)
 
 Importante: esse material é para ambiente de demonstração e uso controlado. Não é uma configuração de produção.
 

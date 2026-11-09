@@ -32,6 +32,6 @@ jobs:
           path: package-lock.json
           if-no-files-found: error
       - name: Install frontend dependencies
-        run: npm ci --prefix frontend-v2
+        run: npm install --prefix frontend-v2 --include=dev
       - name: Audit frontend dependencies
         run: npm audit --prefix frontend-v2 --audit-level=high

@@ -20,7 +20,8 @@ async function main() {
     const users = [
       { username: 'admin', name: 'CI Test Administrator', role: 'admin', password },
       { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', password: process.env.TEST_TRIAGE_PASSWORD },
-      { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', password: process.env.TEST_DOCTOR_PASSWORD || password }
+      { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', password: process.env.TEST_DOCTOR_PASSWORD || password },
+      { username: 'ci.farmacia', name: 'CI Test Pharmacist', role: 'farmacia', password: process.env.TEST_PHARMACY_PASSWORD || password }
     ];
 
     for (const user of users) {
@@ -49,6 +50,16 @@ async function main() {
         throw new Error(`Could not provision CI user ${user.username}: role seed may be missing.`);
       }
     }
+
+    await pool.query(
+      `INSERT INTO patients (cpf, name, perfil, status)
+       VALUES ('99999999999', 'Paciente Sintético CI', '{"alergias":"penicilina"}'::jsonb, 'triagem')
+       ON CONFLICT (cpf) DO UPDATE SET name = EXCLUDED.name, perfil = EXCLUDED.perfil, status = EXCLUDED.status`
+    );
+    await pool.query(
+      `INSERT INTO triage (patient_cpf, patient_name, allergy, risk, status)
+       VALUES ('99999999999', 'Paciente Sintético CI', 'penicilina', 'amarelo', 'aguardando_medico')`
+    );
 
     console.log('Temporary CI test users provisioned.');
   } finally {

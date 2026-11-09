@@ -22,10 +22,10 @@
                     data.forEach(m => {
                         div.innerHTML += `
                         <div class="card" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 10px;">
-                            <b>Paciente:</b> ${m.pacienteNome || m.paciente || "-"}<br>
-                            <b>Diagnóstico:</b> ${m.diagnostico || "-"}<br>
-                            <b>Medicação:</b> ${m.medicacao || "-"}<br>
-                            <small>CPF: ${m.pacienteCpf || "-"}</small>
+                            <b>Paciente:</b> ${Sentinela.escapeHtml(m.pacienteNome || m.paciente || "-")}<br>
+                            <b>Diagnóstico:</b> ${Sentinela.escapeHtml(m.diagnostico || "-")}<br>
+                            <b>Medicação:</b> ${Sentinela.escapeHtml(m.medicacao || "-")}<br>
+                            <small>CPF: ${Sentinela.escapeHtml(m.pacienteCpf || "-")}</small>
                         </div>`;
                     });
                 })

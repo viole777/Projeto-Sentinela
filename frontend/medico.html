@@ -178,18 +178,26 @@
                 }
             }
 
-            async function apagar(triagemId) {
+            async function encerrar(triagemId) {
                 if (!triagemId) return;
-                const ok = confirm('Apagar triagem do paciente?');
-                if (!ok) return;
-
-                const r = await fetch(`/triagem?id=${encodeURIComponent(triagemId)}`, { method: 'DELETE' });
-                if (!r.ok) {
-                    const t = await r.text().catch(() => '');
-                    alert('Falha ao apagar: ' + t);
+                const motivo = prompt('Informe o motivo do encerramento da triagem (mínimo 10 caracteres):');
+                if (motivo === null) return;
+                if (motivo.trim().length < 10) {
+                    alert('O motivo precisa ter pelo menos 10 caracteres.');
                     return;
                 }
-                alert('Triagem apagada.');
+
+                const r = await fetch(`/triagem/${encodeURIComponent(triagemId)}/encerrar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivo: motivo.trim() })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    alert(data.erro || 'Falha ao encerrar a triagem.');
+                    return;
+                }
+                alert('Triagem encerrada. O histórico clínico foi preservado.');
                 location.reload();
             }
 

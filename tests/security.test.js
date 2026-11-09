@@ -18,9 +18,9 @@ console.log('security tests passed');
 
 const medicationsHtml = fs.readFileSync(path.join(__dirname, '../frontend/medicacoes.html'), 'utf8');
 const chartHtml = fs.readFileSync(path.join(__dirname, '../frontend/prontuario.html'), 'utf8');
-assert.match(medicationsHtml, /Sentinela\\.escapeHtml\\(m\\.pacienteNome/);
-assert.match(medicationsHtml, /Sentinela\\.escapeHtml\\(m\\.diagnostico/);
-assert.match(medicationsHtml, /Sentinela\\.escapeHtml\\(m\\.medicacao/);
-assert.match(medicationsHtml, /Sentinela\\.escapeHtml\\(m\\.pacienteCpf/);
-assert.match(chartHtml, /Sentinela\\.escapeHtml\\(e\\.resultado\\.texto/);
+assert.ok(medicationsHtml.includes('Sentinela.escapeHtml(m.pacienteNome'));
+assert.ok(medicationsHtml.includes('Sentinela.escapeHtml(m.diagnostico'));
+assert.ok(medicationsHtml.includes('Sentinela.escapeHtml(m.medicacao'));
+assert.ok(medicationsHtml.includes('Sentinela.escapeHtml(m.pacienteCpf'));
+assert.ok(chartHtml.includes('Sentinela.escapeHtml(e.resultado.texto'));
 console.log('legacy clinical XSS regression checks passed');

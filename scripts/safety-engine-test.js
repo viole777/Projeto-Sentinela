@@ -23,6 +23,20 @@ function run() {
   assert.ok(rules.includes('alto_risco'), 'Deve sinalizar medicamento de alto risco');
   assert.equal(rules.filter(rule => rule === 'sinal_critico').length, 2, 'Deve verificar temperatura e SpO2 fora dos limites de alerta');
 
+  const profileAllergyNotMasked = safetyCheck({
+    paciente: { cpf: 'SAFETY-TEST-PROFILE-ALLERGY-2026', perfil: { alergias: 'penicilina' } },
+    triagem: { alergia: 'nenhuma' },
+    prescricao: { diagnostico: 'teste', medicacao: 'penicilina' }
+  });
+  assert.ok(profileAllergyNotMasked.some(item => item.regra === 'alergia'), 'Triagem marcada como nenhuma não pode apagar alergia do perfil');
+
+  const triageAllergyStillDetected = safetyCheck({
+    paciente: { cpf: 'SAFETY-TEST-TRIAGE-ALLERGY-2026', perfil: { alergias: '' } },
+    triagem: { alergia: 'penicilina; sulfa' },
+    prescricao: { diagnostico: 'teste', medicacao: 'sulfa' }
+  });
+  assert.ok(triageAllergyStillDetected.some(item => item.regra === 'alergia'), 'Alergias da triagem devem continuar sendo avaliadas');
+
   const incomplete = safetyCheck({
     paciente: { cpf: 'SAFETY-TEST-INCOMPLETE-2026' },
     triagem: {},

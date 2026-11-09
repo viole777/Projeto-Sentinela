@@ -76,6 +76,14 @@ app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res,
 
 // Browser navigation to legacy module URLs must enter the React shell.
 // API fetches accepting JSON continue to the real handlers below.
+function isHtmlDocumentNavigation(req) {
+    const accept = String(req.get("accept") || "");
+    // Accept: */* é comum em fetch/clients HTTP e não deve ser tratado como
+    // navegação do navegador. Só redirecionamos documentos HTML explícitos.
+    return /(?:^|,)\\s*text\\/html(?:\\s*;|,|$)/i.test(accept)
+        && !/application\\/json/i.test(accept);
+}
+
 const LEGACY_PAGE_ROUTES = {
   "/dashboard": "/app/dashboard", "/pacientes": "/app/pacientes",
   "/triagem": "/app/triagem", "/atendimentos": "/app/consultas",
@@ -113,7 +121,7 @@ const LEGACY_PAGE_ROUTES = {
   "/safety/regras": "/app/safety-engine"
 };
 app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
+    if (!hasFrontendV2 || !isHtmlDocumentNavigation(req) || /application\/json/i.test(req.get("accept") || "")) return next();
     const target = LEGACY_PAGE_ROUTES[req.path];
     if (target) return res.redirect(302, target);
     return next();

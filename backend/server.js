@@ -665,7 +665,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
         tontura: sint.tontura,
         palpitacoes: sint.palpitacoes,
         desmaio: sint.desmaio,
-        alergia: String(req.body.alergia || "nenhuma").trim(),
+        alergia: String(req.body.alergia ?? "").trim() || "não informada",
         risco,
         atencaoCardio: sinalCardioCritico,
         status: "aguardando_medico",

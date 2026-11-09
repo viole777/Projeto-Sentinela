@@ -58,6 +58,13 @@ async function main() {
     `Lista de profissionais deveria exigir autenticação: HTTP ${unauthorizedStaff.response.status}`
   );
 
+  const browserNavigation = await fetch(new URL('/profissionais', BASE_URL), {
+    headers: { Accept: 'text/html' },
+    redirect: 'manual',
+  });
+  assertCondition(browserNavigation.status === 302, `Navegação HTML deveria redirecionar para a SPA: HTTP ${browserNavigation.status}`);
+  assertCondition(browserNavigation.headers.get('location') === '/app/profissionais', 'Navegação HTML deveria apontar para /app/profissionais');
+
   const loginResult = await request('/login', {
     method: 'POST',
     headers: {

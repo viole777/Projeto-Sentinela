@@ -120,8 +120,8 @@
                                     Atender
                                   </button>
                                   <button style="padding:10px 14px; border:none; border-radius:10px; background:rgba(239,68,68,.20); border:1px solid rgba(239,68,68,.35); color:#fff; cursor:pointer;"
-                                    class="btnApagar" data-index="${index}">
-                                    Deletar
+                                    class="btnEncerrar" data-index="${index}">
+                                    Encerrar
                                   </button>
                                 </div>
                               </td>
@@ -129,7 +129,7 @@
 
                             body.appendChild(tr);
                             tr.querySelector('.btnAtender').addEventListener('click', () => selecionar(t.pacienteId, t.alergia || 'nenhuma', t.pacienteCpf, nomePaciente, t));
-                            tr.querySelector('.btnApagar').addEventListener('click', () => apagar(t.id));
+                            tr.querySelector('.btnEncerrar').addEventListener('click', () => encerrar(t.id));
                         });
                     });
             }

@@ -1,121 +1,44 @@
-# 🔐 Credenciales de Acesso — Sentinela
+# Acesso de demonstração — Sentinela
 
-> Sistema Hospitalar de Cardiologia · ❤️ SENTINELA
+> **Aviso de segurança:** este documento não publica senhas, tokens ou credenciais reutilizáveis. O Sentinela é um protótipo escolar e deve usar somente dados sintéticos.
 
-Este documento lista todos os usuários e senhas do projeto (ambiente de demonstração).
+## Ambiente local
 
----
+1. Instale as dependências conforme o README e configure as variáveis de ambiente a partir de `.env.example`.
+2. Inicialize o banco de desenvolvimento com os scripts documentados no repositório.
+3. Use somente contas de demonstração criadas localmente por um administrador autorizado.
+4. Antes de compartilhar a aplicação, altere qualquer credencial inicial e confirme que nenhuma conta de demonstração permanece ativa no ambiente público.
+5. Não use senhas de demonstração em Render ou em qualquer serviço acessível pela internet.
 
-## 1. Usuários ativos no ambiente local atual
+Este repositório possui arquivos de fixture legados usados pelo fluxo de desenvolvimento e CI. Eles devem ser tratados como **dados públicos de teste**, não como fonte de contas reais. Antes de publicar uma nova instância, audite e recrie as contas com credenciais novas. Não importe fixtures legadas para uma base com dados reais.
 
-A persistência atual está em `backend/db.json` (JSON local). Hoje o arquivo contém
-os usuários abaixo:
+## Perfis e autorização
 
-| Usuário        | Senha real                         | Cargo (função) | Observação                                      |
-|----------------|-----------------------------------|----------------|-------------------------------------------------|
-| `admin`        | `123`                             | admin          | perfil administrativo completo                   |
-| `atendimento`  | `123`                             | atendimento    | senha armazenada em texto no JSON local          |
-| `triagem`      | `123`                             | triagem        | senha armazenada como hash `scrypt` no JSON     |
-| `medico`       | `123`                             | medico         | senha armazenada como hash `scrypt` no JSON     |
-| `novo.setor`   | `trocar_no_primeiro_acesso`        | triagem        | usuário criado pela UI, com `setor = UTI`       |
+O backend define os papéis e permissões. A interface não é uma fronteira de segurança: cada rota deve verificar a sessão e a autorização no servidor. A configuração do Safety Engine é restrita ao perfil administrador.
 
-```text
-URL:       http://localhost:3000
-Tela:      index.html (login principal)
-```
+## PostgreSQL e ambiente hospedado
 
-> O login atual aceita o identificador do usuário no campo `usuario` (ex.: `triagem`,
-> `medico`, `atendimento`), e também aceita `email` quando a conta possui esse campo
-> preenchido. O usuário **nunca escolhe seu perfil** no login: o cargo e as permissões
-> vêm da conta.
+- Configure `DATABASE_URL` no painel de segredos do provedor; nunca registre seu valor no repositório.
+- Mantenha `NODE_ENV=production` no ambiente publicado.
+- Use HTTPS e confirme que o cookie de sessão está marcado como `Secure`.
+- Verifique a rota `/health` e os logs do serviço após a migração.
+- Não habilite recuperação de senha em produção até existir um canal real e seguro de entrega de token (por exemplo, e-mail verificado), expiração curta e testes de uso único.
+- Nunca use `?debug=1` ou logs para revelar tokens de redefinição em produção.
 
----
+## Privacidade e segurança
 
-## 2. Cargos e permissões (RBAC)
+- Utilize apenas registros fictícios/sintéticos na demonstração.
+- Não carregue dados identificáveis de pacientes, mesmo para testes informais.
+- Audite logs e permissões antes de qualquer demonstração externa.
+- Em caso de credencial exposta, revogue-a e gere outra; apagar o texto do repositório não invalida a credencial.
+- O protótipo não foi validado clinicamente nem autorizado para atendimento real.
 
-O backend valida `usuário → sessão → role → permissão → rota`. A tabela de
-permissões vive em `backend/src/db.js → ROLE_PERMISSIONS` e no PostgreSQL em
-`roles` / `permissions` / `role_permissions` (`database/seeds.sql`).
+## Antes de compartilhar uma instância
 
-| Role             | Acessos (resumo)                                                           |
-|------------------|-----------------------------------------------------------------------------|
-| `admin`          | Tudo (`*`)                                                                  |
-| `cardiologist`   | Dashboard, pacientes, consultas, exames, prescrições, alertas, IA, auditoria|
-| `medico`         | Igual a cardiologist (demo)                                                 |
-| `enfermagem`     | Dashboard, pacientes, triagem (leitura/escrita), internações, exames, alertas |
-| `triagem`        | Dashboard, pacientes (leitura), agendamentos, triagem (leitura/escrita), alertas |
-| `farmacia`       | Dashboard, pacientes (leitura), prescrições + dispensar, estoque, alertas   |
-| `atendimento`    | Dashboard, pacientes (leitura/escrita), agendamentos (leitura/escrita)         |
-| `recepcao`       | Igual a atendimento                                                         |
-| `direcao`        | Dashboard, relatórios, auditoria, pacientes (leitura), alertas              |
-
-> **Nota sobre `enfermagem` e `triagem`:** em `ROLE_PERMISSIONS` (dev) são
-> `triage.read/triage.write` + `appointments.read`; a nomenclatura da tabela
-> é de referência. A autoridade real de cada rota está no backend
-> (`requireAuth` + `requirePermission`), nunca no CSS.
-
----
-
-## 3. Usuários criados pela UI (primeiro acesso)
-
-Um profissional criado desde `frontend/profissionais.html` (`POST /profissionais`)
-**não inicia com uma senha real definida**. O cadastro atual do ambiente local
-criou o usuário abaixo:
-
-| Usuário      | Senha inicial                   | Cargo | Setor | Requisito |
-|--------------|-------------------------------|-------|-------|-----------|
-| `novo.setor` | `trocar_no_primeiro_acesso`    | triagem | UTI | deve trocar a senha na primeira entrada |
-
-Ao entrar pela primeira vez o sistema retorna `403 primeiro_acesso` e
-redireciona a `primeiro-acesso.html`, onde o usuário **define sua própria senha**
-(mínimo 6 caracteres). Não existe uma senha padrão permanente para estas contas:
-a senha é definida pelo próprio profissional.
-
----
-
-## 4. PostgreSQL (produção / Render)
-
-Em produção o JSON **não** é o banco. Se usa PostgreSQL via `DATABASE_URL`:
-
-| Variável       | Valor                                         |
-|----------------|-----------------------------------------------|
-| `DATABASE_URL` | `postgres://...` fornecida por Render         |
-| `NODE_ENV`     | `production` (cookie `Secure`, hash `scrypt`) |
-
-Os usuários no PostgreSQL são criados migrando `db.json`:
-
-```bash
-psql $DATABASE_URL -f database.sql
-DATABASE_URL=... npm run db:migrate   # copia usuarios/pacientes/… ao PostgreSQL
-```
-
-As senhas viajam no campo `password_hash` (em dev se re-hashean com
-`scrypt` na primeira vez que o usuário entra).
-
----
-
-## 5. ⚠️ Segurança — obrigatório antes de produção
-
-1. **Trocar as senhas demo** (`123` para os três usuários) ou criar uma conta
-   `admin` real antes de expor o sistema com dados reais.
-2. **Nunca** usar o JSON como banco no Render (filesystem efímero).
-3. **HTTPS obrigatório** (fornecido pelo Render no domínio do serviço).
-4. **LGPD**: na demo usar só dados fictícios/sintéticos; todo acesso
-   fica registrado em `audit_logs` / `auditoria`.
-5. **Recuperação de senha**: em produção enviar o link por e-mail real;
-   o token de demo (`?debug=1`) é só para desenvolvimento.
-
----
-
-## 6. Verificação rápida
-
-```bash
-npm start
-# → http://localhost:3000
-# Login: triagem / 123       → dashboard TRIAGEM
-# Login: medico / 123        → dashboard MÉDICO
-# Login: atendimento / 123   → dashboard ATENDIMENTO
-```
-
-Qualquer usuário pode ver suas permissões na resposta de `/me`
-(painel esquerdo do dashboard).
+- [ ] Confirmar que todas as contas têm credenciais novas e fortes.
+- [ ] Confirmar que a base é de demonstração e contém apenas dados sintéticos.
+- [ ] Confirmar que o banco hospedado é PostgreSQL e que não há fallback silencioso para JSON.
+- [ ] Testar login, logout, expiração e autorização para cada perfil.
+- [ ] Testar recuperação de senha sem revelar tokens na resposta ou nos logs.
+- [ ] Conferir cabeçalhos de segurança, política CSP, upload e arquivos estáticos.
+- [ ] Registrar que a instância é um protótipo não oficial, sem validação clínica.

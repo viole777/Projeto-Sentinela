@@ -1,0 +1,22 @@
+{
+  "usuarios": [],
+  "pacientes": [],
+  "leitos": [],
+  "agendamentos": [],
+  "prescricoes": [],
+  "internacoes": [],
+  "triagens": [],
+  "consultas": [],
+  "atendimentos": [],
+  "atendimentosCasa": [],
+  "auditoria": [],
+  "exames": [],
+  "farmacia": [],
+  "estoque": [],
+  "movimentacoes": [],
+  "compras": [],
+  "alertas": [],
+  "safetyRules": null,
+  "tvChamada": null,
+  "tvHistorico": []
+}

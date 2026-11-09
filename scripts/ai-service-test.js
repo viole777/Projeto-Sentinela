@@ -39,18 +39,33 @@ function run() {
 
   const normalized = normalizeAiPayload(JSON.stringify({
     resumo: 'Resumo de teste',
+    avaliacaoGeral: 'Avaliação prudente',
+    pontosAtencao: ['Revisar histórico'],
+    dadosAusentes: ['Data ausente'],
+    perguntasSugeridas: ['Confirmar registro'],
     inconsistencias: ['Revisar dado'],
     campoExtra: 'ignorar'
   }));
   assert.equal(normalized.resumo, 'Resumo de teste');
+  assert.equal(normalized.avaliacaoGeral, 'Avaliação prudente');
+  assert.deepEqual(normalized.pontosAtencao, ['Revisar histórico']);
+  assert.deepEqual(normalized.dadosAusentes, ['Data ausente']);
+  assert.deepEqual(normalized.perguntasSugeridas, ['Confirmar registro']);
   assert.deepEqual(normalized.inconsistencias, ['Revisar dado']);
   assert.equal(typeof normalized.geradoEm, 'string');
+
+  const fenced = normalizeAiPayload('```json\n{"resumo":"Resumo robusto","inconsistencias":["Revisar dado","Revisar dado"]}\n```');
+  assert.equal(fenced.resumo, 'Resumo robusto', 'Deve aceitar JSON válido dentro de bloco Markdown');
+  assert.deepEqual(fenced.inconsistencias, ['Revisar dado'], 'Alertas duplicados devem ser removidos');
+
+  const wrapped = normalizeAiPayload('Resultado:\n{"resumo":"Resumo extraído","inconsistencias":[]}\nFim.');
+  assert.equal(wrapped.resumo, 'Resumo extraído', 'Deve extrair JSON mesmo com texto extra do modelo');
 
   const oversized = normalizeAiPayload(JSON.stringify({
     resumo: 'R'.repeat(3000),
     inconsistencias: ['A'.repeat(1000), 123, null]
   }));
-  assert.equal(oversized.resumo.length, 1800, 'O resumo de IA deve ser limitado');
+  assert.equal(oversized.resumo.length, 3000, 'O resumo de IA deve respeitar o novo limite ampliado');
   assert.equal(oversized.inconsistencias.length, 1, 'Inconsistências devem ser strings válidas');
   assert.equal(oversized.inconsistencias[0].length, 400, 'Cada inconsistência deve ser limitada');
 

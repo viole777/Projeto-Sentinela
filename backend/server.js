@@ -20,10 +20,10 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:"],
             connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             frameAncestors: ["'none'"],
@@ -57,12 +57,68 @@ const passwordRateLimit = rateLimit({
     message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
 });
 
-// Frontend estático e rota amigável para abrir o painel em uma TV.
+// Frontend React v2: quando compilado, ele é servido na raiz. As páginas legadas
+// continuam disponíveis como fallback durante a migração gradual.
+const FRONTEND_V2_DIST = path.join(__dirname, "../frontend-v2/dist");
+const hasFrontendV2 = fs.existsSync(path.join(FRONTEND_V2_DIST, "index.html"));
+if (hasFrontendV2) app.use(express.static(FRONTEND_V2_DIST));
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get(["/tv", "/tv/"], (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/tv.html"));
 });
 app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
+
+// Rotas da SPA React. Mantidas depois das rotas de API para não interceptar endpoints.
+app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res, next) => {
+    if (!hasFrontendV2) return next();
+    res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
+});
+
+// Browser navigation to legacy module URLs must enter the React shell.
+// API fetches accepting JSON continue to the real handlers below.
+const LEGACY_PAGE_ROUTES = {
+  "/dashboard": "/app/dashboard", "/pacientes": "/app/pacientes",
+  "/triagem": "/app/triagem", "/atendimentos": "/app/consultas",
+  "/atendimentos-casa": "/app/consultas", "/farmacia/prescricoes": "/app/farmacia",
+  "/estoque": "/app/estoque", "/alertas": "/app/alertas",
+  "/relatorios": "/app/relatorios", "/usuarios": "/app/gestao-usuarios",
+  "/profissionais": "/app/profissionais", "/leitos": "/app/mapa-leitos",
+  "/internacoes": "/app/internacoes", "/exames": "/app/exames-laboratoriais",
+  "/agenda": "/app/agenda-medica", "/enfermagem/evolucoes": "/app/evolucao-enfermagem",
+  "/prescricoes": "/app/prescricao-eletronica-avancada", "/altas": "/app/alta-hospitalar",
+  "/perfis": "/app/gestao-perfis", "/unidades": "/app/unidades-setores",
+  "/sinais-vitais": "/app/sinais-vitais", "/exames/imagem": "/app/exames-imagem",
+  "/cardiologia": "/app/cardiologia", "/evolucoes-medicas": "/app/evolucao-medica",
+  "/enfermagem/plano-cuidados": "/app/plano-cuidados",
+  "/medicamentos/administracao": "/app/administracao-medicamentos",
+  "/incidentes": "/app/incidentes", "/protocolos": "/app/protocolos-clinicos",
+  "/alergias": "/app/alergias", "/farmacia/avaliacoes": "/app/farmacia-clinica",
+  "/farmacia/controlados": "/app/controlados", "/estoque/movimentacoes": "/app/movimentacao-estoque",
+  "/estoque/validade": "/app/validade-perdas", "/compras": "/app/solicitacao-compras",
+  "/faturamento": "/app/faturamento-dashboard", "/faturamento/glosas": "/app/glosas",
+  "/escalas": "/app/escalas", "/escalas/trocas": "/app/troca-plantao",
+  "/frequencia": "/app/frequencia", "/indicadores/qualidade": "/app/indicadores-qualidade",
+  "/relatorios/gerencial": "/app/dashboard-gerencial", "/ccih": "/app/ccih-infeccao",
+  "/notificacoes": "/app/notificacoes", "/comunicados": "/app/comunicados",
+  "/encaminhamentos": "/app/encaminhamentos", "/portal-paciente": "/app/portal-paciente",
+  "/configuracoes/protocolos": "/app/configuracao-protocolos",
+  "/configuracoes/unidades": "/app/parametros-unidade",
+  "/configuracoes/modulos": "/app/modulos", "/fila": "/app/fila-chamada",
+  "/transferencias": "/app/transferencias", "/producao-sus": "/app/producao-sus",
+  "/faturamento/dashboard": "/app/faturamento-dashboard",
+  "/acessos/unidades": "/app/acesso-unidade",
+  "/agenda/disponibilidade": "/app/disponibilidade",
+  "/exames/resultados": "/app/resultados-laboratoriais",
+  "/lgpd/consentimentos": "/app/lgpd-consentimentos",
+  "/safety/regras": "/app/safety-engine"
+};
+app.get("/{*splat}", (req, res, next) => {
+    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
+    const target = LEGACY_PAGE_ROUTES[req.path];
+    if (target) return res.redirect(302, target);
+    return next();
+});
+
 
 //uploads
 const UPLOADS_DIR = path.join(__dirname, "uploads");
@@ -223,11 +279,8 @@ const uploadFoto = multer({
         if (!allowed.includes(file.mimetype)) {
             return cb(new Error("Arquivo inválido: tipo de imagem não permitido."));
         }
-        const expectedExt = MIME_TO_EXTENSION[file.mimetype];
-        const originalExt = path.extname(file.originalname || "").toLowerCase();
-        if (originalExt && originalExt !== expectedExt) {
-            return cb(new Error("Arquivo inválido: extensão não confere com o tipo de imagem."));
-        }
+        // A extensão enviada pelo cliente não é confiável. A assinatura binária
+        // será validada após o upload e o servidor definirá a extensão final.
         cb(null, true);
     }
 });
@@ -421,6 +474,29 @@ app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
     res.json({ ok: true, role: user.role || user.tipo });
 });
 
+// Redefinição administrativa de senha: a nova senha nunca é devolvida nem registrada em logs.
+app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLimit, async (req, res) => {
+    const username = String(req.params.usuario || "").trim().toLowerCase();
+    const { novaSenha, confirmar } = req.body || {};
+    if (!username || typeof novaSenha !== "string" || novaSenha.length < 8 || novaSenha.length > 128 || novaSenha !== confirmar) {
+        return res.status(400).json({ erro: "Informe senhas iguais com pelo menos 8 caracteres." });
+    }
+    const db = readDB();
+    const user = (db.usuarios || []).find(u => String(u.usuario || "").trim().toLowerCase() === username);
+    if (!user) return res.status(404).json({ erro: "Usuário não encontrado." });
+    user.senha = hashPassword(novaSenha);
+    user.senhaTemporariaHash = null;
+    user.senhaTemporariaExpiraEm = null;
+    user.mustChangePassword = false;
+    user.resetToken = null;
+    user.resetExpires = null;
+    writeDB(db);
+    // Trocar a senha revoga todas as sessões existentes dessa conta.
+    await sessions.deleteForUser(user.usuario, user.email);
+    audit(req, "senha_redefinida_admin", { usuario: user.usuario });
+    res.json({ ok: true, usuario: user.usuario });
+});
+
 //atendimento/admissão (cria paciente por CPF; evita duplicados) + salva imagem
 // Perfil cardiovascular estendido (item 1 da spec de cardiologia).
 app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.single("foto"), (req, res) => {
@@ -608,7 +684,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
 
 
 //triagem para medico (com dados do atendimento via CPF)
-app.get("/triagem", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
+app.get("/triagem", requireAuth(["admin", "medico", "cardiologist", "triagem", "enfermagem", "atendimento", "recepcao"]), (req, res) => {
     const db = readDB();
 
     const triagens = (db.triagens || []).map(t => {
@@ -671,7 +747,7 @@ app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
 
 //tabela de atendimentos por CPF (para triagem.html)
-app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico"]), (req, res) => {
+app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico", "cardiologist"]), (req, res) => {
     const db = readDB();
     const cpf = String(req.query.cpf || "").trim();
     const list = cpf ? db.atendimentos.filter(a => String(a.pacienteCpf) === cpf) : db.atendimentos;
@@ -907,23 +983,26 @@ app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendim
 
 // ── IA assistente: resumo do prontuário + possíveis inconsistências ──
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
-app.get("/ia/resumo/:cpf", requireAuth(["medico", "cardiologist"]), async (req, res) => {
+app.get("/ia/resumo/:cpf", requireAuth(["admin", "medico", "cardiologist"]), async (req, res) => {
     const db = readDB();
-    const cpf = String(req.params.cpf || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const cpf = String(req.params.cpf || "").replace(/\D/g, "");
+    if (!/^\d{11}$/.test(cpf)) {
+        return res.status(400).json({ erro: "Informe um CPF válido com 11 dígitos." });
+    }
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const paciente = (db.pacientes || []).find(p => normalizeCpf(p.cpf) === cpf);
     if (!paciente) return res.status(404).json({ erro: "Paciente não encontrado" });
-    const triagens = (db.triagens || []).filter(t => String(t.pacienteCpf) === cpf);
-    const consultas = (db.consultas || []).filter(c => String(c.pacienteCpf) === cpf);
-    const atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === cpf);
-    const out = await resumoIA(
-    paciente,
-    triagens,
-    consultas,
-    atendimentos,
-    req.user
-);
-    audit(req, "ia_resumo", { pacienteCpf: cpf });
-    res.json({ pacienteCpf: cpf, pacienteNome: paciente.nome, ...out, aviso: "Apoio à decisão. Não substitui avaliação clínica." });
+    const triagens = (db.triagens || []).filter(t => normalizeCpf(t.pacienteCpf) === cpf);
+    const consultas = (db.consultas || []).filter(c => normalizeCpf(c.pacienteCpf) === cpf);
+    const atendimentos = (db.atendimentos || []).filter(a => normalizeCpf(a.pacienteCpf) === cpf);
+    const out = await resumoIA(paciente, triagens, consultas, atendimentos, req.user);
+    // A trilha registra o identificador interno, nunca o CPF do paciente.
+    audit(req, "ia_resumo", { pacienteId: paciente.id || null });
+    res.json({
+        pacienteNome: paciente.nome || "Paciente",
+        ...out,
+        aviso: "Apoio à decisão. Não substitui avaliação clínica."
+    });
 });
 
 // ── Alertas ──
@@ -981,7 +1060,7 @@ app.get("/tv/chamada", async (req, res) => {
     }
 });
 
-app.post("/tv/chamar", requireAuth(["triagem", "atendimento"]), async (req, res) => {
+app.post("/tv/chamar", requireAuth(["admin", "medico", "cardiologist", "triagem", "atendimento", "recepcao", "enfermagem"]), async (req, res) => {
     try {
         const db = ensureTVShape(await store.readAll());
         const pacienteCpf = String(req.body.pacienteCpf || "").trim();
@@ -1106,8 +1185,9 @@ app.get("/exames/tipos", requireAuth([]), (req, res) => res.json(TIPOS_EXAME));
 
 app.post("/exames", requireAuth(["medico", "cardiologist"]), (req, res) => {
     const db = readDB();
-    const cpf = String(req.body.pacienteCpf || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const cpf = normalizeCpf(req.body.pacienteCpf);
+    const paciente = db.pacientes.find(p => normalizeCpf(p.cpf) === cpf);
     if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
     const tipo = String(req.body.tipo || "").trim();
     if (!TIPOS_EXAME.includes(tipo)) return res.status(400).json({ erro: "Tipo de exame inválido" });
@@ -1217,11 +1297,27 @@ app.get("/leitos", requireAuth([]), (req, res) => {
     res.json(db.leitos || []);
 });
 
+app.get("/internacoes", requireAuth(["admin", "medico", "cardiologist", "enfermagem"]), (req, res) => {
+    const db = readDB();
+    const records = Array.isArray(db.internacoes) ? db.internacoes : [];
+    res.json(records.slice(-200).reverse().map(item => ({
+        id: item.id,
+        pacienteNome: item.pacienteNome || "Paciente",
+        leito: item.leito || null,
+        ala: item.ala || null,
+        entradaEm: item.entradaEm || null,
+        medicoResponsavel: item.medicoResponsavel || null,
+        motivo: item.motivo || null,
+        status: item.altaEm ? "Encerrada" : "Em andamento"
+    })));
+});
+
 app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), (req, res) => {
     const db = readDB();
-    const cpf = String(req.body.pacienteCpf || "").trim();
+    const normalizeCpf = value => String(value || "").replace(/\D/g, "");
+    const cpf = normalizeCpf(req.body.pacienteCpf);
     const leitoId = String(req.body.leito || "").trim();
-    const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
+    const paciente = db.pacientes.find(p => normalizeCpf(p.cpf) === cpf);
     const leito = (db.leitos || []).find(l => String(l.id) === leitoId);
     if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado" });
     if (!leito) return res.status(400).json({ erro: "Leito não encontrado" });
@@ -1391,7 +1487,7 @@ app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmac
 });
 
 // ── Regras do Safety Engine (configuráveis) ──
-app.get("/safety/regras", requireAuth([]), (req, res) => {
+app.get("/safety/regras", requireAuth(["admin"]), (req, res) => {
     const db = readDB();
     res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
 });
@@ -1425,14 +1521,42 @@ app.get("/health", async (req, res) => {
     }
 });
 
+// APIs CRUD para módulos avançados ainda sem rota própria. As rotas já existentes
+// continuam tendo precedência; estes handlers são registrados antes do 404 da SPA.
+app.use(require("./src/routes/advancedModules")({
+    requireAuth,
+    usingPostgres,
+    getPool,
+    readDB,
+    writeDB
+}));
+
 app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err && err.message ? err.message : err);
     if (res.headersSent) return next(err);
+    // Upload inválido ou acima do limite é erro de entrada (400), não falha 500.
+    if (err instanceof multer.MulterError) {
+        const tooLarge = err.code === "LIMIT_FILE_SIZE";
+        return res.status(400).json({
+            erro: tooLarge ? "A imagem excede o limite de 5 MB." : "Não foi possível processar o arquivo enviado."
+        });
+    }
+    if (typeof err?.message === "string" && err.message.startsWith("Arquivo inválido:")) {
+        return res.status(400).json({ erro: err.message });
+    }
+    console.error("Unhandled error:", err && err.message ? err.message : err);
     res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
 });
 
+// Navegação da SPA: servir o React apenas para requisições de documento HTML.
+// Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
+app.get("/{*splat}", (req, res, next) => {
+    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
+    const target = LEGACY_PAGE_ROUTES[req.path];
+    if (target) return res.redirect(302, target);
+    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
+});
 app.use((req, res) => {
-    res.status(404).json({ erro: "Rota não encontrada" });
+    res.status(404).json({ erro: "Rota não encontrada", caminho: req.path, metodo: req.method });
 });
 
 function startServer() {

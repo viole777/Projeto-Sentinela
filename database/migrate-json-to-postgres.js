@@ -27,7 +27,10 @@ async function main() {
   const seeds = fs.readFileSync(path.join(__dirname, 'seeds.sql'), 'utf8');
   await pool.query(schema + '\n' + seeds);
 
-  const dbPath = path.join(__dirname, '..', 'backend', 'db.json');
+  const fixturePath = process.env.SENTINELA_FIXTURE_PATH;
+  const dbPath = fixturePath
+    ? path.resolve(process.cwd(), fixturePath)
+    : path.join(__dirname, '..', 'backend', 'db.json');
   if (!fs.existsSync(dbPath)) {
     console.log('backend/db.json não existe; nada a migrar.');
     await pool.end();

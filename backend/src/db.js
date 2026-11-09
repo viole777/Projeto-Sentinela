@@ -207,6 +207,9 @@ async function importJsonIfPostgresEmpty(pgDb) {
 // do app.listen() — as rotas que usam readDB() sincrono recebem dados reais.
 async function hydrate() {
   if (!usingPostgres() || !getPool()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DATABASE_URL é obrigatório em produção. Inicialização com armazenamento JSON foi bloqueada.');
+    }
     current = readJSON();
     hydrated = true;
     return current;
@@ -240,8 +243,7 @@ function readDB() {
 
 // Mesma assinatura de sempre — grava no Postgres quando DATABASE_URL estiver
 // definido. A sincronização é serializada para evitar duplicar registros novos.
-// Se o Postgres falhar (credenciais/offline), mantém um espelho em db.json para
-// o fluxo de desenvolvimento não perder dados.
+// Se o PostgreSQL falhar, a gravação não é confirmada; o health check expõe a falha.
 function writeDB(data) {
   if (!usingPostgres()) {
     writeJSON(data);

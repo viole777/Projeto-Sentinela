@@ -19,10 +19,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Generate patched lockfile candidate (runner only)
+        run: npm audit fix --package-lock-only
       - name: Install root dependencies
         run: npm ci
       - name: Audit root dependencies
         run: npm audit --audit-level=high
+      - name: Upload patched lockfile candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinela-root-package-lock
+          path: package-lock.json
+          if-no-files-found: error
       - name: Install frontend dependencies
         run: npm ci --prefix frontend-v2
       - name: Audit frontend dependencies

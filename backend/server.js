@@ -846,28 +846,14 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
     // ── Safety Engine ──
     const achados = safetyCheck({ paciente, triagem, prescricao });
     const alertasCriticos = achados.filter(item => item.nivel === "CRITICO");
-    const justificativaSeguranca = String(req.body.justificativaSeguranca || "").trim();
-    if (alertasCriticos.length && justificativaSeguranca.length < 20) {
+    if (alertasCriticos.length) {
         return res.status(409).json({
-            erro: "Prescrição bloqueada: alertas críticos exigem justificativa clínica do profissional prescritor (mínimo 20 caracteres).",
-            codigo: "SAFETY_JUSTIFICATION_REQUIRED",
+            erro: "Prescrição bloqueada: alertas críticos exigem revisão clínica estruturada e aprovada antes de prosseguir.",
+            codigo: "CRITICAL_SAFETY_BLOCKED",
             alertas: alertasCriticos
         });
     }
-
     const safetyRegistrado = [...achados];
-    if (alertasCriticos.length) {
-        safetyRegistrado.push({
-            nivel: "INFO",
-            regra: "justificativa_seguranca",
-            mensagem: "Justificativa clínica registrada pelo profissional prescritor.",
-            contexto: {
-                usuario: req.user.usuario,
-                justificativa: justificativaSeguranca,
-                registradoEm: new Date().toISOString()
-            }
-        });
-    }
 
     const consulta = {
         id: Date.now(),
@@ -879,7 +865,7 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
         medicacao: prescricao.medicacao,
         obs: prescricao.obs,
         triagemId: triagem?.id || null,
-        safety: safetyRegistrado,
+        safety: achados,
         createdAt: new Date().toISOString(),
         createdBy: req.user.usuario,
         status: "finalizado"

@@ -98,7 +98,7 @@ npm run lint
 │   ├── seeds.sql
 │   └── sql/
 ├── docs/
-│   ├── CREDENCIALES.md
+│   ├── DEPLOYMENT_SECURITY.md
 │   └── screenshots/
 ├── frontend/
 │   ├── *.html
@@ -139,13 +139,11 @@ A aplicação inclui um Safety Engine para avaliar prescrições e alertar sobre
 
 Também há integração com Gemini para resumo clínico assistido. Quando a chave não está configurada, a aplicação usa um resumo local em vez de falhar.
 
-## Usuários de demonstração
+## Configuração de acesso
 
-A base local do projeto já inclui usuários de exemplo para testes de fluxo. A lista completa de acessos e perfis está em:
+Não existe senha padrão segura para publicação. Em ambiente local, crie contas de teste com credenciais exclusivas e use somente dados sintéticos. Não publique usuários, senhas ou tokens em README, documentação, issues ou screenshots.
 
-- [docs/CREDENCIALES.md](docs/CREDENCIALES.md)
-
-Importante: esse material é para ambiente de demonstração e uso controlado. Não é uma configuração de produção.
+A configuração de autenticação e publicação está documentada em [docs/DEPLOYMENT_SECURITY.md](docs/DEPLOYMENT_SECURITY.md).
 
 ## Fluxo principal
 
@@ -171,18 +169,11 @@ O fluxograma detalhado com decisões, Safety Engine, IA e auditoria está em [do
 
 Este projeto está licenciado sob a licença MIT. Consulte o arquivo LICENSE para mais detalhes.
 
-### 1. Acessar o sistema
+### Acessar o sistema
 
-- **Versão online:** abra [https://projeto-sentinela-rwir.onrender.com](https://projeto-sentinela-rwir.onrender.com)
-- **Ambiente local:** abra `http://localhost:3000` após rodar `npm start`
-- Use um usuário demo da tabela acima
-- Exemplo: `admin / 123`
-
-### 2. Fazer login
-
-- No campo `usuario`, informe o login do usuário
-- No campo `senha`, informe a senha correspondente
-- A sessão é validada pelo backend e o menu lateral é montado conforme as permissões do perfil
+- **Versão online:** [Sentinela no Render](https://projeto-sentinela-rwir.onrender.com)
+- **Ambiente local:** `http://localhost:3000` após iniciar o servidor.
+- Use uma conta criada localmente por um administrador autorizado. Não há credenciais públicas padrão.
 
 ### 3. Navegar pela interface
 
@@ -291,18 +282,15 @@ O Sentinela agora também oferece suporte para acompanhamento em casa.
 
 ## Dicas de uso em demonstração
 
-- Use `admin` para explorar todos os módulos
-- Use `triagem` para testar priorização e alertas
-- Use `medico` para consultar e registrar prescrições
-- Use `atendimento` para registrar pacientes e agendamentos
-- Use `novo.setor` para testar o primeiro acesso e redefinição de senha
+- Utilize somente contas de teste criadas no próprio ambiente.
+- Use dados sintéticos, sem informações de pessoas reais.
+- Confira as permissões de cada perfil antes de demonstrar qualquer fluxo.
 
 ## Próximos passos
 
 - Executar e manter testes automatizados para os principais fluxos
 - Validar as permissões de cada perfil e o fluxo de recuperação de senha
 - Configurar backup e testar restauração do PostgreSQL no Neon
-- Substituir as credenciais de demonstração antes de qualquer uso fora de uma demonstração escolar
 - Expandir os relatórios cardiológicos e o módulo de atendimento domiciliar
 
 **Aviso:** este repositório é um protótipo escolar/demonstrativo. Não inserir dados reais de pacientes nem utilizá-lo para decisões clínicas ou operações hospitalares reais.

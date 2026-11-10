@@ -32,10 +32,10 @@ Este projeto já está em uma etapa de consolidação funcional:
 
 ## Tecnologias
 
-- Node.js 18+
+- Node.js (versão mínima declarada no `package.json`)
 - Express 5
-- PostgreSQL suportado em produção
-- SQLite/Postgres adapter para dados locais e integração
+- PostgreSQL como banco de produção
+- Armazenamento JSON restrito ao desenvolvimento local; produção exige `DATABASE_URL`
 - HTML, CSS e JavaScript puro no frontend
 - Helmet, rate limiting e validação básica de segurança no backend
 
@@ -135,6 +135,9 @@ Se a chave não estiver presente, o sistema continua funcionando com fallback lo
 
 ## Segurança e IA
 
+A avaliação de prontidão comercial, os bloqueadores conhecidos e os critérios para piloto/produção estão em [docs/COMMERCIAL_READINESS_AUDIT.md](docs/COMMERCIAL_READINESS_AUDIT.md). A existência de uma funcionalidade não representa validação clínica ou autorização para uso assistencial.
+
+
 A aplicação inclui um Safety Engine para avaliar prescrições e alertar sobre inconsistências. Ele funciona como apoio clínico e não substitui a decisão do profissional.
 
 Também há integração com Gemini para resumo clínico assistido. Quando a chave não está configurada, a aplicação usa um resumo local em vez de falhar.
@@ -160,7 +163,7 @@ O fluxograma detalhado com decisões, Safety Engine, IA e auditoria está em [do
 
 ## Observações importantes
 
-- O projeto é um protótipo funcional para demonstração e estudo.
+- O projeto permanece um protótipo para demonstração e estudo; não está aprovado para uso assistencial real ou venda como sistema clínico de produção.
 - Não altere credenciais de produção ou segredos reais em ambiente de execução.
 - O código foi ajustado para reduzir ruído visual e melhorar consistência, sem quebrar fluxos operacionais.
 - O smoke test verifica os principais caminhos básicos da aplicação.

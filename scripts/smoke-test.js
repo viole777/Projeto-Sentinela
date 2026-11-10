@@ -91,6 +91,44 @@ async function main() {
   const doctorCookie = getCookieHeader(doctorLogin.response.headers.get('set-cookie'));
   assertCondition(doctorCookie, 'Cookie de sessão não retornado para médico');
 
+  const blockedPrescription = await request('/consulta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Teste de bloqueio de alergia' }),
+  });
+  assertCondition(blockedPrescription.response.status === 409, `Prescrição com alerta crítico deveria exigir justificativa: HTTP ${blockedPrescription.response.status}`);
+  assertCondition(blockedPrescription.body?.codigo === 'SAFETY_JUSTIFICATION_REQUIRED', 'Bloqueio clínico deveria identificar justificativa obrigatória');
+
+  const justifiedPrescription = await request('/consulta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Teste de justificativa', justificativaSeguranca: 'Justificativa sintética para validar o fluxo de revisão profissional.' }),
+  });
+  assertCondition(justifiedPrescription.response.ok, `Justificativa válida deveria ser registrada no fluxo de prescrição: HTTP ${justifiedPrescription.response.status}`);
+  assertCondition((justifiedPrescription.body.safety || []).some(item => item.regra === 'justificativa_seguranca' && item.contexto?.usuario === 'ci.medico'), 'Justificativa deve registrar o usuário autenticado e ficar no registro de segurança');
+
+  const doctorDispense = await request('/farmacia/dispensar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ consultaId: justifiedPrescription.body.id }),
+  });
+  assertCondition(doctorDispense.response.status === 403, `Médico prescritor não deve dispensar: HTTP ${doctorDispense.response.status}`);
+
+  const pharmacistLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.farmacia', senha: process.env.TEST_PHARMACY_PASSWORD || process.env.TEST_ADMIN_PASSWORD }),
+  });
+  assertCondition(pharmacistLogin.response.ok, `Login de farmácia de CI falhou: ${JSON.stringify(pharmacistLogin.body)}`);
+  const pharmacistCookie = getCookieHeader(pharmacistLogin.response.headers.get('set-cookie'));
+  const guardedDispense = await request('/farmacia/dispensar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ consultaId: justifiedPrescription.body.id, revisadoPor: 'usuario-forjado' }),
+  });
+  assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
+  assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
+
   const blockedTriageDelete = await request('/triagem?id=999999', {
     method: 'DELETE',
     headers: { Cookie: doctorCookie },

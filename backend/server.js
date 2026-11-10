@@ -845,6 +845,29 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
     // ── Safety Engine ──
     const achados = safetyCheck({ paciente, triagem, prescricao });
+    const alertasCriticos = achados.filter(item => item.nivel === "CRITICO");
+    const justificativaSeguranca = String(req.body.justificativaSeguranca || "").trim();
+    if (alertasCriticos.length && justificativaSeguranca.length < 20) {
+        return res.status(409).json({
+            erro: "Prescrição bloqueada: alertas críticos exigem justificativa clínica do profissional prescritor (mínimo 20 caracteres).",
+            codigo: "SAFETY_JUSTIFICATION_REQUIRED",
+            alertas: alertasCriticos
+        });
+    }
+
+    const safetyRegistrado = [...achados];
+    if (alertasCriticos.length) {
+        safetyRegistrado.push({
+            nivel: "INFO",
+            regra: "justificativa_seguranca",
+            mensagem: "Justificativa clínica registrada pelo profissional prescritor.",
+            contexto: {
+                usuario: req.user.usuario,
+                justificativa: justificativaSeguranca,
+                registradoEm: new Date().toISOString()
+            }
+        });
+    }
 
     const consulta = {
         id: Date.now(),
@@ -856,7 +879,7 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
         medicacao: prescricao.medicacao,
         obs: prescricao.obs,
         triagemId: triagem?.id || null,
-        safety: achados,
+        safety: safetyRegistrado,
         createdAt: new Date().toISOString(),
         createdBy: req.user.usuario,
         status: "finalizado"
@@ -1242,20 +1265,14 @@ app.get("/farmacia/prescricoes", requireAuth(["medico", "cardiologist", "farmaci
     })));
 });
 
-app.post("/farmacia/dispensar", requireAuth(["farmacia", "medico", "cardiologist"]), (req, res) => {
-    const db = readDB();
-    const consulta = (db.consultas || []).find(c => Number(c.id) === Number(req.body.consultaId));
-    if (!consulta) return res.status(404).json({ erro: "Prescrição não encontrada" });
-    const critico = (consulta.safety || []).find(s => s.nivel === "CRITICO");
-    if (critico && !req.body.revisadoPor) {
-        return res.status(409).json({ erro: "Prescrição com alerta CRÍTICO requer revisão registrada antes da dispensação", alerta: critico });
-    }
-    consulta.dispensado = true;
-    consulta.dispensadoPor = req.user.usuario;
-    consulta.dispensadoEm = new Date().toISOString();
-    writeDB(db);
-    audit(req, "dispensacao", { consultaId: consulta.id, pacienteCpf: consulta.pacienteCpf });
-    res.json({ ok: true, consulta });
+app.post("/farmacia/dispensar", requireAuth(["farmacia"]), (req, res) => {
+    // The current data model stores medication as free text and has no
+    // prescription-item, batch/expiry, FEFO or transactional stock ledger.
+    // Do not claim a medicine was dispensed until those safeguards exist.
+    return res.status(501).json({
+        erro: "Dispensação temporariamente bloqueada até existir prescrição estruturada e baixa transacional por lote/validade.",
+        codigo: "DISPENSING_REQUIRES_STRUCTURED_ITEMS"
+    });
 });
 
 app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"]), (req, res) => {

@@ -97,20 +97,20 @@ async function main() {
     body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Teste de bloqueio de alergia' }),
   });
   assertCondition(blockedPrescription.response.status === 409, `Prescrição com alerta crítico deveria exigir justificativa: HTTP ${blockedPrescription.response.status}`);
-  assertCondition(blockedPrescription.body?.codigo === 'SAFETY_JUSTIFICATION_REQUIRED', 'Bloqueio clínico deveria identificar justificativa obrigatória');
+  assertCondition(blockedPrescription.body?.codigo === 'CRITICAL_SAFETY_BLOCKED', 'Alerta crítico deve bloquear a prescrição até revisão clínica estruturada');
 
-  const justifiedPrescription = await request('/consulta', {
+  const attemptedOverride = await request('/consulta', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
-    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Teste de justificativa', justificativaSeguranca: 'Justificativa sintética para validar o fluxo de revisão profissional.' }),
+    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Tentativa sintética de override', justificativaSeguranca: 'Texto de justificativa não substitui revisão clínica estruturada.' }),
   });
-  assertCondition(justifiedPrescription.response.ok, `Justificativa válida deveria ser registrada no fluxo de prescrição: HTTP ${justifiedPrescription.response.status}`);
-  assertCondition((justifiedPrescription.body.safety || []).some(item => item.regra === 'justificativa_seguranca' && item.contexto?.usuario === 'ci.medico'), 'Justificativa deve registrar o usuário autenticado e ficar no registro de segurança');
+  assertCondition(attemptedOverride.response.status === 409, `Justificativa textual não deve liberar alerta crítico: HTTP ${attemptedOverride.response.status}`);
+  assertCondition(attemptedOverride.body?.codigo === 'CRITICAL_SAFETY_BLOCKED', 'Override textual de alerta crítico deve continuar bloqueado');
 
   const doctorDispense = await request('/farmacia/dispensar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
-    body: JSON.stringify({ consultaId: justifiedPrescription.body.id }),
+    body: JSON.stringify({ consultaId: 999999 }),
   });
   assertCondition(doctorDispense.response.status === 403, `Médico prescritor não deve dispensar: HTTP ${doctorDispense.response.status}`);
 
@@ -124,7 +124,7 @@ async function main() {
   const guardedDispense = await request('/farmacia/dispensar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
-    body: JSON.stringify({ consultaId: justifiedPrescription.body.id, revisadoPor: 'usuario-forjado' }),
+    body: JSON.stringify({ consultaId: 999999, revisadoPor: 'usuario-forjado' }),
   });
   assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
   assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');

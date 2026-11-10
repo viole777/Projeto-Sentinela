@@ -33,7 +33,7 @@ As alterações abaixo foram reunidas de PRs anteriores e commits de consolidaç
 | XSS legado | Valores não confiáveis escapados nas telas clínicas alteradas | Não equivale a varredura completa de XSS no frontend |
 | Armazenamento em produção | Inicialização sem `DATABASE_URL` bloqueada em produção | Persistência atual ainda precisa ser transacional e awaitable |
 | Alergias | Agregação de fontes do perfil e da triagem; valor vazio/“nenhuma” não deve mascarar alergia já registrada | Correspondência textual não substitui uma base clínica validada |
-| Prescrição e dispensação | Alertas críticos exigem justificativa no fluxo atual; dispensação retorna 501 enquanto faltarem itens estruturados, lote, validade e baixa transacional | A justificativa não constitui validação clínica nem autorização universal de override |
+| Prescrição e dispensação | Alertas críticos exigem justificativa no fluxo atual; dispensação retorna 501 enquanto faltarem itens estruturados, lote, validade e baixa transacional | Nenhuma justificativa textual substitui revisão clínica estruturada |
 | Segredos | Adicionado workflow de varredura do histórico Git com Gitleaks | Resultado da varredura deve ser revisado; segredo histórico exige rotação e, quando aplicável, saneamento do histórico |
 | Documentação de acesso | Removidas credenciais públicas de demonstração e proposta escolar obsoleta | Verificar screenshots, issues, seeds e histórico Git |
 | Dependências | Removidos adaptadores não utilizados e atualizadas dependências com advisories identificados | Reexecutar auditoria e revisar dependências transitivas |

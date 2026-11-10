@@ -19,7 +19,8 @@ async function main() {
   try {
     const users = [
       { username: 'admin', name: 'CI Test Administrator', role: 'admin', password },
-      { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', password: process.env.TEST_TRIAGE_PASSWORD }
+      { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', password: process.env.TEST_TRIAGE_PASSWORD },
+      { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', password: process.env.TEST_DOCTOR_PASSWORD || password }
     ];
 
     for (const user of users) {

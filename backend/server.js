@@ -710,47 +710,42 @@ app.get("/triagens", requireAuth(["medico", "cardiologist", "triagem"]), (req, r
     res.json(db.triagens);
 });
 
-//delete triagem (para apagar da lista do medico)
-app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
-    const db = readDB();
-
-    const triagemId = req.query.id;
-    if (!triagemId) return res.status(400).json({ erro: "id é obrigatório" });
-
-    const idNum = Number(triagemId);
-
-    const triagemRemovida = (db.triagens || []).find(t => Number(t.id) === idNum);
-    const pacienteCpf = triagemRemovida?.pacienteCpf;
-
-    // remove triagem
-    db.triagens = (db.triagens || []).filter(t => Number(t.id) !== idNum);
-
-    // remove consultas vinculadas (se existirem)
-    db.consultas = (db.consultas || []).filter(c => Number(c.triagemId) !== idNum);
-
-    // opcional: remove atendimentos/imagem associados por CPF + remove arquivos do uploads
-    if (pacienteCpf) {
-        const removidos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === String(pacienteCpf));
-        // tenta apagar as imagens físicas
-        removidos.forEach(a => {
-            const img = a.imagem;
-            if (!img) return;
-            const imgRel = String(img).replace(/^\/uploads\//, "").replace(/^uploads\//, "");
-            const imgPath = path.join(UPLOADS_DIR, imgRel);
-            try {
-                if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-            } catch (_) {
-                // ignora falhas de delete
-            }
-        });
-
-        db.atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) !== String(pacienteCpf));
+// Encerramento da triagem preserva o histórico clínico e seus vínculos.
+app.post("/triagem/:id/encerrar", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const role = String(req.user?.role || req.user?.tipo || "").toLowerCase();
+    if (!["medico", "cardiologist"].includes(role)) {
+        return res.status(403).json({ erro: "Somente profissionais médicos podem encerrar uma triagem." });
     }
 
+    const motivo = String(req.body.motivo || "").trim();
+    if (motivo.length < 10 || motivo.length > 500) {
+        return res.status(400).json({ erro: "Informe um motivo de encerramento entre 10 e 500 caracteres." });
+    }
 
+    const db = readDB();
+    const triagem = (db.triagens || []).find(t => String(t.id) === String(req.params.id));
+    if (!triagem) return res.status(404).json({ erro: "Triagem não encontrada." });
+    if (String(triagem.status || "").toLowerCase() === "encerrada") {
+        return res.status(409).json({ erro: "Esta triagem já está encerrada." });
+    }
+
+    triagem.status = "encerrada";
+    triagem.motivoEncerramento = motivo;
+    triagem.encerradaPor = req.user.usuario;
+    triagem.encerradaEm = new Date().toISOString();
 
     writeDB(db);
-    res.json({ ok: true });
+    audit(req, "triagem_encerrada", { triagemId: triagem.id, motivo });
+    return res.json({ ok: true, triagem });
+});
+
+// Exclusão física de triagem e de registros vinculados é proibida.
+app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    res.setHeader("Allow", "GET, POST");
+    return res.status(405).json({
+        erro: "Triagens são registros clínicos históricos e não podem ser excluídas. Use o fluxo de encerramento.",
+        codigo: "CLINICAL_RECORD_IMMUTABLE"
+    });
 });
 
 

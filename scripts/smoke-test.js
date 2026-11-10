@@ -82,6 +82,29 @@ async function main() {
   const sessionCookie = getCookieHeader(loginResponse.headers.get('set-cookie'));
   assertCondition(sessionCookie, 'Cookie de sessão não retornado no login');
 
+  const doctorLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.medico', senha: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_ADMIN_PASSWORD }),
+  });
+  assertCondition(doctorLogin.response.ok, `Login médico de CI falhou: ${JSON.stringify(doctorLogin.body)}`);
+  const doctorCookie = getCookieHeader(doctorLogin.response.headers.get('set-cookie'));
+  assertCondition(doctorCookie, 'Cookie de sessão não retornado para médico');
+
+  const blockedTriageDelete = await request('/triagem?id=999999', {
+    method: 'DELETE',
+    headers: { Cookie: doctorCookie },
+  });
+  assertCondition(blockedTriageDelete.response.status === 405, `Exclusão física de triagem deveria ser bloqueada: HTTP ${blockedTriageDelete.response.status}`);
+  assertCondition(blockedTriageDelete.body?.codigo === 'CLINICAL_RECORD_IMMUTABLE', 'Bloqueio de exclusão deveria identificar registro clínico imutável');
+
+  const missingClosureReason = await request('/triagem/999999/encerrar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ motivo: 'curto' }),
+  });
+  assertCondition(missingClosureReason.response.status === 400, `Encerramento sem justificativa adequada deveria ser rejeitado: HTTP ${missingClosureReason.response.status}`);
+
   const adminSafetyRules = await request('/safety/regras', { headers: { Cookie: sessionCookie } });
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
 

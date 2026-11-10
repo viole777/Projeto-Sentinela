@@ -18,14 +18,27 @@ function safetyCheck({ paciente, triagem, prescricao }) {
     let db = {};
     try { db = readDB() || {}; } catch (_) {}
     const rules = { ...DEFAULT_RULES, ...(db.safetyRules || {}) };
-    const alergiaOriginal = triagem?.alergia || paciente?.alergias || "";
-    const alergiaTxt = norm(alergiaOriginal);
+    const allergyValues = [
+        paciente?.alergias,
+        paciente?.perfil?.alergias,
+        triagem?.alergia
+    ].flatMap(value => Array.isArray(value) ? value : [value]);
+    const noAllergyValues = new Set([
+        "", "-", "nenhuma", "nenhum", "sem alergias",
+        "nao informada", "não informada", "nao informado", "não informado"
+    ]);
+    const allergyTerms = [...new Set(allergyValues
+        .flatMap(value => String(value ?? "").split(/[,;/]+/))
+        .map(term => term.trim())
+        .filter(term => term.length >= 3 && !noAllergyValues.has(norm(term))))];
+    const alergiaOriginal = allergyTerms.join(", ");
     const medTxt = norm(prescricao?.medicacao);
 
-    // 1. Alergia x medicação registrada.
-    if (rules.alergia && alergiaTxt && !["nenhuma", "-"].includes(alergiaTxt) && medTxt) {
-        const termos = alergiaTxt.split(/[,;/]+/).map(term => term.trim()).filter(Boolean);
-        if (termos.some(term => term.length >= 3 && medTxt.includes(term))) {
+    // 1. Agrega perfil e triagem: um campo "nenhuma" ou vazio nunca apaga
+    // uma alergia já registrada em outra fonte disponível.
+    if (rules.alergia && allergyTerms.length && medTxt) {
+        const termos = allergyTerms.map(norm);
+        if (termos.some(term => medTxt.includes(term))) {
             alertas.push({
                 nivel: "CRITICO",
                 regra: "alergia",

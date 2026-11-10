@@ -85,6 +85,23 @@ async function main() {
   const adminSafetyRules = await request('/safety/regras', { headers: { Cookie: sessionCookie } });
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
 
+  const blockedModuleRead = await request('/protocolos', { headers: { Cookie: sessionCookie } });
+  assertCondition(blockedModuleRead.response.status === 501, `Módulo sem API específica deveria responder 501: HTTP ${blockedModuleRead.response.status}`);
+  assertCondition(blockedModuleRead.body?.codigo === 'MODULE_NOT_IMPLEMENTED', 'Módulo não implementado deveria explicar o bloqueio');
+
+  const blockedModuleWrite = await request('/protocolos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ protocolo: 'registro genérico não deve ser persistido' }),
+  });
+  assertCondition(blockedModuleWrite.response.status === 501, `CRUD genérico não deveria aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
+
+  const blockedModuleDelete = await request('/protocolos/123', {
+    method: 'DELETE',
+    headers: { Cookie: sessionCookie },
+  });
+  assertCondition(blockedModuleDelete.response.status === 501, `CRUD genérico não deveria permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
+
   const triageLogin = await request('/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

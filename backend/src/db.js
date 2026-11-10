@@ -243,8 +243,7 @@ function readDB() {
 
 // Mesma assinatura de sempre — grava no Postgres quando DATABASE_URL estiver
 // definido. A sincronização é serializada para evitar duplicar registros novos.
-// Se o Postgres falhar (credenciais/offline), mantém um espelho em db.json para
-// o fluxo de desenvolvimento não perder dados.
+// Se o PostgreSQL falhar, a gravação não é confirmada; o health check expõe a falha.
 function writeDB(data) {
   if (!usingPostgres()) {
     writeJSON(data);

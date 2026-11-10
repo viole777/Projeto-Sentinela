@@ -853,7 +853,6 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
             alertas: alertasCriticos
         });
     }
-    const safetyRegistrado = [...achados];
 
     const consulta = {
         id: Date.now(),

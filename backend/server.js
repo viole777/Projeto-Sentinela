@@ -76,6 +76,14 @@ app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res,
 
 // Browser navigation to legacy module URLs must enter the React shell.
 // API fetches accepting JSON continue to the real handlers below.
+function isHtmlDocumentNavigation(req) {
+    const accept = String(req.get("accept") || "");
+    // Accept: */* é comum em fetch/clients HTTP e não deve ser tratado como
+    // navegação do navegador. Só redirecionamos documentos HTML explícitos.
+    return /(?:^|,)\s*text\/html(?:\s*;|,|$)/i.test(accept)
+        && !/application\/json/i.test(accept);
+}
+
 const LEGACY_PAGE_ROUTES = {
   "/dashboard": "/app/dashboard", "/pacientes": "/app/pacientes",
   "/triagem": "/app/triagem", "/atendimentos": "/app/consultas",
@@ -113,7 +121,7 @@ const LEGACY_PAGE_ROUTES = {
   "/safety/regras": "/app/safety-engine"
 };
 app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
+    if (!hasFrontendV2 || !isHtmlDocumentNavigation(req) || /application\/json/i.test(req.get("accept") || "")) return next();
     const target = LEGACY_PAGE_ROUTES[req.path];
     if (target) return res.redirect(302, target);
     return next();
@@ -657,7 +665,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
         tontura: sint.tontura,
         palpitacoes: sint.palpitacoes,
         desmaio: sint.desmaio,
-        alergia: String(req.body.alergia || "nenhuma").trim(),
+        alergia: String(req.body.alergia ?? "").trim() || "não informada",
         risco,
         atencaoCardio: sinalCardioCritico,
         status: "aguardando_medico",
@@ -702,47 +710,42 @@ app.get("/triagens", requireAuth(["medico", "cardiologist", "triagem"]), (req, r
     res.json(db.triagens);
 });
 
-//delete triagem (para apagar da lista do medico)
-app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
-    const db = readDB();
-
-    const triagemId = req.query.id;
-    if (!triagemId) return res.status(400).json({ erro: "id é obrigatório" });
-
-    const idNum = Number(triagemId);
-
-    const triagemRemovida = (db.triagens || []).find(t => Number(t.id) === idNum);
-    const pacienteCpf = triagemRemovida?.pacienteCpf;
-
-    // remove triagem
-    db.triagens = (db.triagens || []).filter(t => Number(t.id) !== idNum);
-
-    // remove consultas vinculadas (se existirem)
-    db.consultas = (db.consultas || []).filter(c => Number(c.triagemId) !== idNum);
-
-    // opcional: remove atendimentos/imagem associados por CPF + remove arquivos do uploads
-    if (pacienteCpf) {
-        const removidos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) === String(pacienteCpf));
-        // tenta apagar as imagens físicas
-        removidos.forEach(a => {
-            const img = a.imagem;
-            if (!img) return;
-            const imgRel = String(img).replace(/^\/uploads\//, "").replace(/^uploads\//, "");
-            const imgPath = path.join(UPLOADS_DIR, imgRel);
-            try {
-                if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-            } catch (_) {
-                // ignora falhas de delete
-            }
-        });
-
-        db.atendimentos = (db.atendimentos || []).filter(a => String(a.pacienteCpf) !== String(pacienteCpf));
+// Encerramento da triagem preserva o histórico clínico e seus vínculos.
+app.post("/triagem/:id/encerrar", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    const role = String(req.user?.role || req.user?.tipo || "").toLowerCase();
+    if (!["medico", "cardiologist"].includes(role)) {
+        return res.status(403).json({ erro: "Somente profissionais médicos podem encerrar uma triagem." });
     }
 
+    const motivo = String(req.body.motivo || "").trim();
+    if (motivo.length < 10 || motivo.length > 500) {
+        return res.status(400).json({ erro: "Informe um motivo de encerramento entre 10 e 500 caracteres." });
+    }
 
+    const db = readDB();
+    const triagem = (db.triagens || []).find(t => String(t.id) === String(req.params.id));
+    if (!triagem) return res.status(404).json({ erro: "Triagem não encontrada." });
+    if (String(triagem.status || "").toLowerCase() === "encerrada") {
+        return res.status(409).json({ erro: "Esta triagem já está encerrada." });
+    }
+
+    triagem.status = "encerrada";
+    triagem.motivoEncerramento = motivo;
+    triagem.encerradaPor = req.user.usuario;
+    triagem.encerradaEm = new Date().toISOString();
 
     writeDB(db);
-    res.json({ ok: true });
+    audit(req, "triagem_encerrada", { triagemId: triagem.id, motivo });
+    return res.json({ ok: true, triagem });
+});
+
+// Exclusão física de triagem e de registros vinculados é proibida.
+app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
+    res.setHeader("Allow", "GET, POST");
+    return res.status(405).json({
+        erro: "Triagens são registros clínicos históricos e não podem ser excluídas. Use o fluxo de encerramento.",
+        codigo: "CLINICAL_RECORD_IMMUTABLE"
+    });
 });
 
 
@@ -842,6 +845,14 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
     // ── Safety Engine ──
     const achados = safetyCheck({ paciente, triagem, prescricao });
+    const alertasCriticos = achados.filter(item => item.nivel === "CRITICO");
+    if (alertasCriticos.length) {
+        return res.status(409).json({
+            erro: "Prescrição bloqueada: alertas críticos exigem revisão clínica estruturada e aprovada antes de prosseguir.",
+            codigo: "CRITICAL_SAFETY_BLOCKED",
+            alertas: alertasCriticos
+        });
+    }
 
     const consulta = {
         id: Date.now(),
@@ -1239,20 +1250,14 @@ app.get("/farmacia/prescricoes", requireAuth(["medico", "cardiologist", "farmaci
     })));
 });
 
-app.post("/farmacia/dispensar", requireAuth(["farmacia", "medico", "cardiologist"]), (req, res) => {
-    const db = readDB();
-    const consulta = (db.consultas || []).find(c => Number(c.id) === Number(req.body.consultaId));
-    if (!consulta) return res.status(404).json({ erro: "Prescrição não encontrada" });
-    const critico = (consulta.safety || []).find(s => s.nivel === "CRITICO");
-    if (critico && !req.body.revisadoPor) {
-        return res.status(409).json({ erro: "Prescrição com alerta CRÍTICO requer revisão registrada antes da dispensação", alerta: critico });
-    }
-    consulta.dispensado = true;
-    consulta.dispensadoPor = req.user.usuario;
-    consulta.dispensadoEm = new Date().toISOString();
-    writeDB(db);
-    audit(req, "dispensacao", { consultaId: consulta.id, pacienteCpf: consulta.pacienteCpf });
-    res.json({ ok: true, consulta });
+app.post("/farmacia/dispensar", requireAuth(["farmacia"]), (req, res) => {
+    // The current data model stores medication as free text and has no
+    // prescription-item, batch/expiry, FEFO or transactional stock ledger.
+    // Do not claim a medicine was dispensed until those safeguards exist.
+    return res.status(501).json({
+        erro: "Dispensação temporariamente bloqueada até existir prescrição estruturada e baixa transacional por lote/validade.",
+        codigo: "DISPENSING_REQUIRES_STRUCTURED_ITEMS"
+    });
 });
 
 app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"]), (req, res) => {

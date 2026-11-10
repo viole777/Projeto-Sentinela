@@ -58,6 +58,13 @@ async function main() {
     `Lista de profissionais deveria exigir autenticação: HTTP ${unauthorizedStaff.response.status}`
   );
 
+  const browserNavigation = await fetch(new URL('/profissionais', BASE_URL), {
+    headers: { Accept: 'text/html' },
+    redirect: 'manual',
+  });
+  assertCondition(browserNavigation.status === 302, `Navegação HTML deveria redirecionar para a SPA: HTTP ${browserNavigation.status}`);
+  assertCondition(browserNavigation.headers.get('location') === '/app/profissionais', 'Navegação HTML deveria apontar para /app/profissionais');
+
   const loginResult = await request('/login', {
     method: 'POST',
     headers: {
@@ -75,8 +82,86 @@ async function main() {
   const sessionCookie = getCookieHeader(loginResponse.headers.get('set-cookie'));
   assertCondition(sessionCookie, 'Cookie de sessão não retornado no login');
 
+  const doctorLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.medico', senha: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_ADMIN_PASSWORD }),
+  });
+  assertCondition(doctorLogin.response.ok, `Login médico de CI falhou: ${JSON.stringify(doctorLogin.body)}`);
+  const doctorCookie = getCookieHeader(doctorLogin.response.headers.get('set-cookie'));
+  assertCondition(doctorCookie, 'Cookie de sessão não retornado para médico');
+
+  const blockedPrescription = await request('/consulta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Teste de bloqueio de alergia' }),
+  });
+  assertCondition(blockedPrescription.response.status === 409, `Prescrição com alerta crítico deveria exigir justificativa: HTTP ${blockedPrescription.response.status}`);
+  assertCondition(blockedPrescription.body?.codigo === 'CRITICAL_SAFETY_BLOCKED', 'Alerta crítico deve bloquear a prescrição até revisão clínica estruturada');
+
+  const attemptedOverride = await request('/consulta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ pacienteCpf: '99999999999', diagnostico: 'Teste sintético', medicacao: 'penicilina', obs: 'Tentativa sintética de override', justificativaSeguranca: 'Texto de justificativa não substitui revisão clínica estruturada.' }),
+  });
+  assertCondition(attemptedOverride.response.status === 409, `Justificativa textual não deve liberar alerta crítico: HTTP ${attemptedOverride.response.status}`);
+  assertCondition(attemptedOverride.body?.codigo === 'CRITICAL_SAFETY_BLOCKED', 'Override textual de alerta crítico deve continuar bloqueado');
+
+  const doctorDispense = await request('/farmacia/dispensar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ consultaId: 999999 }),
+  });
+  assertCondition(doctorDispense.response.status === 403, `Médico prescritor não deve dispensar: HTTP ${doctorDispense.response.status}`);
+
+  const pharmacistLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.farmacia', senha: process.env.TEST_PHARMACY_PASSWORD || process.env.TEST_ADMIN_PASSWORD }),
+  });
+  assertCondition(pharmacistLogin.response.ok, `Login de farmácia de CI falhou: ${JSON.stringify(pharmacistLogin.body)}`);
+  const pharmacistCookie = getCookieHeader(pharmacistLogin.response.headers.get('set-cookie'));
+  const guardedDispense = await request('/farmacia/dispensar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ consultaId: 999999, revisadoPor: 'usuario-forjado' }),
+  });
+  assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
+  assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
+
+  const blockedTriageDelete = await request('/triagem?id=999999', {
+    method: 'DELETE',
+    headers: { Cookie: doctorCookie },
+  });
+  assertCondition(blockedTriageDelete.response.status === 405, `Exclusão física de triagem deveria ser bloqueada: HTTP ${blockedTriageDelete.response.status}`);
+  assertCondition(blockedTriageDelete.body?.codigo === 'CLINICAL_RECORD_IMMUTABLE', 'Bloqueio de exclusão deveria identificar registro clínico imutável');
+
+  const missingClosureReason = await request('/triagem/999999/encerrar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
+    body: JSON.stringify({ motivo: 'curto' }),
+  });
+  assertCondition(missingClosureReason.response.status === 400, `Encerramento sem justificativa adequada deveria ser rejeitado: HTTP ${missingClosureReason.response.status}`);
+
   const adminSafetyRules = await request('/safety/regras', { headers: { Cookie: sessionCookie } });
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
+
+  const blockedModuleRead = await request('/protocolos', { headers: { Cookie: sessionCookie } });
+  assertCondition(blockedModuleRead.response.status === 501, `Módulo sem API específica deveria responder 501: HTTP ${blockedModuleRead.response.status}`);
+  assertCondition(blockedModuleRead.body?.codigo === 'MODULE_NOT_IMPLEMENTED', 'Módulo não implementado deveria explicar o bloqueio');
+
+  const blockedModuleWrite = await request('/protocolos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ protocolo: 'registro genérico não deve ser persistido' }),
+  });
+  assertCondition(blockedModuleWrite.response.status === 501, `CRUD genérico não deveria aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
+
+  const blockedModuleDelete = await request('/protocolos/123', {
+    method: 'DELETE',
+    headers: { Cookie: sessionCookie },
+  });
+  assertCondition(blockedModuleDelete.response.status === 501, `CRUD genérico não deveria permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
 
   const triageLogin = await request('/login', {
     method: 'POST',

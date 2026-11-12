@@ -139,9 +139,6 @@ const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrat
 // backend/sessions.json no dev sem DATABASE_URL. Mesma API do Map —
 // get/set/delete continuam funcionando em todo o arquivo.
 const sessions = require("./src/sessions");
-// Ao reidratar uma sessão do banco, as permissões vêm das tabelas de RBAC:
-sessions.setPermissionLoader(permissionsForRole);
-
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const PASSWORD_KEY_LENGTH = 64;
 

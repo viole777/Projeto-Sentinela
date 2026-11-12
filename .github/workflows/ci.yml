@@ -44,6 +44,9 @@ jobs:
       - name: Check backend syntax
         run: npm run lint
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Create schema and import synthetic fixtures
         env:
           SENTINELA_FIXTURE_PATH: database/fixtures/demo-db.json
@@ -65,7 +68,7 @@ jobs:
 
       - name: Start application
         run: |
-          npm start > /tmp/sentinela.log 2>&1 &
+          node backend/server.js > /tmp/sentinela.log 2>&1 &
           echo $! > /tmp/sentinela.pid
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3000/health >/dev/null; then

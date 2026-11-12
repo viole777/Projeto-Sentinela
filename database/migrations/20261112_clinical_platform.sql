@@ -82,6 +82,19 @@ DROP TRIGGER IF EXISTS clinical_records_immutable ON clinical_records;
 CREATE TRIGGER clinical_records_immutable BEFORE UPDATE OR DELETE ON clinical_records
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_clinical_record_mutation();
 
+
+-- Legacy audit log is append-only as well. New events must be inserted;
+-- corrections/retention use a separate governed archive, never UPDATE/DELETE.
+CREATE OR REPLACE FUNCTION sentinela_reject_legacy_audit_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  RAISE EXCEPTION 'audit logs are append-only';
+END;
+$;
+DROP TRIGGER IF EXISTS audit_logs_append_only ON audit_logs;
+CREATE TRIGGER audit_logs_append_only BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_legacy_audit_mutation();
+
 CREATE TABLE IF NOT EXISTS clinical_audit_events (
   id BIGSERIAL PRIMARY KEY,
   actor_username TEXT NOT NULL,

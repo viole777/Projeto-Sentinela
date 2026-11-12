@@ -10,7 +10,7 @@ const scenarios = [
 ];
 for (const scenario of scenarios) {
   const script = 'const assert = require("node:assert/strict"); const db = require(' + JSON.stringify(dbPath) + '); assert.throws(() => db.readDB(), ' + scenario.expected.toString() + '); assert.throws(() => db.writeDB({ pacientes: [] }), /PostgreSQL obrigatório/);';
-  const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: { PATH: process.env.PATH, ...scenario.env } });
+  const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: { PATH: process.env.PATH, SENTINELA_DB_PATH: dbPath, ...scenario.env } });
   assert.equal(result.status, 0, scenario.name + ': ' + (result.stderr || result.stdout));
 }
 console.log('production storage fail-closed tests passed');

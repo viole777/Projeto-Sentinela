@@ -300,6 +300,15 @@ async function hydrate() {
 
 // Mesma assinatura de sempre — as rotas não mudam, mas a origem sim.
 function readDB() {
+  if (process.env.NODE_ENV === 'production') {
+    if (!usingPostgres()) {
+      throw new Error('DATABASE_URL é obrigatório em produção; armazenamento JSON foi bloqueado.');
+    }
+    if (!hydrated) {
+      throw new Error('PostgreSQL ainda não foi hidratado; leitura bloqueada para evitar fallback JSON em produção.');
+    }
+    return current;
+  }
   if (usingPostgres() && hydrated) return current;
   current = readJSON();
   return current;
@@ -309,6 +318,9 @@ function readDB() {
 // definido. A sincronização é serializada para evitar duplicar registros novos.
 // Se o PostgreSQL falhar, a gravação não é confirmada; o health check expõe a falha.
 function writeDB(data) {
+  if (process.env.NODE_ENV === 'production' && (!usingPostgres() || !hydrated)) {
+    throw new Error('PostgreSQL obrigatório e hidratado antes de qualquer gravação em produção; armazenamento JSON bloqueado.');
+  }
   if (!usingPostgres()) {
     writeJSON(data);
     current = data;

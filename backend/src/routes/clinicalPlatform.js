@@ -123,13 +123,16 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  });
  router.post('/api/v1/professional-registry',requirePermission('professionals.registry.write'),async(req,res,next)=>{
   if(!usingPostgres())return unavailable(res);const b=req.body||{};
-  if(!Number.isInteger(Number(b.userId))||!CNS_RE.test(String(b.cns||''))||!CBO_RE.test(String(b.cbo||''))||!String(b.unitId||'').trim())return res.status(400).json({erro:'Informe usuário, CNS de 15 dígitos, CBO de 6 dígitos e unidade.'});
-  try{const r=await getPool().query('INSERT INTO professional_registry(user_id,cns,cbo,unit_id,council_type,council_number,council_state,cnes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(user_id) DO UPDATE SET cns=EXCLUDED.cns,cbo=EXCLUDED.cbo,unit_id=EXCLUDED.unit_id,council_type=EXCLUDED.council_type,council_number=EXCLUDED.council_number,council_state=EXCLUDED.council_state,cnes=EXCLUDED.cnes,active=TRUE,updated_at=NOW() RETURNING id,user_id,cns,cbo,unit_id,active',
-   [Number(b.userId),String(b.cns),String(b.cbo),String(b.unitId).trim(),b.councilType||null,b.councilNumber||null,b.councilState||null,b.cnes||null]);return res.status(201).json({professional:r.rows[0]});}
-  catch(e){return next(e);}
- });
-
- router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=>{
+  if(!Number.isInteger(Number(b.userId))||Number(b.userId)<1||!CNS_RE.test(String(b.cns||''))||!CBO_RE.test(String(b.cbo||''))||!String(b.unitId||'').trim())return res.status(400).json({erro:'Informe usuário, CNS de 15 dígitos, CBO de 6 dígitos e unidade.'});
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const r=await client.query('INSERT INTO professional_registry(user_id,cns,cbo,unit_id,council_type,council_number,council_state,cnes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(user_id) DO UPDATE SET cns=EXCLUDED.cns,cbo=EXCLUDED.cbo,unit_id=EXCLUDED.unit_id,council_type=EXCLUDED.council_type,council_number=EXCLUDED.council_number,council_state=EXCLUDED.council_state,cnes=EXCLUDED.cnes,active=TRUE,updated_at=NOW() RETURNING id,user_id,cns,cbo,unit_id,active',
+    [Number(b.userId),String(b.cns),String(b.cbo),String(b.unitId).trim(),b.councilType||null,b.councilNumber||null,b.councilState||null,b.cnes||null]);
+   await audit(req,client,'create','professional_registry',r.rows[0].id,null,{userId:Number(b.userId),unitId:String(b.unitId),cbo:String(b.cbo)});
+   await client.query('COMMIT');return res.status(201).json({professional:r.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   try{const r=await getPool().query('SELECT b.id,b.code,b.status,b.patient_cpf,b.patient_name,b.occupied_since,w.name AS ward FROM beds b LEFT JOIN wards w ON w.id=b.ward_id WHERE b.unit_id=$1 ORDER BY w.name,b.code',[unitOf(req)]);return res.json({items:r.rows});}
   catch(e){return next(e);}

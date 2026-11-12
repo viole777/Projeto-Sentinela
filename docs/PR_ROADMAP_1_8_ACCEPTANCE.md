@@ -89,3 +89,9 @@ A PR pode preparar adaptadores, contratos, testes, documentação e controles, m
 - Isso não conclui as fases 1, 2, 3 ou 5: auditoria legada, confirmação transacional de gravações, migração TypeScript, MFA, autorização contextual e testes BOLA/IDOR ainda exigem implementação e validação.
 - Safety Engine, frontend completo, pentest, validação clínica, LGPD/jurídico, infraestrutura e recuperação de desastre continuam pendentes até haver código e evidências próprias.
 - Nenhuma execução local dos testes foi possível por esta integração; a aprovação depende do CI da PR.
+
+### Persistência transacional (incremento adicional)
+- A sincronização do snapshot legado para PostgreSQL agora usa uma única transação com `BEGIN/COMMIT`; falhas executam `ROLLBACK` e sempre liberam o cliente.
+- O método aceita um pool injetável para testes determinísticos de commit/rollback.
+- `tests/db-transaction.test.js` cobre sucesso, rollback e liberação do cliente e integra `lint`/`test:unit`.
+- Limite: isto torna atômica a sincronização do snapshot, mas não substitui a migração das mutações clínicas para repositórios/transações por operação nem resolve a confirmação assíncrona dos handlers legados.

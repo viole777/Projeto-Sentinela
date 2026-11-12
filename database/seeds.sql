@@ -23,7 +23,7 @@ ON CONFLICT (name) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON
-  (r.name = 'admin') OR
+  (r.name = 'admin' AND p.name IN ('dashboard.read','audit.read','reports.read')) OR
   (r.name IN ('cardiologist', 'medico') AND p.name IN (
     'dashboard.read','patients.read','patients.write','appointments.read','triage.read',
     'consultations.read','consultations.write','exams.read','exams.write',

@@ -39,7 +39,7 @@ As alterações abaixo foram reunidas de PRs anteriores e commits de consolidaç
 | Dependências | Removidos adaptadores não utilizados e atualizadas dependências com advisories identificados | Reexecutar auditoria e revisar dependências transitivas |
 | Monitoramento de dependências | Dependabot e workflow de auditoria somente leitura | Confirmar execução e cobertura dos diretórios/lockfiles |
 
-### Complemento de implementação — PR #43
+### Complemento de implementação — PR #54
 
 A branch `refactor/permissions-and-code-cleanup` acrescenta uma primeira correção estrutural do controle de acesso:
 

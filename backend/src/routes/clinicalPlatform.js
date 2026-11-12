@@ -98,7 +98,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   if(!cpf&&!cns)return res.status(400).json({erro:'Informe CPF ou CNS para a busca.'});
   if(cpf&&!CPF_RE.test(cpf))return res.status(400).json({erro:'CPF inválido.'});
   if(cns&&!CNS_RE.test(cns))return res.status(400).json({erro:'CNS deve conter 15 dígitos.'});
-  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin FROM patients WHERE ($1::text IS NOT NULL AND cpf=$1) OR ($2::text IS NOT NULL AND cns=$2) LIMIT 2',[cpf||null,cns||null]);
+  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin FROM patients WHERE unit_id=$3 AND (($1::text IS NOT NULL AND cpf=$1) OR ($2::text IS NOT NULL AND cns=$2)) LIMIT 2',[cpf||null,cns||null,unitOf(req)]);
    const client=await getPool().connect();try{await audit(req,client,'read','patient_identity',r.rows[0]?.id||null,r.rows[0]?.cpf||null,{source:'patient-identity-search'});}finally{client.release();}
    return res.json({patients:r.rows});
   }catch(e){return next(e);}
@@ -110,8 +110,8 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   const b=req.body||{};if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
-   const r=await client.query("UPDATE patients SET name=COALESCE($2,name),cns=COALESCE(NULLIF($3,''),cns),birth_date=COALESCE($4::date,birth_date),sex_at_birth=COALESCE($5,sex_at_birth),gender_identity=COALESCE($6,gender_identity),race_color=COALESCE($7,race_color),mother_name=COALESCE($8,mother_name),municipality_code=COALESCE($9,municipality_code),cnes_origin=COALESCE($10,cnes_origin),updated_at=NOW() WHERE cpf=$1 RETURNING id,name,cpf,cns,birth_date",
-    [cpf,b.name||null,cns||null,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null]);
+   const r=await client.query("UPDATE patients SET name=COALESCE($2,name),cns=COALESCE(NULLIF($3,''),cns),birth_date=COALESCE($4::date,birth_date),sex_at_birth=COALESCE($5,sex_at_birth),gender_identity=COALESCE($6,gender_identity),race_color=COALESCE($7,race_color),mother_name=COALESCE($8,mother_name),municipality_code=COALESCE($9,municipality_code),cnes_origin=COALESCE($10,cnes_origin),updated_at=NOW() WHERE cpf=$1 AND unit_id=$11 RETURNING id,name,cpf,cns,birth_date",
+    [cpf,b.name||null,cns||null,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req)]);
    if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado. Cadastre o paciente pela recepção antes de completar a identidade.'});}
    await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{fields:['name','cns','birthDate','sexAtBirth','genderIdentity','raceColor','motherName','municipalityCode','cnesOrigin'].filter(k=>b[k]!==undefined)});
    await client.query('COMMIT');return res.status(201).json({patient:r.rows[0]});

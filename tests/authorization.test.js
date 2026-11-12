@@ -6,11 +6,11 @@ const path = require('node:path');
 const { createAuthMiddleware } = require('../backend/src/middleware/auth');
 const { ROLE_PERMISSIONS, syncBuiltInRolePermissions } = require('../backend/src/db');
 
-function makeHarness({ role = 'medico', effective = [], loader = async () => effective, sessionPermissions = [] } = {}) {
+function makeHarness({ role = 'medico', effective = [], loader = async () => effective, sessionPermissions = [], getSession, touchSession } = {}) {
   const session = { role, tipo: role, permissions: sessionPermissions, expiresAt: 0 };
   const sessions = {
-    async get(token) { return token === 'valid-token' ? session : undefined; },
-    touch(token, value) { value.touched = true; }
+    async get(token) { return getSession ? getSession(token, session) : (token === 'valid-token' ? session : undefined); },
+    async touch(token, value) { if (touchSession) return touchSession(token, value); value.touched = true; }
   };
   const middleware = createAuthMiddleware({
     sessions,
@@ -109,6 +109,27 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
     const { middleware } = makeHarness();
     const result = await invoke(middleware.requirePermission('consultations.write'), 'sentinela_session=%ZZ');
     assert.equal(result.res.statusCode, 401, 'malformed session cookie must not authenticate');
+  }
+
+  {
+    const { middleware } = makeHarness({
+      getSession: async () => { throw new Error('database unavailable'); }
+    });
+    const result = await invoke(middleware.requirePermission('consultations.write'));
+    assert.equal(result.res.statusCode, 503, 'session-store failures must not be misreported as invalid credentials');
+    assert.equal(result.res.body.codigo, 'SESSION_STORE_UNAVAILABLE');
+  }
+
+  {
+    const { middleware } = makeHarness({
+      role: 'medico',
+      effective: ['consultations.write'],
+      touchSession: async () => { throw new Error('database unavailable'); }
+    });
+    const result = await invoke(middleware.requirePermission('consultations.write'));
+    assert.equal(result.res.statusCode, 503, 'failed session renewal must stop the protected request');
+    assert.equal(result.res.body.codigo, 'SESSION_REFRESH_UNAVAILABLE');
+    assert.equal(result.nextCalled, false);
   }
 
   console.log('authorization tests passed');

@@ -302,41 +302,52 @@ INSERT INTO roles (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO permissions (name) VALUES
-  ('dashboard.read'), ('patients.read'), ('patients.write'),
+  ('dashboard.read'), ('patients.read'), ('patients.write'), ('records.read'),
   ('appointments.read'), ('appointments.write'),
-  ('triage.read'), ('triage.write'),
-  ('consultations.read'), ('consultations.write'),
-  ('exams.read'), ('exams.write'),
-  ('prescriptions.read'), ('prescriptions.write'), ('prescriptions.dispense'),
-  ('estoque.read'), ('estoque.write'),
-  ('internacoes.read'), ('internacoes.write'),
-  ('alerts.read'), ('alerts.resolve'),
-  ('ai.read'), ('audit.read'), ('reports.read')
+  ('triage.read'), ('triage.write'), ('triage.close'),
+  ('consultations.read'), ('consultations.write'), ('consultations.finalize'),
+  ('exams.read'), ('exams.write'), ('exams.results.write'),
+  ('prescriptions.read'), ('prescriptions.write'), ('prescriptions.dispense'), ('prescriptions.validate'),
+  ('inventory.read'), ('inventory.write'), ('internacoes.read'), ('internacoes.write'),
+  ('alerts.read'), ('alerts.resolve'), ('ai.read'), ('audit.read'), ('reports.read'),
+  ('medications.read'), ('beds.read'), ('hospitalizations.read'), ('hospitalizations.write'),
+  ('files.read'), ('queue.call'), ('homecare.read'), ('homecare.write'), ('homecare.complete'),
+  ('purchasing.read'), ('users.read'), ('users.write'),
+  ('professionals.read'), ('professionals.write'), ('roles.read'), ('roles.write'),
+  ('permissions.read'), ('units.read'), ('units.write'),
+  ('settings.manage'), ('modules.manage'), ('safety.configure')
 ON CONFLICT (name) DO NOTHING;
 
--- role_permissions: mesmo mapa do ROLE_PERMISSIONS em backend/src/db.js
--- (admin recebe todas; os demais recebem exatamente as permissões do cargo).
+-- RBAC de menor privilégio: o administrador técnico não recebe permissões
+-- clínicas por herdar um curinga. Ações clínicas exigem um papel assistencial.
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON
-  (r.name = 'admin') OR
-  (r.name IN ('cardiologist', 'medico') AND p.name IN (
-    'dashboard.read','patients.read','patients.write','appointments.read','triage.read',
-    'consultations.read','consultations.write','exams.read','exams.write',
-    'prescriptions.read','prescriptions.write','alerts.read','alerts.resolve',
-    'ai.read','audit.read','reports.read')) OR
+  (r.name = 'admin' AND p.name IN (
+    'dashboard.read','users.read','users.write','professionals.read','professionals.write',
+    'roles.read','roles.write','permissions.read','units.read','units.write',
+    'settings.manage','modules.manage','safety.configure','audit.read','reports.read')) OR
+  (r.name IN ('cardiologist','medico') AND p.name IN (
+    'dashboard.read','patients.read','patients.write','records.read','appointments.read',
+    'triage.read','triage.close','consultations.read','consultations.write','consultations.finalize',
+    'exams.read','exams.write','exams.results.write','prescriptions.read','prescriptions.write',
+    'prescriptions.validate','alerts.read','alerts.resolve','ai.read','audit.read','reports.read',
+    'medications.read','beds.read','hospitalizations.read','hospitalizations.write','files.read','queue.call')) OR
   (r.name = 'enfermagem' AND p.name IN (
     'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
-    'internacoes.read','internacoes.write','exams.read','alerts.read')) OR
+    'internacoes.read','internacoes.write','exams.read','alerts.read','beds.read','files.read','queue.call')) OR
   (r.name = 'triagem' AND p.name IN (
-    'dashboard.read','patients.read','appointments.read','triage.read','triage.write','alerts.read')) OR
+    'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
+    'alerts.read','files.read','queue.call')) OR
   (r.name = 'farmacia' AND p.name IN (
     'dashboard.read','patients.read','prescriptions.read','prescriptions.dispense',
-    'estoque.read','estoque.write','alerts.read')) OR
+    'inventory.read','inventory.write','alerts.read','medications.read','purchasing.read','files.read')) OR
   (r.name IN ('atendimento','recepcao') AND p.name IN (
-    'dashboard.read','patients.read','patients.write','appointments.read','appointments.write')) OR
+    'dashboard.read','patients.read','patients.write','appointments.read','appointments.write',
+    'homecare.read','homecare.write','homecare.complete','files.read','queue.call')) OR
   (r.name = 'direcao' AND p.name IN (
-    'dashboard.read','reports.read','audit.read','patients.read','alerts.read'))
+    'dashboard.read','reports.read','audit.read','alerts.read','alerts.resolve','inventory.read',
+    'users.read','professionals.read','roles.read','units.read'))
 ON CONFLICT DO NOTHING;
 
 INSERT INTO wards (name) VALUES ('CARDIOLOGIA'), ('UTI CARDIOVASCULAR')

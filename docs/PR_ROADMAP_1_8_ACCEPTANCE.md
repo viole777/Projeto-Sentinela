@@ -108,3 +108,7 @@ A PR pode preparar adaptadores, contratos, testes, documentação e controles, m
 - Testes cobrem falha de leitura, falha de escrita e preservação do histórico.
 - A sincronização legada deixa de atualizar eventos existentes por conflito de ID; a migração instala bloqueio SQL contra UPDATE/DELETE em audit_logs.
 - Limite importante: handlers legados ainda chamam a auditoria fora da mesma transação da mutação. Somente o escritor de auditoria que recebe o mesmo cliente PostgreSQL da operação clínica pode oferecer atomicidade; essa migração por handler continua pendente.
+
+### Frontend v2: módulos sem fluxo operacional (implementado como ocultação)
+- As rotas e entradas de navegação que renderizavam `PlaceholderPage` foram removidas do shell v2 para evitar apresentar telas sem operação como módulos disponíveis.
+- Permanecem acessíveis os fluxos que já usam páginas próprias ou `AdvancedModulePage`; isso não comprova aceite E2E nem validação por usuários.

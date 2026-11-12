@@ -132,7 +132,6 @@ export function AppShell() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const canUseAi = canAccessAiSummary();
   const visibleGroups = useMemo(() => nav.map(group => ({
     ...group,
     items: group.items.filter(([label, path]) =>

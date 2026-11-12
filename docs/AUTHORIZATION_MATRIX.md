@@ -1,6 +1,6 @@
 # Matriz de autorização — Sentinela
 
-**Status:** primeira camada RBAC implementada na PR #43. Não representa certificação nem autorização clínica.
+**Status:** primeira camada RBAC implementada na PR #54. Não representa certificação nem autorização clínica.
 
 ## Princípios
 

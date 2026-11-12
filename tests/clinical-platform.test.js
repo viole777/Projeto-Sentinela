@@ -80,7 +80,7 @@ assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catal
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');
-assert.match(migration,/patients\\.identity\\.sensitive\\.write/, 'migration must seed the elevated identifier permission');
+assert.match(migration,/patients\.identity\.sensitive\.write/, 'migration must seed the elevated identifier permission');
 assert.match(migration,/supervisor_cadastro/, 'migration must provision the dedicated supervisor role');
 assert.match(server,/clinicalPlatform\"\)\.createClinicalPlatformRouter/, 'versioned clinical router must be mounted');
 assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.read'));

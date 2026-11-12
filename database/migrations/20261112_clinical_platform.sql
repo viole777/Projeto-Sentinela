@@ -2,6 +2,14 @@
 -- Apply explicitly with: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/20261112_clinical_platform.sql
 -- Reference data and external services remain unavailable until their official datasets/contracts are loaded.
 
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS professional TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS specialty TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'scheduled';
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS appointment_mode TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS created_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_appointments_unit_schedule ON appointments(unit_id,scheduled_at);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS cns VARCHAR(15);
 ALTER TABLE beds ADD COLUMN IF NOT EXISTS unit_id TEXT;
 ALTER TABLE wards ADD COLUMN IF NOT EXISTS unit_id TEXT;

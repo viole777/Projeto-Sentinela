@@ -193,7 +193,7 @@ export function AppShell() {
         <button className="sent-icon-button sent-mobile-menu" aria-label="Abrir menu" onClick={() => setMobileOpen(true)}><Menu size={21}/></button>
         <div className="sent-topbar-context"><span className="sent-context-kicker">SENTINELA / OPERAÇÕES</span><strong>{activeLabel}</strong></div>
         <div className="sent-topbar-actions">
-          <button className="sent-icon-button sent-notification" aria-label="Notificações" onClick={() => navigate('/app/notificacoes')}><Bell size={19}/><i/></button>
+          {canAccessPermission(PERMISSION_BY_PATH['/app/notificacoes']) && <button className="sent-icon-button sent-notification" aria-label="Notificações" onClick={() => navigate('/app/notificacoes')}><Bell size={19}/><i/></button>}
           <button className="sent-icon-button" onClick={toggleDark} aria-label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}>{dark ? <Sun size={19}/> : <Moon size={19}/>}</button>
           <div className="sent-user-chip"><span className="sent-user-avatar">{(sessionStorage.getItem('sentinelaNome') || 'P').trim().charAt(0).toUpperCase()}</span><div><strong>{sessionStorage.getItem('sentinelaNome') || 'Profissional'}</strong><small>{(sessionStorage.getItem('sentinelaRole') || '').toLowerCase() === 'admin' ? 'Administrador' : 'Acesso profissional'}</small></div></div>
         </div>

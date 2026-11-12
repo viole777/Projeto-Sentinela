@@ -116,7 +116,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
 router.post('/api/v1/patient-identities',requirePermission('patients.identity.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const cpf=normalizeCpf(req.body?.cpf),cns=String(req.body?.cns||'').replace(/\D/g,'');
-  if(!CPF_RE.test(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'CPF ou CNS em formato inválido.'});
+  if(!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'CPF ou CNS em formato inválido.'});
   const b=req.body||{};if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
@@ -133,6 +133,9 @@ router.post('/api/v1/patient-identities',requirePermission('patients.identity.wr
   if(!Number.isInteger(Number(b.userId))||Number(b.userId)<1||!CNS_RE.test(String(b.cns||''))||!CBO_RE.test(String(b.cbo||''))||!String(b.unitId||'').trim())return res.status(400).json({erro:'Informe usuário, CNS de 15 dígitos, CBO de 6 dígitos e unidade.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
+   const cboState=await officialCodeState(client,'CBO',String(b.cbo));
+   if(!cboState.loaded){await client.query('ROLLBACK');return res.status(503).json({erro:'Catálogo CBO oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED',catalog:'CBO'});}
+   if(!cboState.valid){await client.query('ROLLBACK');return res.status(400).json({erro:'CBO não encontrado no catálogo oficial vigente.'});}
    const r=await client.query('INSERT INTO professional_registry(user_id,cns,cbo,unit_id,council_type,council_number,council_state,cnes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(user_id) DO UPDATE SET cns=EXCLUDED.cns,cbo=EXCLUDED.cbo,unit_id=EXCLUDED.unit_id,council_type=EXCLUDED.council_type,council_number=EXCLUDED.council_number,council_state=EXCLUDED.council_state,cnes=EXCLUDED.cnes,active=TRUE,updated_at=NOW() RETURNING id,user_id,cns,cbo,unit_id,active',
     [Number(b.userId),String(b.cns),String(b.cbo),String(b.unitId).trim(),b.councilType||null,b.councilNumber||null,b.councilState||null,b.cnes||null]);
    await audit(req,client,'create','professional_registry',r.rows[0].id,null,{userId:Number(b.userId),unitId:String(b.unitId),cbo:String(b.cbo)});
@@ -166,6 +169,8 @@ router.post('/api/v1/appointments/:id/status',requirePermission('appointments.ma
   try{await client.query('BEGIN');
    const old=await client.query('SELECT id,patient_cpf,status FROM appointments WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
    if(!old.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Agendamento não encontrado nesta unidade.'});}
+   const transitions={scheduled:['confirmed','checked_in','cancelled','no_show'],confirmed:['checked_in','cancelled','no_show'],checked_in:['in_progress','cancelled'],in_progress:['completed'],completed:[],cancelled:[],no_show:[]};
+   if(!(transitions[old.rows[0].status]||[]).includes(status)){await client.query('ROLLBACK');return res.status(409).json({erro:'Transição de estado não permitida.',codigo:'INVALID_APPOINTMENT_TRANSITION'});}
    const r=await client.query('UPDATE appointments SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);
    await audit(req,client,'update','appointment_status',id,old.rows[0].patient_cpf,{previous:old.rows[0].status,next:status});
    await client.query('COMMIT');return res.json({appointment:r.rows[0]});
@@ -239,7 +244,7 @@ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write
  });
  router.get('/api/v1/patient-consents',requirePermission('patients.identity.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const cpf=normalizeCpf(req.query.cpf||'');if(!CPF_RE.test(cpf))return res.status(400).json({erro:'Informe CPF válido.'});
+  const cpf=normalizeCpf(req.query.cpf||'');if(!validCpf(cpf))return res.status(400).json({erro:'Informe CPF válido.'});
   const client=await getPool().connect();
   try{const r=await client.query('SELECT id,patient_cpf,purpose,legal_basis,status,recorded_by,recorded_at,expires_at,evidence_ref FROM patient_consents WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY recorded_at DESC LIMIT 100',[cpf,unitOf(req)]);
    await audit(req,client,'read','patient_consent',null,cpf,{count:r.rowCount});
@@ -249,7 +254,7 @@ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write
 router.post('/api/v1/patient-consents',requirePermission('patients.identity.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
-  if(!CPF_RE.test(cpf)||!String(b.purpose||'').trim()||!String(b.legalBasis||'').trim()||!['granted','revoked','expired'].includes(b.status))return res.status(400).json({erro:'Paciente, finalidade, base legal e status válidos são obrigatórios.'});
+  if(!validCpf(cpf)||!String(b.purpose||'').trim()||!String(b.legalBasis||'').trim()||!['granted','revoked','expired'].includes(b.status))return res.status(400).json({erro:'Paciente, finalidade, base legal e status válidos são obrigatórios.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
    const patient=await client.query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
@@ -315,7 +320,7 @@ router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.ma
 
  router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const cpf=normalizeCpf(req.params.cpf);if(!CPF_RE.test(cpf))return res.status(400).json({erro:'CPF inválido.'});
+  const cpf=normalizeCpf(req.params.cpf);if(!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
   const client=await getPool().connect();
   try{
    const patient=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
@@ -440,7 +445,7 @@ router.post('/api/v1/:resource',async(req,res,next)=>{
  router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);const b=req.body||{};
   if(!String(b.medicationCode||'').trim()||!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Medicamento, lote, validade e quantidade positiva são obrigatórios.'});
-  try{const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_name,batch_number,expires_on,quantity_available',[b.medicationCode||null,String(b.medicationName).trim(),String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);return res.status(201).json({lot:r.rows[0]});}
+  try{const state=await officialCodeState(getPool(),'RENAME',String(b.medicationCode));if(!state.loaded)return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED',catalog:'RENAME'});if(!state.valid)return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_name,batch_number,expires_on,quantity_available',[b.medicationCode||null,String(b.medicationName).trim(),String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);return res.status(201).json({lot:r.rows[0]});}
   catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
  });
  router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescriptions.dispense'),async(req,res,next)=>{

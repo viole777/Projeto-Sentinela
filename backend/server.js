@@ -1565,6 +1565,13 @@ app.get("/health", async (req, res) => {
     }
 });
 
+// API clínica versionada: schemas específicos, escopo por unidade e trilha de auditoria append-only.
+app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
+    requirePermission,
+    getPool,
+    usingPostgres
+}));
+
 // APIs CRUD para módulos avançados ainda sem rota própria. As rotas já existentes
 // continuam tendo precedência; estes handlers são registrados antes do 404 da SPA.
 app.use(require("./src/routes/advancedModules")({

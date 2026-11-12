@@ -14,6 +14,8 @@ for (const route of menuPaths) {
   assert.ok(mappedPaths.has(route), `navigation route has no explicit permission: ${route}`);
 }
 assert.match(access, /if\s*\(!permission\)\s*return false/, 'missing permissions must fail closed');
+assert.match(access, /permission !== '\*' && permissions\.includes\(permission\)/, 'wildcard permissions must never grant frontend access');
+assert.doesNotMatch(access, /permissions\.includes\('\*'\)/, 'frontend must not treat wildcard as an authorization grant');
 assert.match(shell, /authReady\s*\?\s*<Outlet\/>/, 'protected pages must wait for server session permissions');
 assert.match(shell, /setAuthError\(status === 503/, 'authorization infrastructure failures must not be presented as an ordinary login failure');
 assert.match(app, /function Protected\(/, 'frontend routes must use a permission guard');

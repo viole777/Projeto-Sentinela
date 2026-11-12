@@ -11,7 +11,6 @@ type Triage = {
   pas?: number | null; pad?: number | null; fc?: number | null; spo2?: number | null;
   createdAt?: string;
 };
-type ApiResult<T> = { data: T | null; error: string };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {

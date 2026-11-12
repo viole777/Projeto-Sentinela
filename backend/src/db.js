@@ -904,9 +904,7 @@ async function syncAudit(pool, list) {
       await pool.query(
         `INSERT INTO audit_logs (id, username, role, action, details, happened_at)
          VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (id) DO UPDATE SET
-           username = EXCLUDED.username, role = EXCLUDED.role,
-           action = EXCLUDED.action, details = EXCLUDED.details`,
+         ON CONFLICT (id) DO NOTHING`,
         [id, ...base]
       );
     } else {

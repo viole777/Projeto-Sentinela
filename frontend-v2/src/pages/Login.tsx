@@ -54,6 +54,7 @@ export function Login({ mode: initial = 'login' }: { mode?: Mode }) {
       if (!response.ok) throw new Error(String(result.erro || 'Não foi possível autenticar. Verifique suas credenciais ou contate a administração.'));
       if (remember) localStorage.setItem('sentinelaIdentifier', username); else localStorage.removeItem('sentinelaIdentifier');
       sessionStorage.setItem('sentinelaRole', String(result.role ?? result.tipo ?? ''));
+      sessionStorage.setItem('sentinelaPermissions', JSON.stringify(Array.isArray(result.permissions) ? result.permissions : []));
       sessionStorage.setItem('sentinelaNome', String(result.nome ?? result.usuario ?? ''));
       navigate('/app/dashboard');
     } catch (e) {

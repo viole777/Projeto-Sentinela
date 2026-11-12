@@ -26,7 +26,7 @@ const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao de
 
 // Mesma consulta do requireAuth antigo: token → usuário → cargo.
 const SELECT_SESSION = `
-    SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
+    SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, COALESCE(r.name, u.role) AS role
     FROM sessions s JOIN users u ON u.id = s.user_id
     LEFT JOIN roles r ON r.id = u.role_id
     WHERE s.token = $1 AND u.active = TRUE LIMIT 1`;

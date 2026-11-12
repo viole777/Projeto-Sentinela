@@ -51,11 +51,11 @@ window.Sentinela = {
       ]],
       ["Gestão", [
         item("alertas", "alertas.html", "Alertas", "alerts.read"),
-        item("safety", "safety-engine.html", "Safety Engine", "alerts.read"),
+        item("safety", "safety-engine.html", "Safety Engine", "safety.configure"),
         item("relatorios", "relatorios.html", "Relatórios", "reports.read"),
-        item("profissionais", "profissionais.html", "Profissionais", "audit.read"),
+        item("profissionais", "profissionais.html", "Profissionais", "professionals.read"),
         item("auditoria", "auditoria.html", "Auditoria", "audit.read"),
-        item("config", "configuracoes.html", "Configurações", "dashboard.read")
+        item("config", "configuracoes.html", "Configurações", "settings.manage")
       ]]
     ];
 

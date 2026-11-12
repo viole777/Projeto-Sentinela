@@ -86,11 +86,11 @@ FOR EACH ROW EXECUTE FUNCTION sentinela_reject_clinical_record_mutation();
 -- Legacy audit log is append-only as well. New events must be inserted;
 -- corrections/retention use a separate governed archive, never UPDATE/DELETE.
 CREATE OR REPLACE FUNCTION sentinela_reject_legacy_audit_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $legacy_audit$
 BEGIN
   RAISE EXCEPTION 'audit logs are append-only';
 END;
-$;
+$legacy_audit$;
 DROP TRIGGER IF EXISTS audit_logs_append_only ON audit_logs;
 CREATE TRIGGER audit_logs_append_only BEFORE UPDATE OR DELETE ON audit_logs
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_legacy_audit_mutation();

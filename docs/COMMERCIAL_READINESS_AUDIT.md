@@ -47,7 +47,7 @@ A branch `refactor/permissions-and-code-cleanup` acrescenta uma primeira correç
 - O backend resolve permissões no servidor; valores armazenados no navegador não autorizam operações.
 - O papel `admin` foi convertido em administrador técnico de menor privilégio, sem acesso clínico implícito por curinga.
 - A matriz de papéis embutidos é reconciliada no PostgreSQL durante a inicialização, revogando concessões antigas dos papéis padrão.
-- Sessões PostgreSQL são revalidadas no banco em cada requisição protegida, incluindo estado ativo e papel atual.
+- Sessões PostgreSQL são revalidadas no banco em cada requisição protegida, incluindo estado ativo e papel atual; o login só emite o cookie após persistir a sessão, e a fila assíncrona antiga de upsert foi removida.
 - Navegação e controles de escrita dos frontends passam a usar permissões explícitas.
 - Foram removidos auxiliares sem uso (`sessionCan`, `mapUserRecord`, revalidação antiga em cache e carregador duplicado de permissões), um terminador redundante e a dependência `cors`, não utilizada no código.
 

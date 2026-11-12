@@ -334,10 +334,14 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   if(!Number.isSafeInteger(id)||!Number.isFinite(quantity)||quantity<=0)return res.status(400).json({erro:'Prescrição e quantidade válida são obrigatórias.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
-   const p=await client.query("SELECT id,patient_cpf,data FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 FOR SHARE",[id,unitOf(req)]);
+   const p=await client.query("SELECT id,patient_cpf,data FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 FOR UPDATE",[id,unitOf(req)]);
    if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição não encontrada.'});}
-   const approved=await client.query("SELECT id FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 AND status='approved' ORDER BY id DESC LIMIT 1",[id]);
-   if(!approved.rowCount){await client.query('ROLLBACK');return res.status(409).json({erro:'Prescrição ainda não foi validada por profissional habilitado.',codigo:'PRESCRIPTION_NOT_VALIDATED'});}
+   const approved=await client.query("SELECT id,status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 ORDER BY id DESC LIMIT 1",[id]);
+   if(!approved.rowCount||approved.rows[0].status!=='approved'){await client.query('ROLLBACK');return res.status(409).json({erro:'A última decisão profissional não autoriza a dispensação.',codigo:'PRESCRIPTION_NOT_VALIDATED'});}
+   const prescribed=Number(p.rows[0].data.quantity||0);
+   const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1',[id]);
+   const already=Number(prior.rows[0].dispensed||0);
+   if(prescribed>0&&already+quantity>prescribed){await client.query('ROLLBACK');return res.status(409).json({erro:'Quantidade solicitada excede o saldo da prescrição.',codigo:'PRESCRIPTION_QUANTITY_EXCEEDED'});}
    const med=String(p.rows[0].data.medicationName||'').trim();
    const lots=await client.query('SELECT id,batch_number,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 AND medication_name=$2 AND expires_on>=CURRENT_DATE AND quantity_available>0 ORDER BY expires_on ASC,id ASC FOR UPDATE',[unitOf(req),med]);
    const total=lots.rows.reduce((sum,row)=>sum+Number(row.quantity_available),0);if(total<quantity){await client.query('ROLLBACK');return res.status(409).json({erro:'Estoque válido insuficiente para dispensação.',codigo:'INSUFFICIENT_VALID_STOCK'});}

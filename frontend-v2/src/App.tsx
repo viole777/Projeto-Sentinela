@@ -10,7 +10,7 @@ import { PERMISSION_BY_PATH, canAccessPermission } from './access';
 
 function Protected({ path, children }: { path: string; children: JSX.Element }) {
   const permission = PERMISSION_BY_PATH[path];
-  return canAccessPermission(permission) ? children : <Navigate to="/app/dashboard" replace />;
+  return canAccessPermission(permission) ? children : <Navigate to={canAccessPermission('dashboard.read') ? '/app/dashboard' : '/login'} replace />;
 }
 function AdminAdvanced({ page }: { page: string }) {
   if (page === 'config-safety') return <PlaceholderPage page="safety-engine" />;

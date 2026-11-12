@@ -21,7 +21,8 @@
 | `enfermagem` | Triagem, internação, exames e rotinas de enfermagem |
 | `triagem` | Cadastro e leitura operacional de triagem, alertas e fila |
 | `farmacia` | Prescrições, dispensação, estoque e compras |
-| `atendimento` / `recepcao` | Cadastro/atendimento, agendamentos e acompanhamento domiciliar |
+| `atendimento` / `recepcao` | Cadastro e edição de dados básicos, agendamentos e acompanhamento domiciliar; sem alteração de CPF/CNS |
+| `supervisor_cadastro` | Papel excepcional para correção de identificadores, concedido somente após autorização institucional formal |
 | `direcao` | Relatórios, auditoria e visões administrativas limitadas |
 
 ## Permissões por domínio
@@ -29,7 +30,7 @@
 | Domínio | Permissões |
 |---|---|
 | Painel | `dashboard.read` |
-| Pacientes | `patients.read`, `patients.write`, `records.read` |
+| Pacientes | `patients.read`, `patients.write`, `patients.identity.read`, `patients.identity.write`, `patients.identity.sensitive.write`, `records.read` |
 | Agendamento | `appointments.read`, `appointments.write` |
 | Triagem | `triage.read`, `triage.write`, `triage.close` |
 | Consultas | `consultations.read`, `consultations.write`, `consultations.finalize` |
@@ -42,6 +43,14 @@
 | Auditoria e relatórios | `audit.read`, `reports.read` |
 | Fila e arquivos | `queue.call`, `files.read` |
 | Administração | `users.read`, `users.write`, `professionals.read`, `professionals.write`, `roles.read`, `roles.write`, `permissions.read`, `units.read`, `units.write`, `settings.manage`, `modules.manage`, `safety.configure` |
+
+## Regra de identidade cadastral
+
+- `patients.identity.write` autoriza somente os campos básicos: nome, data de nascimento, sexo ao nascer, identidade de gênero, raça/cor, nome da mãe, município e CNES de origem.
+- `recepcao` e `atendimento` recebem leitura e edição básica de identidade, mas **não** recebem `patients.identity.sensitive.write`.
+- Alterações de CNS exigem `patients.identity.sensitive.write`. Essa permissão é concedida apenas ao papel dedicado `supervisor_cadastro`, que não é atribuído automaticamente a usuários.
+- Toda alteração bem-sucedida gera evento `update` em `clinical_audit_events`. Tentativas sem autorização geram `access_denied`. Os metadados registram nomes dos campos e motivo, nunca os valores novos/antigos de CPF ou CNS.
+- CPF permanece imutável nesta rota porque é chave relacional em tabelas clínicas legadas. Mesmo o papel especial recebe HTTP 409 para tentativa de troca de CPF, com evento de auditoria; a alteração só poderá ser habilitada após reindexação transacional e testes de todas as referências.
 
 ## Enforcement no backend
 

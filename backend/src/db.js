@@ -29,8 +29,8 @@ const ROLE_PERMISSIONS = {
     "exams.read", "exams.write", "exams.results.write",
     "prescriptions.read", "prescriptions.write", "prescriptions.validate",
     "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
-    "medications.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
-    "files.read", "queue.call"
+    "medications.read", "inventory.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   medico: [
     "dashboard.read", "patients.read", "patients.write", "records.read",
@@ -54,7 +54,7 @@ const ROLE_PERMISSIONS = {
   farmacia: [
     "dashboard.read", "patients.read", "prescriptions.read",
     "prescriptions.dispense", "inventory.read", "inventory.write",
-    "alerts.read", "medications.read", "purchasing.read", "files.read"
+    "alerts.read", "medications.read", "purchasing.read", "reports.read", "files.read"
   ],
   atendimento: [
     "dashboard.read", "patients.read", "patients.write",

@@ -1,82 +1,97 @@
 'use strict';
 
 /**
- * Middleware de autenticação e autorização.
- *
- * O módulo recebe suas dependências explicitamente para não criar dependência
- * circular com server.js. Assim, as regras HTTP ficam separadas da inicialização.
+ * Autenticação e autorização RBAC.
+ * A sessão identifica o usuário; as permissões são resolvidas no servidor
+ * em cada requisição protegida para refletir revogações e mudanças de perfil.
  */
-function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, usingPostgres, sessionTtlMs }) {
+function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, sessionTtlMs }) {
     function parseCookies(header = "") {
-        try {
-            return Object.fromEntries((header || "").split(";").map(part => {
-                const index = part.indexOf("=");
-                if (index < 0) return ["", ""];
-                const key = part.slice(0, index).trim();
-                const rawValue = part.slice(index + 1).trim();
-                return [key, decodeURIComponent(rawValue)];
-            }).filter(([key]) => key));
-        } catch (_) {
-            return {};
+        const cookies = {};
+        for (const part of String(header || "").split(";")) {
+            const index = part.indexOf("=");
+            if (index < 0) continue;
+            const key = part.slice(0, index).trim();
+            const rawValue = part.slice(index + 1).trim();
+            if (!key) continue;
+            try {
+                cookies[key] = decodeURIComponent(rawValue);
+            } catch (_) {
+                // Um cookie malformado não deve invalidar os demais.
+            }
         }
+        return cookies;
+    }
+
+    async function loadSession(req, res) {
+        const token = parseCookies(req.headers.cookie).sentinela_session;
+        const session = token ? await sessions.get(token) : null;
+        if (!session) {
+            res.status(401).json({ erro: "Autenticação necessária" });
+            return null;
+        }
+        return { token, session };
+    }
+
+    function refreshSession(token, session, req) {
+        session.expiresAt = Date.now() + sessionTtlMs;
+        sessions.touch(token, session);
+        req.user = session;
     }
 
     function requireAuth(roles = []) {
         return async (req, res, next) => {
-            const token = parseCookies(req.headers.cookie).sentinela_session;
-            const session = token ? await sessions.get(token) : null;
-
-            if (!session) {
-                return res.status(401).json({ erro: "Autenticação necessária" });
+            try {
+                const auth = await loadSession(req, res);
+                if (!auth) return;
+                const role = normalizeRole(auth.session.role || auth.session.tipo);
+                const allowed = roles.map(normalizeRole);
+                // A permissão "*" NÃO substitui uma restrição explícita de papel.
+                if (allowed.length && !allowed.includes(role)) {
+                    return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
+                }
+                refreshSession(auth.token, auth.session, req);
+                return next();
+            } catch (error) {
+                return next(error);
             }
-
-            const sessionRole = normalizeRole(session.role || session.tipo);
-            const sessionPerms = Array.isArray(session.permissions)
-                ? session.permissions
-                : await permissionsForRole(sessionRole);
-            const requestedRoles = roles.map(normalizeRole);
-
-            const hasWildcardPermission = sessionPerms.includes("*");
-            const roleAllowed =
-                requestedRoles.length === 0 ||
-                hasWildcardPermission ||
-                requestedRoles.includes(sessionRole);
-
-            if (roles.length && !roleAllowed) {
-                return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
-            }
-
-            session.expiresAt = Date.now() + sessionTtlMs;
-            sessions.touch(token, session);
-            req.user = session;
-            next();
         };
     }
 
-    function requirePermission(...perms) {
+    function requirePermission(...requiredPermissions) {
         return async (req, res, next) => {
-            const token = parseCookies(req.headers.cookie).sentinela_session;
-            const session = token ? await sessions.get(token) : null;
+            try {
+                const auth = await loadSession(req, res);
+                if (!auth) return;
+                if (!requiredPermissions.length || requiredPermissions.some(p => typeof p !== "string" || !p.trim())) {
+                    return res.status(403).json({ erro: "Política de autorização inválida" });
+                }
 
-            if (!session) {
-                return res.status(401).json({ erro: "Autenticação necessária" });
+                const role = normalizeRole(auth.session.role || auth.session.tipo);
+                let effective;
+                try {
+                    effective = await permissionsForRole(role);
+                } catch (_) {
+                    return res.status(503).json({
+                        erro: "Não foi possível validar as permissões. Tente novamente.",
+                        codigo: "AUTHORIZATION_UNAVAILABLE"
+                    });
+                }
+                if (!Array.isArray(effective)) effective = [];
+
+                const allowed = requiredPermissions.every(permission =>
+                    effective.includes("*") || effective.includes(permission)
+                );
+                if (!allowed) {
+                    return res.status(403).json({ erro: "Sem permissão para esta operação" });
+                }
+
+                auth.session.permissions = effective;
+                refreshSession(auth.token, auth.session, req);
+                return next();
+            } catch (error) {
+                return next(error);
             }
-
-            let effective = session.permissions;
-            if (usingPostgres()) {
-                effective = await permissionsForRole(session.role || session.tipo);
-            }
-            effective = Array.isArray(effective) ? effective : [];
-
-            const ok = perms.every(p => effective.includes("*") || effective.includes(p));
-            if (!ok) {
-                return res.status(403).json({ erro: "Sem permissão para esta operação" });
-            }
-
-            session.expiresAt = Date.now() + sessionTtlMs;
-            sessions.touch(token, session);
-            req.user = session;
-            next();
         };
     }
 

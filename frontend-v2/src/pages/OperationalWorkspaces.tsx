@@ -13,11 +13,10 @@ type Triage = {
 };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...init,
-    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...(init?.headers || {}) }
-  });
+  const headers = new Headers(init?.headers);
+  headers.set('Accept', 'application/json');
+  if (init?.body) headers.set('Content-Type', 'application/json');
+  const response = await fetch(url, { credentials: 'include', ...init, headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(body.erro || body.error || `Falha na operação (HTTP ${response.status}).`));
   return body as T;

@@ -732,7 +732,7 @@ app.get("/consultas/fila", requirePermission("consultations.queue.read"), (req, 
 
 // Encerramento da triagem preserva o histórico clínico e seus vínculos.
 app.post("/triagem/:id/encerrar", requirePermission("triage.close"), (req, res) => {
-    const role = String(req.user?.role || req.user?.tipo || "").toLowerCase();
+    const role = normalizeRole(req.user?.role || req.user?.tipo || "");
     if (!["triagem", "enfermagem"].includes(role)) {
         return res.status(403).json({ erro: "Somente os perfis responsáveis pelo acolhimento podem encerrar uma triagem." });
     }

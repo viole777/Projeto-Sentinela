@@ -19,7 +19,7 @@ INSERT INTO permissions (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- role_permissions: mesmo mapa do ROLE_PERMISSIONS em backend/src/db.js
--- (admin recebe todas; os demais recebem exatamente as permissões do cargo).
+-- (cada papel recebe apenas as permissões explicitamente listadas; admin técnico não recebe acesso clínico).
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON

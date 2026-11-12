@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS clinical_audit_events (
   actor_username TEXT NOT NULL,
   actor_role TEXT NOT NULL,
   unit_id TEXT NOT NULL,
-  action TEXT NOT NULL CHECK (action IN ('create','read','export','sign_request','access_denied')),
+  action TEXT NOT NULL CHECK (action IN ('create','read','update','export','sign_request','access_denied')),
   resource_type TEXT NOT NULL,
   resource_id BIGINT,
   patient_ref_hash CHAR(64),
@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS clinical_audit_events (
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   happened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE clinical_audit_events DROP CONSTRAINT IF EXISTS clinical_audit_events_action_check;
+ALTER TABLE clinical_audit_events ADD CONSTRAINT clinical_audit_events_action_check CHECK (action IN ('create','read','update','export','sign_request','access_denied'));
 CREATE INDEX IF NOT EXISTS idx_clinical_audit_patient_hash ON clinical_audit_events(patient_ref_hash, happened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clinical_audit_actor ON clinical_audit_events(actor_username, happened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clinical_audit_unit ON clinical_audit_events(unit_id, happened_at DESC);

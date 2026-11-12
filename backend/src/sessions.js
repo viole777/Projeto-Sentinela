@@ -83,7 +83,7 @@ class SessionStore {
             const session = {
                 usuario: row.username, nome: row.name, email: row.email,
                 tipo: row.role, role: row.role, theme: row.theme || "light",
-                expiresAt, pg: true, checkedAt: Date.now()
+                expiresAt
             };
             this.map.set(token, session);
             return session;
@@ -111,7 +111,6 @@ class SessionStore {
     // nunca chegava ao banco e um token ativo "morria" no restart.
     touch(token, session) {
         if (!token || !session) return;
-        session.checkedAt = Date.now();
         this.map.set(token, session);
         if (usingPostgres()) {
             this.track(this.pgQuery(
@@ -204,7 +203,6 @@ class SessionStore {
         for (const [token, entry] of [...this.pending]) {
             this.pending.delete(token);
             const p = this.upsert(token, entry.session)
-                .then(() => { entry.session.pg = true; })
                 .catch(() => {
                     entry.attempts += 1;
                     if (entry.attempts < UPSERT_MAX_ATTEMPTS) this.pending.set(token, entry);

@@ -296,7 +296,26 @@ router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.ma
   }catch(e){return next(e);}
  });
 
- router.get('/api/v1/:resource',async(req,res,next)=>{
+ router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const cpf=normalizeCpf(req.params.cpf);if(!CPF_RE.test(cpf))return res.status(400).json({erro:'CPF inválido.'});
+  const client=await getPool().connect();
+  try{
+   const patient=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
+   if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
+   const [allergies,conditions,records,alerts]=await Promise.all([
+    client.query('SELECT allergy,created_at FROM patient_allergies WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
+    client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
+    client.query("SELECT id,resource_type,status,data,created_at FROM clinical_records WHERE patient_cpf=$1 AND unit_id=$2 AND resource_type IN ('soap','vitals','diagnosis','prescription','exam_order','maternal_child','chronic_care','immunization') ORDER BY id DESC LIMIT 30",[cpf,unitOf(req)]),
+    client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf])
+   ]);
+   await audit(req,client,'read','patient_summary',patient.rows[0].id,cpf,{recordCount:records.rowCount});
+   const latestSoap=records.rows.find(row=>row.resource_type==='soap');
+   const medications=records.rows.filter(row=>row.resource_type==='prescription');
+   return res.json({patient:patient.rows[0],allergies:allergies.rows,activeConditions:conditions.rows,medications,familyHistory:latestSoap?.data?.familyHistory||null,activeAlerts:alerts.rows,recentClinicalRecords:records.rows});
+  }catch(e){return next(e);}finally{client.release();}
+});
+router.get('/api/v1/:resource',async(req,res,next)=>{
   const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
   return requirePermission(def.permission)(req,res,async error=>{
    if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

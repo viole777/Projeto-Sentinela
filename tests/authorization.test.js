@@ -43,7 +43,7 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
     const statements = [];
     let released = false;
     const client = {
-      async query(sql) { statements.push(String(sql).trim().split(/\\s+/)[0].toUpperCase()); return { rows: [] }; },
+      async query(sql) { statements.push(String(sql).trim().split(' ')[0].toUpperCase()); return { rows: [] }; },
       release() { released = true; }
     };
     await syncBuiltInRolePermissions({ async connect() { return client; } });

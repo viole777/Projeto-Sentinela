@@ -170,12 +170,6 @@ function permissionsFor(role) {
     return ROLE_PERMISSIONS[normalized?.toLowerCase()] || [];
 }
 
-function sessionCan(session, perm) {
-    if (!session) return false;
-    const perms = session.permissions || permissionsFor(session.role || session.tipo);
-    return perms.includes("*") || perms.includes(perm);
-}
-
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString("hex");
     const hash = crypto.scryptSync(String(password), salt, PASSWORD_KEY_LENGTH).toString("hex");
@@ -207,16 +201,21 @@ function passwordMatches(password, storedPassword) {
 
 async function permissionsForRole(role) {
     const normalized = normalizeRole(role);
-    if (!usingPostgres()) return permissionsFor(normalized);
-    try {
-        const pool = getPool();
-        const r = await pool.query(
-            `SELECT p.name FROM permissions p
-             JOIN role_permissions rp ON rp.permission_id = p.id
-             JOIN roles r ON r.id = rp.role_id WHERE r.name = $1`, [normalized]);
-        if (r.rows.length) return r.rows.map(x => x.name);
-    } catch (_) {}
-    return permissionsFor(normalized);
+    if (!usingPostgres()) return [...permissionsFor(normalized)];
+
+    const pool = getPool();
+    if (!pool) throw new Error("Banco de permissões indisponível");
+    const result = await pool.query(
+        `SELECT p.name
+         FROM roles r
+         JOIN role_permissions rp ON rp.role_id = r.id
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE r.name = $1
+         ORDER BY p.name`,
+        [normalized]
+    );
+    // Sem mapeamento no banco significa sem privilégios, nunca fallback permissivo.
+    return result.rows.map(row => row.name);
 }
 
 // ── RBAC novo: requirePermission("prescriptions.write") ──
@@ -228,34 +227,15 @@ const { parseCookies, requireAuth, requirePermission } = createAuthMiddleware({
     sessions,
     normalizeRole,
     permissionsForRole,
-    usingPostgres,
     sessionTtlMs: SESSION_TTL_MS
 });
 
 //uploads: registrar a rota somente após requireAuth estar inicializado.
-app.use("/uploads", requireAuth(["admin", "medico", "triagem", "atendimento", "recepcao", "enfermagem", "farmacia"]), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
+app.use("/uploads", requirePermission("files.read"), express.static(UPLOADS_DIR, { index: false, maxAge: "1h" }));
 
 function validateCpf(cpf) {
     return /^\d{11}$/.test(String(cpf).replace(/\D/g, ""));
 }
-
-function mapUserRecord(user) {
-    const role = normalizeRole(user.role || user.tipo || "atendimento");
-    return {
-        id: user.id || user.usuario,
-        usuario: user.usuario,
-        nome: user.nome || user.usuario,
-        email: user.email || null,
-        role,
-        tipo: role,
-        setor: user.setor || null,
-        ativo: user.ativo !== false,
-        theme: user.theme || "light",
-        mustChangePassword: !!user.mustChangePassword,
-        permissions: Array.isArray(user.permissions) ? user.permissions : permissionsFor(role)
-    };
-}
-
 
 const MIME_TO_EXTENSION = {
     "image/jpeg": ".jpg",
@@ -332,7 +312,7 @@ app.post("/login", authRateLimit, async (req, res) => {
     }
 
     const role = normalizeRole(user.role || user.tipo || "atendimento");
-    const permissions = user.permissions || permissionsFor(role);
+    const permissions = await permissionsForRole(role);
 
     const token = crypto.randomBytes(32).toString("hex");
     const session = {
@@ -370,7 +350,7 @@ app.get("/me", async (req, res) => {
         email: session.email || null, role, tipo: role,
         setor: session.setor || null,
         theme: session.theme || "light",
-        permissions: session.permissions || permissionsFor(role)
+        permissions: await permissionsForRole(role)
     });
 });
 
@@ -483,7 +463,7 @@ app.post("/primeiro-acesso", passwordRateLimit, (req, res) => {
 });
 
 // Redefinição administrativa de senha: a nova senha nunca é devolvida nem registrada em logs.
-app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLimit, async (req, res) => {
+app.put("/admin/usuarios/:usuario/senha", requirePermission("users.write"), passwordRateLimit, async (req, res) => {
     const username = String(req.params.usuario || "").trim().toLowerCase();
     const { novaSenha, confirmar } = req.body || {};
     if (!username || typeof novaSenha !== "string" || novaSenha.length < 8 || novaSenha.length > 128 || novaSenha !== confirmar) {
@@ -507,7 +487,7 @@ app.put("/admin/usuarios/:usuario/senha", requireAuth(["admin"]), passwordRateLi
 
 //atendimento/admissão (cria paciente por CPF; evita duplicados) + salva imagem
 // Perfil cardiovascular estendido (item 1 da spec de cardiologia).
-app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.single("foto"), (req, res) => {
+app.post("/atendimento", requirePermission("appointments.write"), uploadFoto.single("foto"), (req, res) => {
     const db = readDB();
 
     const nome = String(req.body.nome || "").trim();
@@ -602,7 +582,7 @@ app.post("/atendimento", requireAuth(["atendimento", "recepcao"]), uploadFoto.si
 
 
 //triagem com prioridade automatica (vincula paciente via cpf e salva pacienteId)
-app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
+app.post("/triagem", requirePermission("triage.write"), (req, res) => {
     const db = readDB();
 
     const pacienteCpf = String(req.body.pacienteCpf || "").trim();
@@ -692,7 +672,7 @@ app.post("/triagem", requireAuth(["triagem"]), (req, res) => {
 
 
 //triagem para medico (com dados do atendimento via CPF)
-app.get("/triagem", requireAuth(["admin", "medico", "cardiologist", "triagem", "enfermagem", "atendimento", "recepcao"]), (req, res) => {
+app.get("/triagem", requirePermission("triage.read"), (req, res) => {
     const db = readDB();
 
     const triagens = (db.triagens || []).map(t => {
@@ -705,13 +685,13 @@ app.get("/triagem", requireAuth(["admin", "medico", "cardiologist", "triagem", "
 
 
 //compatibilidade (algumas telas podem chamar /triagens)
-app.get("/triagens", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
+app.get("/triagens", requirePermission("triage.read"), (req, res) => {
     const db = readDB();
     res.json(db.triagens);
 });
 
 // Encerramento da triagem preserva o histórico clínico e seus vínculos.
-app.post("/triagem/:id/encerrar", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/triagem/:id/encerrar", requirePermission("triage.close"), (req, res) => {
     const role = String(req.user?.role || req.user?.tipo || "").toLowerCase();
     if (!["medico", "cardiologist"].includes(role)) {
         return res.status(403).json({ erro: "Somente profissionais médicos podem encerrar uma triagem." });
@@ -740,7 +720,7 @@ app.post("/triagem/:id/encerrar", requireAuth(["medico", "cardiologist"]), (req,
 });
 
 // Exclusão física de triagem e de registros vinculados é proibida.
-app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.delete("/triagem", requirePermission("triage.close"), (req, res) => {
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({
         erro: "Triagens são registros clínicos históricos e não podem ser excluídas. Use o fluxo de encerramento.",
@@ -750,20 +730,20 @@ app.delete("/triagem", requireAuth(["medico", "cardiologist"]), (req, res) => {
 
 
 //tabela de atendimentos por CPF (para triagem.html)
-app.get("/atendimentos", requireAuth(["atendimento", "triagem", "medico", "cardiologist"]), (req, res) => {
+app.get("/atendimentos", requirePermission("appointments.read"), (req, res) => {
     const db = readDB();
     const cpf = String(req.query.cpf || "").trim();
     const list = cpf ? db.atendimentos.filter(a => String(a.pacienteCpf) === cpf) : db.atendimentos;
     res.json(list);
 });
 
-app.get("/atendimentos-casa", requireAuth(["atendimento", "recepcao", "medico", "cardiologist", "triagem"]), (req, res) => {
+app.get("/atendimentos-casa", requirePermission("homecare.read"), (req, res) => {
     const db = readDB();
     const list = (db.atendimentosCasa || []).slice().reverse();
     res.json(list);
 });
 
-app.post("/atendimento-casa", requireAuth(["atendimento", "recepcao", "medico", "cardiologist"]), (req, res) => {
+app.post("/atendimento-casa", requirePermission("homecare.write"), (req, res) => {
     const db = readDB();
     const cpf = String(req.body.pacienteCpf || "").replace(/\D/g, "");
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -798,7 +778,7 @@ app.post("/atendimento-casa", requireAuth(["atendimento", "recepcao", "medico", 
     res.json(registro);
 });
 
-app.post("/atendimento-casa/:id/concluir", requireAuth(["atendimento", "recepcao", "medico", "cardiologist"]), (req, res) => {
+app.post("/atendimento-casa/:id/concluir", requirePermission("homecare.complete"), (req, res) => {
     const db = readDB();
     const registro = (db.atendimentosCasa || []).find(item => Number(item.id) === Number(req.params.id));
 
@@ -817,7 +797,7 @@ app.post("/atendimento-casa/:id/concluir", requireAuth(["atendimento", "recepcao
 
 //consulta (vincula paciente por cpf, se vier; senão tenta usar pacienteId)
 // Passa pelo Safety Engine antes de confirmar — sem diagnosticar, só aponta.
-app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/consulta", requirePermission("consultations.write"), (req, res) => {
     const db = readDB();
 
     const pacienteCpf = String(req.body.pacienteCpf || "").trim();
@@ -883,7 +863,7 @@ app.post("/consulta", requireAuth(["medico", "cardiologist"]), (req, res) => {
 });
 
 // prévia do Safety Engine (médico confere ANTES de confirmar a prescrição)
-app.post("/safety/preview", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/safety/preview", requirePermission("prescriptions.validate"), (req, res) => {
     const db = readDB();
     const cpf = String(req.body.pacienteCpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -897,7 +877,7 @@ app.post("/safety/preview", requireAuth(["medico", "cardiologist"]), (req, res) 
 });
 
 //finalizar atendimento (alta ou internar) e remover da triagem/painel
-app.post("/finalizar", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/finalizar", requirePermission("consultations.finalize"), (req, res) => {
     const db = readDB();
 
     const acao = String(req.body.acao || "").trim(); // "alta" | "internar"
@@ -970,7 +950,7 @@ app.post("/finalizar", requireAuth(["medico", "cardiologist"]), (req, res) => {
 });
 
 // prontuário integrado (paciente + triagens + consultas + atendimentos + alertas)
-app.get("/prontuario/:cpf", requireAuth(["medico", "cardiologist", "triagem"]), (req, res) => {
+app.get("/prontuario/:cpf", requirePermission("records.read"), (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").trim();
     const paciente = db.pacientes.find(p => String(p.cpf) === cpf);
@@ -984,7 +964,7 @@ app.get("/prontuario/:cpf", requireAuth(["medico", "cardiologist", "triagem"]), 
 });
 
 // lista de pacientes (para fila / emergência / busca)
-app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendimento", "recepcao"]), (req, res) => {
+app.get("/pacientes", requirePermission("patients.read"), (req, res) => {
     const db = readDB();
     const q = String(req.query.q || "").toLowerCase();
     let list = db.pacientes || [];
@@ -994,7 +974,7 @@ app.get("/pacientes", requireAuth(["medico", "cardiologist", "triagem", "atendim
 
 // ── IA assistente: resumo do prontuário + possíveis inconsistências ──
 // Não diagnostica. Aponta registros que merecem revisão pelo profissional.
-app.get("/ia/resumo/:cpf", requireAuth(["admin", "medico", "cardiologist"]), async (req, res) => {
+app.get("/ia/resumo/:cpf", requirePermission("ai.read"), async (req, res) => {
     const db = readDB();
     const cpf = String(req.params.cpf || "").replace(/\D/g, "");
     if (!/^\d{11}$/.test(cpf)) {
@@ -1017,7 +997,7 @@ app.get("/ia/resumo/:cpf", requireAuth(["admin", "medico", "cardiologist"]), asy
 });
 
 // ── Alertas ──
-app.get("/alertas", requireAuth(["medico", "cardiologist", "triagem", "enfermagem"]), (req, res) => {
+app.get("/alertas", requirePermission("alerts.read"), (req, res) => {
     const db = ensureTVShape(readDB());
     const nivel = String(req.query.nivel || "").toUpperCase();
     const soAbertos = String(req.query.abertos || "") === "1";
@@ -1027,7 +1007,7 @@ app.get("/alertas", requireAuth(["medico", "cardiologist", "triagem", "enfermage
     res.json(list.slice(0, 100));
 });
 
-app.post("/alertas/:id/resolver", requireAuth(["medico", "cardiologist", "direcao"]), (req, res) => {
+app.post("/alertas/:id/resolver", requirePermission("alerts.resolve"), (req, res) => {
     const db = readDB();
     const a = (db.alertas || []).find(x => Number(x.id) === Number(req.params.id));
     if (!a) return res.status(404).json({ erro: "Alerta não encontrado" });
@@ -1040,7 +1020,7 @@ app.post("/alertas/:id/resolver", requireAuth(["medico", "cardiologist", "direca
 });
 
 // ── Auditoria (trilha por API — sem DELETE) ──
-app.get("/auditoria", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/auditoria", requirePermission("audit.read"), (req, res) => {
     const db = readDB();
     res.json((db.auditoria || []).slice(-200).reverse());
 });
@@ -1071,7 +1051,7 @@ app.get("/tv/chamada", async (req, res) => {
     }
 });
 
-app.post("/tv/chamar", requireAuth(["admin", "medico", "cardiologist", "triagem", "atendimento", "recepcao", "enfermagem"]), async (req, res) => {
+app.post("/tv/chamar", requirePermission("queue.call"), async (req, res) => {
     try {
         const db = ensureTVShape(await store.readAll());
         const pacienteCpf = String(req.body.pacienteCpf || "").trim();
@@ -1118,7 +1098,7 @@ app.post("/logout", async (req, res) => {
 // ── Dashboard por cargo: centro de comando (muda conforme role) ──
 // triagem → fila/espera/alertas · cardiologista → consultas/exames/prontuários
 // farmacia → prescrições/estoque · direcao → indicadores/ocupação
-app.get("/dashboard", requireAuth([]), async (req, res) => {
+app.get("/dashboard", requirePermission("dashboard.read"), async (req, res) => {
     const db = ensureTVShape(await store.readAll());
     const role = req.user.role || req.user.tipo;
     const hoje = new Date().toISOString().slice(0, 10);
@@ -1184,7 +1164,7 @@ app.get("/dashboard", requireAuth([]), async (req, res) => {
 });
 
 //medicações (legado)
-app.get("/medicacoes", requireAuth(["medico", "cardiologist", "farmacia"]), (req, res) => {
+app.get("/medicacoes", requirePermission("medications.read"), (req, res) => {
     const db = readDB();
     res.json(db.consultas);
 });
@@ -1192,9 +1172,9 @@ app.get("/medicacoes", requireAuth(["medico", "cardiologist", "farmacia"]), (req
 // ── EXAMES (solicitar / pendentes / resultados) ──
 const TIPOS_EXAME = ["ECG", "Ecocardiograma", "Holter", "MAPA", "Teste ergométrico", "Cateterismo", "Angiografia", "Laboratorial"];
 
-app.get("/exames/tipos", requireAuth([]), (req, res) => res.json(TIPOS_EXAME));
+app.get("/exames/tipos", requirePermission("exams.read"), (req, res) => res.json(TIPOS_EXAME));
 
-app.post("/exames", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/exames", requirePermission("exams.write"), (req, res) => {
     const db = readDB();
     const normalizeCpf = value => String(value || "").replace(/\D/g, "");
     const cpf = normalizeCpf(req.body.pacienteCpf);
@@ -1215,7 +1195,7 @@ app.post("/exames", requireAuth(["medico", "cardiologist"]), (req, res) => {
     res.json(exame);
 });
 
-app.get("/exames", requireAuth(["medico", "cardiologist", "triagem", "enfermagem"]), (req, res) => {
+app.get("/exames", requirePermission("exams.read"), (req, res) => {
     const db = readDB();
     const { status, cpf } = req.query;
     let list = db.exames || [];
@@ -1224,7 +1204,7 @@ app.get("/exames", requireAuth(["medico", "cardiologist", "triagem", "enfermagem
     res.json(list.slice(-100).reverse());
 });
 
-app.post("/exames/:id/resultado", requireAuth(["medico", "cardiologist"]), (req, res) => {
+app.post("/exames/:id/resultado", requirePermission("exams.results.write"), (req, res) => {
     const db = readDB();
     const exame = (db.exames || []).find(e => Number(e.id) === Number(req.params.id));
     if (!exame) return res.status(404).json({ erro: "Exame não encontrado" });
@@ -1240,7 +1220,7 @@ app.post("/exames/:id/resultado", requireAuth(["medico", "cardiologist"]), (req,
 });
 
 // ── FARMÁCIA + ESTOQUE ──
-app.get("/farmacia/prescricoes", requireAuth(["medico", "cardiologist", "farmacia"]), (req, res) => {
+app.get("/farmacia/prescricoes", requirePermission("prescriptions.read"), (req, res) => {
     const db = readDB();
     const pendentes = (db.consultas || []).filter(c => c.medicacao && !c.dispensado);
     res.json(pendentes.slice(-100).reverse().map(c => ({
@@ -1250,7 +1230,7 @@ app.get("/farmacia/prescricoes", requireAuth(["medico", "cardiologist", "farmaci
     })));
 });
 
-app.post("/farmacia/dispensar", requireAuth(["farmacia"]), (req, res) => {
+app.post("/farmacia/dispensar", requirePermission("prescriptions.dispense"), (req, res) => {
     // The current data model stores medication as free text and has no
     // prescription-item, batch/expiry, FEFO or transactional stock ledger.
     // Do not claim a medicine was dispensed until those safeguards exist.
@@ -1260,7 +1240,7 @@ app.post("/farmacia/dispensar", requireAuth(["farmacia"]), (req, res) => {
     });
 });
 
-app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"]), (req, res) => {
+app.get("/estoque", requirePermission("inventory.read"), (req, res) => {
     const db = readDB();
     const estoque = (db.estoque || [])
         .map(e => ({ ...e, categoria: e.categoria || "Outros", critico: Number(e.quantidade) <= Number(e.minimo) }))
@@ -1273,7 +1253,7 @@ app.get("/estoque", requireAuth(["farmacia", "medico", "cardiologist", "direcao"
     res.json(estoque);
 });
 
-app.post("/estoque/entrada", requireAuth(["farmacia"]), (req, res) => {
+app.post("/estoque/entrada", requirePermission("inventory.write"), (req, res) => {
     const db = readDB();
     const { medicamento, qtd } = req.body || {};
     if (!medicamento || !(Number(qtd) > 0)) return res.status(400).json({ erro: "Medicamento e quantidade válidos são obrigatórios" });
@@ -1290,19 +1270,19 @@ app.post("/estoque/entrada", requireAuth(["farmacia"]), (req, res) => {
     res.json(item);
 });
 
-app.get("/compras/sugestao", requireAuth(["farmacia", "direcao"]), (req, res) => {
+app.get("/compras/sugestao", requirePermission("purchasing.read"), (req, res) => {
     const db = readDB();
     const criticos = (db.estoque || []).filter(e => Number(e.quantidade) <= Number(e.minimo));
     res.json({ itens: criticos.map(e => ({ medicamento: e.medicamento, atual: e.quantidade, minimo: e.minimo })), geradoEm: new Date().toISOString() });
 });
 
 // ── INTERNAÇÃO (leitos da ala cardiologia) ──
-app.get("/leitos", requireAuth([]), (req, res) => {
+app.get("/leitos", requirePermission("beds.read"), (req, res) => {
     const db = readDB();
     res.json(db.leitos || []);
 });
 
-app.get("/internacoes", requireAuth(["admin", "medico", "cardiologist", "enfermagem"]), (req, res) => {
+app.get("/internacoes", requirePermission("hospitalizations.read"), (req, res) => {
     const db = readDB();
     const records = Array.isArray(db.internacoes) ? db.internacoes : [];
     res.json(records.slice(-200).reverse().map(item => ({
@@ -1317,7 +1297,7 @@ app.get("/internacoes", requireAuth(["admin", "medico", "cardiologist", "enferma
     })));
 });
 
-app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), (req, res) => {
+app.post("/internacoes", requirePermission("hospitalizations.write"), (req, res) => {
     const db = readDB();
     const normalizeCpf = value => String(value || "").replace(/\D/g, "");
     const cpf = normalizeCpf(req.body.pacienteCpf);
@@ -1347,35 +1327,35 @@ app.post("/internacoes", requireAuth(["medico", "cardiologist", "enfermagem"]), 
 });
 
 // ── PERFIS / USUÁRIOS / PERMISSÕES / SETORES (Fase 2) ──
-app.get("/usuarios", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/usuarios", requirePermission("users.read"), (req, res) => {
     const db = readDB();
     res.json((db.usuarios || []).map(mapUserRecord));
 });
 
-app.get("/profissionais", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/profissionais", requirePermission("professionals.read"), (req, res) => {
     const db = readDB();
     res.json((db.usuarios || []).map(mapUserRecord));
 });
 
-app.get("/roles", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/roles", requirePermission("roles.read"), (req, res) => {
     const roles = Object.entries(ROLE_PERMISSIONS).map(([name, permissions]) => ({
         name: normalizeRole(name), permissions: permissions || []
     }));
     res.json(roles);
 });
 
-app.get("/permissoes", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/permissoes", requirePermission("permissions.read"), (req, res) => {
     const permissions = Array.from(new Set(Object.values(ROLE_PERMISSIONS).flat())).sort();
     res.json(permissions);
 });
 
-app.get("/setores", requireAuth(["medico", "cardiologist", "direcao", "admin"]), (req, res) => {
+app.get("/setores", requirePermission("units.read"), (req, res) => {
     const db = readDB();
     const setores = Array.from(new Set((db.usuarios || []).map(u => u.setor).filter(Boolean))).sort();
     res.json(setores);
 });
 
-app.post("/profissionais", requireAuth(["admin"]), async (req, res) => {
+app.post("/profissionais", requirePermission("professionals.write"), async (req, res) => {
     const db = readDB();
     const { usuario, nome, email, role, setor } = req.body || {};
     if (!usuario || !role) return res.status(400).json({ erro: "usuario e role são obrigatórios" });
@@ -1429,7 +1409,7 @@ app.post("/profissionais", requireAuth(["admin"]), async (req, res) => {
     res.status(201).json({ ok: true, usuario: novo.usuario, role: novo.role, setor: novo.setor || null, primeiroAcesso: true, senhaTemporaria });
 });
 
-app.delete("/profissionais/:usuario", requireAuth(["admin"]), async (req, res) => {
+app.delete("/profissionais/:usuario", requirePermission("professionals.write"), async (req, res) => {
     const alvo = String(req.params.usuario || "").trim();
     if (!alvo) return res.status(400).json({ erro: "Usuário inválido." });
 
@@ -1463,7 +1443,7 @@ app.delete("/profissionais/:usuario", requireAuth(["admin"]), async (req, res) =
 });
 
 // ── RELATÓRIOS (direção) ──
-app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmacia"]), (req, res) => {
+app.get("/relatorios", requirePermission("reports.read"), (req, res) => {
     const db = readDB();
     const { de, ate } = req.query;
     const inRange = (iso) => {
@@ -1492,12 +1472,12 @@ app.get("/relatorios", requireAuth(["medico", "cardiologist", "direcao", "farmac
 });
 
 // ── Regras do Safety Engine (configuráveis) ──
-app.get("/safety/regras", requireAuth(["admin"]), (req, res) => {
+app.get("/safety/regras", requirePermission("safety.configure"), (req, res) => {
     const db = readDB();
     res.json(db.safetyRules || { alergia: true, altoRisco: true, duplicidade: true, dadosIncompletos: true, sinalCritico: true });
 });
 
-app.put("/safety/regras", requireAuth(["admin"]), (req, res) => {
+app.put("/safety/regras", requirePermission("safety.configure"), (req, res) => {
     const db = readDB();
     db.safetyRules = { ...(db.safetyRules || {}), ...(req.body || {}) };
     writeDB(db);

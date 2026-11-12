@@ -20,7 +20,7 @@ const ROLE_PERMISSIONS = {
     "professionals.read", "professionals.write",
     "roles.read", "roles.write", "permissions.read",
     "units.read", "units.write", "settings.manage", "modules.manage",
-    "safety.configure", "audit.read", "clinical.audit.read", "reports.read", "integration.manage", "clinical.catalogs.read", "professionals.registry.write", "billing.read"
+    "safety.configure", "audit.read", "reports.read", "integration.manage", "clinical.catalogs.read", "professionals.registry.write"
   ],
   cardiologist: [
     "dashboard.read", "patients.read", "patients.write", "patients.identity.read", "records.read", "records.write", "records.sign",

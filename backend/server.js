@@ -322,10 +322,16 @@ app.post("/login", authRateLimit, async (req, res) => {
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
     };
-    // set() persiste no PostgreSQL (produção) ou no sessions.json (dev).
-    // O upsert é assíncrono com retry — se o banco engasgar, o flush de 30s
-    // tenta de novo e o shutdown espera as gravações pendentes.
-    sessions.set(token, session);
+    // O cookie só é emitido depois que a sessão foi persistida. Em produção,
+    // requirePermission revalida no PostgreSQL a cada requisição protegida.
+    try {
+        await sessions.persist(token, session);
+    } catch (_) {
+        return res.status(503).json({
+            erro: "Não foi possível criar a sessão com segurança. Tente novamente.",
+            codigo: "SESSION_PERSISTENCE_UNAVAILABLE"
+        });
+    }
     audit({ user: { usuario: String(user.usuario || user.email), tipo: role } }, "login", { role });
     const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
     res.setHeader("Set-Cookie", `sentinela_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}; Path=/${secure}`);

@@ -46,7 +46,7 @@ const ROLE_PERMISSIONS = {
     "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   enfermagem: [
-    "dashboard.read", "patients.read", "patients.identity.read", "appointments.read", "records.read", "records.write", "records.sign", "nursing.write", "careplans.write", "clinical.catalogs.read", "maternal.read", "maternal.write", "chronic.read", "chronic.write", "immunizations.read", "immunizations.write",
+    "dashboard.read", "patients.read", "patients.identity.read", "appointments.read", "records.read", "records.write", "nursing.write", "careplans.write", "clinical.catalogs.read", "maternal.read", "maternal.write", "chronic.read", "chronic.write", "immunizations.read", "immunizations.write",
     "triage.read", "triage.write", "triage.close", "internacoes.read", "internacoes.write",
     "hospitalizations.read", "hospitalizations.write", "beds.manage",
     "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"

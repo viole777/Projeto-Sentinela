@@ -162,7 +162,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    if(!bed.rowCount||!['free','livre'].includes(String(bed.rows[0].status).toLowerCase())){await client.query('ROLLBACK');return res.status(409).json({erro:'Leito inexistente ou indisponível nesta unidade.',codigo:'BED_NOT_AVAILABLE'});}
    const admission=await client.query('INSERT INTO hospitalizations(patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,unit_id) VALUES($1,$2,$3,$4,$5,COALESCE($6::timestamptz,NOW()),$7) RETURNING id,patient_cpf,patient_name,bed_code,reason,admitted_at',
     [data.patientCpf,patient.rows[0].name,data.bedCode,data.admissionReason,data.attendingProfessional||actor.username,data.admittedAt||null,unitOf(req)]);
-   await client.query('UPDATE beds SET status=$1,patient_cpf=$2,patient_name=$3,occupied_since=NOW() WHERE id=$4',['occupied',data.patientCpf,patient.rows[0].name,bed.rows[0].id]);
+    await client.query('UPDATE beds SET status=$1,patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$2 AND unit_id=$3',['free',h.rows[0].bed_code,unitOf(req)]);
    const record=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',
     ['hospitalization',data.patientCpf,unitOf(req),'admitted',JSON.stringify({...data,hospitalizationId:admission.rows[0].id}),actor.username,actor.role]);
    await audit(req,client,'create','hospitalization',record.rows[0].id,data.patientCpf,{hospitalizationId:admission.rows[0].id,bedCode:data.bedCode});
@@ -172,14 +172,15 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  router.post('/api/v1/discharges',requirePermission('hospitalizations.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const v=validateResourcePayload('discharges',req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
-   const data=v.data,actor=actorOf(req),client=await getPool().connect();
+   const data=v.data,actor=actorOf(req);
    if(!Number.isSafeInteger(Number(data.hospitalizationId))||Number(data.hospitalizationId)<1)return res.status(400).json({erro:'ID da internação inválido.'});
+   const client=await getPool().connect();
   try{await client.query('BEGIN');
    const h=await client.query('SELECT id,patient_cpf,bed_code FROM hospitalizations WHERE id=$1 AND patient_cpf=$2 AND unit_id=$3 AND discharged_at IS NULL FOR UPDATE',[Number(data.hospitalizationId),data.patientCpf,unitOf(req)]);
    if(!h.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Internação ativa não encontrada nesta unidade.'});}
    if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
    await client.query('UPDATE hospitalizations SET discharged_at=COALESCE($1::timestamptz,NOW()) WHERE id=$2',[data.dischargedAt||null,h.rows[0].id]);
-   await client.query('UPDATE beds SET status=$1,patient_cpf=$2,patient_name=$3,occupied_since=NOW() WHERE id=$4',['occupied',data.patientCpf,patient.rows[0].name,bed.rows[0].id]);
+    await client.query('UPDATE beds SET status=$1,patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$2 AND unit_id=$3',['free',h.rows[0].bed_code,unitOf(req)]);
    const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',
     ['discharge',data.patientCpf,unitOf(req),'discharged',JSON.stringify(data),actor.username,actor.role]);
    await audit(req,client,'create','discharge',r.rows[0].id,data.patientCpf,{hospitalizationId:h.rows[0].id,bedCode:h.rows[0].bed_code});

@@ -94,6 +94,19 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   }
 
   {
+    const { middleware } = makeHarness({ role: 'recepcao', effective: ROLE_PERMISSIONS.recepcao });
+    const result = await invoke(middleware.requirePermission('patients.identity.sensitive.write'));
+    assert.equal(result.res.statusCode, 403, 'reception must be denied sensitive identifier changes');
+  }
+
+  {
+    const { middleware } = makeHarness({ role: 'supervisor_cadastro', effective: ROLE_PERMISSIONS.supervisor_cadastro });
+    const result = await invoke(middleware.requirePermission('patients.identity.sensitive.write'));
+    assert.equal(result.res.statusCode, 200, 'the dedicated supervisor role must pass the sensitive identifier permission check');
+    assert.equal(result.nextCalled, true);
+  }
+
+  {
     const { middleware } = makeHarness({ role: 'admin', effective: ROLE_PERMISSIONS.admin, sessionPermissions: ['*'] });
     const result = await invoke(middleware.requireAuth(['medico']));
     assert.equal(result.res.statusCode, 403, 'wildcard permissions must not bypass an explicit role restriction');

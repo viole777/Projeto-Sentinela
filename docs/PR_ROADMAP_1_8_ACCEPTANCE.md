@@ -112,3 +112,15 @@ A PR pode preparar adaptadores, contratos, testes, documentação e controles, m
 ### Frontend v2: módulos sem fluxo operacional (implementado como ocultação)
 - As rotas e entradas de navegação que renderizavam `PlaceholderPage` foram removidas do shell v2 para evitar apresentar telas sem operação como módulos disponíveis.
 - Permanecem acessíveis os fluxos que já usam páginas próprias ou `AdvancedModulePage`; isso não comprova aceite E2E nem validação por usuários.
+
+
+## Evidência de CI — atualização 2026-11-12
+
+Último SHA verificado: `89590c651cb6a7d316b168d69dd7a537145447a3`.
+
+- `Sentinela CI` — sucesso: lint, testes unitários, migração clínica PostgreSQL, provisionamento temporário, build frontend, inicialização do servidor e smoke tests PostgreSQL.
+- `Frontend v2 build` — sucesso com Node.js 22.
+- `Dependency Audit` — sucesso.
+- `Secret history scan` — sucesso.
+
+O CI comprova apenas os cenários automatizados do repositório. Não substitui validação clínica, segurança independente, homologação, avaliação LGPD/jurídica ou prontidão hospitalar.

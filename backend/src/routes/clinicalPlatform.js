@@ -125,15 +125,14 @@ router.post('/api/v1/patient-identities',requirePermission('patients.identity.wr
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const b=req.body||{},cpf=normalizeCpf(b.cpf);
   if(!validCpf(cpf))return res.status(400).json({erro:'CPF de referência inválido.'});
-  if(b.birthDate!==undefined&&b.birthDate!==null&&b.birthDate!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
+  if(b.birthDate!==undefined&&b.birthDate!==null&&b.birthDate!==''&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
   if(b.name!==undefined&&(typeof b.name!=='string'||!b.name.trim()))return res.status(400).json({erro:'Nome não pode ficar vazio.'});
   const hasNewCpf=Object.prototype.hasOwnProperty.call(b,'newCpf');
   const newCpf=hasNewCpf?normalizeCpf(b.newCpf):null;
   if(hasNewCpf&&!validCpf(newCpf))return res.status(400).json({erro:'Novo CPF inválido.'});
   const hasCns=Object.prototype.hasOwnProperty.call(b,'cns');
-  const cns=hasCns?String(b.cns||'').replace(/\D/g,''):null;
+  const cns=hasCns?String(b.cns||'').replace(/\\D/g,''):null;
   if(hasCns&&cns&&!CNS_RE.test(cns))return res.status(400).json({erro:'CNS deve conter 15 dígitos.'});
-  const basicFields=['name','birthDate','sexAtBirth','genderIdentity','raceColor','motherName','municipalityCode','cnesOrigin'];
   const client=await getPool().connect();
   try{
    await client.query('BEGIN');
@@ -151,8 +150,7 @@ router.post('/api/v1/patient-identities',requirePermission('patients.identity.wr
     await client.query('COMMIT');
     return res.status(403).json({erro:'Alterações de CPF/CNS exigem autorização especial.',codigo:'SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED'});
    }
-   // CPF é chave relacional em tabelas clínicas legadas. Não alterar até existir
-   // migração de reindexação transacional de todas as referências e homologação.
+   // CPF é chave relacional em tabelas clínicas legadas; a troca exige reindexação transacional.
    if(sensitiveFields.includes('cpf')){
     await audit(req,client,'access_denied','patient_identity',patient.id,patient.cpf,{reason:'CPF_CHANGE_REQUIRES_RELATIONAL_REKEY',fields:['cpf'],specialAuthorization:hasSensitiveAuthorization});
     await client.query('COMMIT');
@@ -162,8 +160,25 @@ router.post('/api/v1/patient-identities',requirePermission('patients.identity.wr
    const values=[cpf,unitOf(req)],assignments=[];
    for(const key of changedBasicFields){
     const value=b[key]===''?null:b[key];
-    assignments.push(columns[key]+'=
- router.post('/api/v1/professional-registry',requirePermission('professionals.registry.write'),async(req,res,next)=>{
+    assignments.push(columns[key]+'='+String.fromCharCode(36)+(values.length+1));
+    values.push(key==='name'?String(value).trim():value);
+   }
+   if(sensitiveFields.includes('cns')){
+    assignments.push('cns='+String.fromCharCode(36)+(values.length+1));
+    values.push(cns||null);
+   }
+   assignments.push('updated_at=NOW()');
+   const updated=await client.query('UPDATE patients SET '+assignments.join(',')+' WHERE cpf=$1 AND unit_id=$2 RETURNING id,name,cpf,cns,birth_date',values);
+   await audit(req,client,'update','patient_identity',patient.id,patient.cpf,{fields:[...changedBasicFields,...sensitiveFields],sensitiveFields,specialAuthorization:sensitiveFields.length>0});
+   await client.query('COMMIT');
+   return res.status(200).json({patient:updated.rows[0]});
+  }catch(e){
+   await client.query('ROLLBACK').catch(()=>{});
+   if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já vinculado a outro cadastro.',codigo:'IDENTIFIER_CONFLICT'});
+   return next(e);
+  }finally{client.release();}
+ });
+router.post('/api/v1/professional-registry',requirePermission('professionals.registry.write'),async(req,res,next)=>{
   if(!usingPostgres())return unavailable(res);const b=req.body||{};
   if(!Number.isInteger(Number(b.userId))||Number(b.userId)<1||!CNS_RE.test(String(b.cns||''))||!CBO_RE.test(String(b.cbo||''))||!String(b.unitId||'').trim())return res.status(400).json({erro:'Informe usuário, CNS de 15 dígitos, CBO de 6 dígitos e unidade.'});
   const client=await getPool().connect();

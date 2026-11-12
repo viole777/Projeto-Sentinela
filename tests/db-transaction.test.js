@@ -8,7 +8,7 @@ function makePool({ failAt } = {}) {
   let released = false;
   const client = {
     async query(sql) {
-      const statement = String(sql).trim().split(/\\s+/).slice(0, 2).join(' ').toUpperCase();
+      const statement = String(sql).trim().split(/\s+/).slice(0, 2).join(' ').toUpperCase();
       statements.push(statement);
       if (failAt && String(sql).includes(failAt)) throw new Error('simulated persistence failure');
       return { rows: [], rowCount: 0 };

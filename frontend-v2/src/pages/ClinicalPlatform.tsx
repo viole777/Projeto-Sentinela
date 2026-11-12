@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Activity, AlertTriangle, RefreshCw, Search, ShieldCheck, PlusCircle } from 'lucide-react';
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
+import { ClinicalPlatformAdmin } from './ClinicalPlatformAdmin';
 
 type Field = { key:string; label:string; type?:string; required?:boolean; options?:string[]; multiline?:boolean };
 type ModuleDef = { key:string; title:string; description:string; read:string; write:string; fields:Field[] };
@@ -92,6 +93,7 @@ export function ClinicalPlatformPage(){
    {permissions.has('patients.identity.read')&&<Card className="p-4"><h2 className="mb-2 text-sm font-bold">Identificação do paciente · CPF</h2><form onSubmit={searchPatient} className="flex gap-2"><Input value={patientLookup} onChange={e=>setPatientLookup(e.target.value)} placeholder="CPF do paciente"/><Button type="submit"><Search size={15}/> Buscar</Button></form>{patientResult&&<pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{patientResult}</pre>}<p className="mt-2 text-xs muted">Busca em cadastro local. CADSUS não está conectado.</p></Card>}
    {permissions.has('clinical.catalogs.read')&&<Card className="p-4"><h2 className="mb-2 text-sm font-bold">Catálogos oficiais</h2><div className="flex gap-2"><select className="field" value={catalog} onChange={e=>setCatalog(e.target.value)}><option value="CID10">CID-10</option><option value="CIAP2">CIAP-2</option><option value="SIGTAP">SIGTAP</option><option value="RENAME">RENAME</option><option value="CBO">CBO</option><option value="CNES">CNES</option></select><Button onClick={()=>void loadCatalog()}>Consultar</Button></div>{catalogResult&&<pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{catalogResult}</pre>}<p className="mt-2 text-xs muted">A API informa indisponibilidade até a importação da fonte oficial versionada.</p></Card>}
   </div>
+  <ClinicalPlatformAdmin permissions={permissions}/>
   <Card className="p-4"><div className="flex items-center gap-2 text-sm font-bold"><ShieldCheck size={17}/> Segurança e rastreabilidade</div><p className="mt-2 text-sm muted">Os eventos clínicos são append-only; correções geram novos registros relacionados. Leituras e gravações são registradas em trilha de auditoria com referência pseudonimizada do paciente. A API exige unidade e vínculo profissional CNS/CBO para operações clínicas qualificadas.</p></Card>
  </div>;
 }

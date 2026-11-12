@@ -1,11 +1,16 @@
 -- Seeds mínimos do Sentinela
 INSERT INTO roles (name) VALUES
   ('admin'), ('cardiologist'), ('medico'), ('enfermagem'),
-  ('triagem'), ('farmacia'), ('atendimento'), ('recepcao'), ('direcao')
+  ('triagem'), ('farmacia'), ('atendimento'), ('recepcao'), ('supervisor_cadastro'), ('direcao')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO permissions (name) VALUES
   ('dashboard.read'), ('patients.read'), ('patients.write'),
+  ('patients.identity.read'), ('patients.identity.write'), ('patients.identity.sensitive.write'),
+  ('users.read'), ('users.write'), ('professionals.read'), ('professionals.write'),
+  ('roles.read'), ('roles.write'), ('permissions.read'), ('units.read'), ('units.write'),
+  ('settings.manage'), ('modules.manage'), ('safety.configure'), ('integration.manage'),
+  ('clinical.catalogs.read'), ('professionals.registry.write'),
   ('appointments.read'), ('appointments.write'),
   ('triage.read'), ('triage.write'),
   ('consultations.read'), ('consultations.write'),
@@ -18,11 +23,15 @@ INSERT INTO permissions (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- role_permissions: mesmo mapa do ROLE_PERMISSIONS em backend/src/db.js
--- (admin recebe todas; os demais recebem exatamente as permissões do cargo).
+-- (cada papel recebe apenas as permissões explicitamente listadas; admin técnico não recebe acesso clínico).
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON
-  (r.name = 'admin') OR
+  (r.name = 'admin' AND p.name IN (
+    'dashboard.read','users.read','users.write','professionals.read','professionals.write',
+    'roles.read','roles.write','permissions.read','units.read','units.write','settings.manage',
+    'modules.manage','safety.configure','audit.read','reports.read','integration.manage',
+    'clinical.catalogs.read','professionals.registry.write')) OR
   (r.name IN ('cardiologist', 'medico') AND p.name IN (
     'dashboard.read','patients.read','patients.write','appointments.read','triage.read',
     'consultations.read','consultations.write','exams.read','exams.write',
@@ -37,7 +46,9 @@ FROM roles r JOIN permissions p ON
     'dashboard.read','patients.read','prescriptions.read','prescriptions.dispense',
     'estoque.read','estoque.write','alerts.read')) OR
   (r.name IN ('atendimento','recepcao') AND p.name IN (
-    'dashboard.read','patients.read','patients.write','appointments.read','appointments.write')) OR
+    'dashboard.read','patients.read','patients.write','patients.identity.read','patients.identity.write','appointments.read','appointments.write')) OR
+  (r.name = 'supervisor_cadastro' AND p.name IN (
+    'dashboard.read','patients.read','patients.identity.read','patients.identity.write','patients.identity.sensitive.write')) OR
   (r.name = 'direcao' AND p.name IN (
     'dashboard.read','reports.read','audit.read','patients.read','alerts.read'))
 ON CONFLICT DO NOTHING;

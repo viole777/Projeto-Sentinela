@@ -240,8 +240,9 @@ CREATE TABLE IF NOT EXISTS billing_batches (
 );
 
 -- Permission catalog additions are harmless until the role matrix below grants them.
+INSERT INTO roles(name) VALUES ('supervisor_cadastro') ON CONFLICT(name) DO NOTHING;
 INSERT INTO permissions(name) VALUES
- ('patients.identity.read'),('patients.identity.write'),
+ ('patients.identity.read'),('patients.identity.write'),('patients.identity.sensitive.write'),
  ('records.write'),('records.sign'),
  ('appointments.manage'),('maternal.read'),('maternal.write'),
  ('chronic.read'),('chronic.write'),('immunizations.read'),('immunizations.write'),
@@ -255,7 +256,7 @@ ON CONFLICT(name) DO NOTHING;
 BEGIN;
 DELETE FROM role_permissions
 WHERE role_id IN (SELECT id FROM roles WHERE name IN (
- 'admin','cardiologist','medico','enfermagem','triagem','farmacia','atendimento','recepcao','direcao'
+ 'admin','cardiologist','medico','enfermagem','triagem','farmacia','atendimento','recepcao','supervisor_cadastro','direcao'
 ));
 INSERT INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM roles r JOIN permissions p ON
@@ -296,6 +297,9 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
   'dashboard.read','patients.read','patients.write','patients.identity.read','patients.identity.write',
   'appointments.read','appointments.write','appointments.manage','homecare.read','homecare.write',
   'homecare.complete','files.read','queue.call'
+ )) OR
+ (r.name='supervisor_cadastro' AND p.name IN (
+  'dashboard.read','patients.read','patients.identity.read','patients.identity.write','patients.identity.sensitive.write'
  )) OR
  (r.name='direcao' AND p.name IN (
   'dashboard.read','reports.read','audit.read','clinical.audit.read','billing.read','billing.write','beds.manage','alerts.read',

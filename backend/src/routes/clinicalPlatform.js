@@ -24,6 +24,14 @@ const RESOURCE_DEFS = Object.freeze({
 const CPF_RE=/^\d{11}$/, CNS_RE=/^\d{15}$/, CBO_RE=/^\d{6}$/;
 const DATE_RE=/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 function normalizeCpf(value){return String(value||'').replace(/\D/g,'');}
+const IDENTITY_BASIC_FIELDS=Object.freeze(['name','birthDate','sexAtBirth','genderIdentity','raceColor','motherName','municipalityCode','cnesOrigin']);
+function classifyIdentityChanges(body={},current={}){
+ const basicFields=IDENTITY_BASIC_FIELDS.filter(key=>Object.prototype.hasOwnProperty.call(body,key));
+ const sensitiveFields=[];
+ if(Object.prototype.hasOwnProperty.call(body,'cns')&&String(String(body.cns||'').replace(/\D/g,''))!==String(current.cns||''))sensitiveFields.push('cns');
+ if(Object.prototype.hasOwnProperty.call(body,'newCpf')&&normalizeCpf(body.newCpf)!==normalizeCpf(current.cpf))sensitiveFields.push('cpf');
+ return{basicFields,sensitiveFields};
+}
 function validCpf(value){
  const cpf=normalizeCpf(value);if(!/^\d{11}$/.test(cpf)||/^([0-9])\1{10}$/.test(cpf))return false;
  const digit=(base)=>{let sum=0;for(let i=0;i<base.length;i++)sum+=Number(base[i])*(base.length+1-i);const mod=(sum*10)%11;return mod===10?0:mod;};
@@ -115,19 +123,61 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
 });
 router.post('/api/v1/patient-identities',requirePermission('patients.identity.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const cpf=normalizeCpf(req.body?.cpf),cns=String(req.body?.cns||'').replace(/\D/g,'');
-  if(!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'CPF ou CNS em formato inválido.'});
-  const b=req.body||{};if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
+  const b=req.body||{},cpf=normalizeCpf(b.cpf);
+  if(!validCpf(cpf))return res.status(400).json({erro:'CPF de referência inválido.'});
+  if(b.birthDate!==undefined&&b.birthDate!==null&&b.birthDate!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
+  if(b.name!==undefined&&(typeof b.name!=='string'||!b.name.trim()))return res.status(400).json({erro:'Nome não pode ficar vazio.'});
+  const hasNewCpf=Object.prototype.hasOwnProperty.call(b,'newCpf');
+  const newCpf=hasNewCpf?normalizeCpf(b.newCpf):null;
+  if(hasNewCpf&&!validCpf(newCpf))return res.status(400).json({erro:'Novo CPF inválido.'});
+  const hasCns=Object.prototype.hasOwnProperty.call(b,'cns');
+  const cns=hasCns?String(b.cns||'').replace(/\D/g,''):null;
+  if(hasCns&&cns&&!CNS_RE.test(cns))return res.status(400).json({erro:'CNS deve conter 15 dígitos.'});
   const client=await getPool().connect();
-  try{await client.query('BEGIN');
-   const r=await client.query("UPDATE patients SET name=COALESCE($2,name),cns=COALESCE(NULLIF($3,''),cns),birth_date=COALESCE($4::date,birth_date),sex_at_birth=COALESCE($5,sex_at_birth),gender_identity=COALESCE($6,gender_identity),race_color=COALESCE($7,race_color),mother_name=COALESCE($8,mother_name),municipality_code=COALESCE($9,municipality_code),cnes_origin=COALESCE($10,cnes_origin),updated_at=NOW() WHERE cpf=$1 AND unit_id=$11 RETURNING id,name,cpf,cns,birth_date",
-    [cpf,b.name||null,cns||null,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req)]);
-   if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado. Cadastre o paciente pela recepção antes de completar a identidade.'});}
-   await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{fields:['name','cns','birthDate','sexAtBirth','genderIdentity','raceColor','motherName','municipalityCode','cnesOrigin'].filter(k=>b[k]!==undefined)});
-   await client.query('COMMIT');return res.status(201).json({patient:r.rows[0]});
-  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já vinculado a outro cadastro.',codigo:'IDENTIFIER_CONFLICT'});return next(e);}
-  finally{client.release();}
+  try{
+   await client.query('BEGIN');
+   const current=await client.query('SELECT id,name,cpf,cns FROM patients WHERE cpf=$1 AND unit_id=$2 FOR UPDATE',[cpf,unitOf(req)]);
+   if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+   const patient=current.rows[0];
+   const changePlan=classifyIdentityChanges(b,patient);
+   const sensitiveFields=changePlan.sensitiveFields;
+   const changedBasicFields=changePlan.basicFields;
+   if(!sensitiveFields.length&&!changedBasicFields.length){await client.query('ROLLBACK');return res.status(400).json({erro:'Nenhum dado cadastral foi informado para atualização.'});}
+   const permissions=Array.isArray(req.user?.permissions)?req.user.permissions:[];
+   const hasSensitiveAuthorization=permissions.includes('patients.identity.sensitive.write');
+   if(sensitiveFields.length&&!hasSensitiveAuthorization){
+    await audit(req,client,'access_denied','patient_identity',patient.id,patient.cpf,{reason:'SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED',fields:sensitiveFields});
+    await client.query('COMMIT');
+    return res.status(403).json({erro:'Alterações de CPF/CNS exigem autorização especial.',codigo:'SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED'});
+   }
+   if(sensitiveFields.includes('cpf')){
+    await audit(req,client,'access_denied','patient_identity',patient.id,patient.cpf,{reason:'CPF_CHANGE_REQUIRES_RELATIONAL_REKEY',fields:['cpf'],specialAuthorization:hasSensitiveAuthorization});
+    await client.query('COMMIT');
+    return res.status(409).json({erro:'A alteração de CPF está bloqueada até existir reconciliação transacional de todas as referências clínicas.',codigo:'CPF_CHANGE_REQUIRES_RELATIONAL_REKEY'});
+   }
+   const columns={name:'name',birthDate:'birth_date',sexAtBirth:'sex_at_birth',genderIdentity:'gender_identity',raceColor:'race_color',motherName:'mother_name',municipalityCode:'municipality_code',cnesOrigin:'cnes_origin'};
+   const values=[cpf,unitOf(req)],assignments=[];
+   for(const key of changedBasicFields){
+    const value=b[key]===''?null:b[key];
+    assignments.push(columns[key]+'='+String.fromCharCode(36)+(values.length+1));
+    values.push(key==='name'?String(value).trim():value);
+   }
+   if(sensitiveFields.includes('cns')){
+    assignments.push('cns='+String.fromCharCode(36)+(values.length+1));
+    values.push(cns||null);
+   }
+   assignments.push('updated_at=NOW()');
+   const updated=await client.query('UPDATE patients SET '+assignments.join(',')+' WHERE cpf=$1 AND unit_id=$2 RETURNING id,name,cpf,cns,birth_date',values);
+   await audit(req,client,'update','patient_identity',patient.id,patient.cpf,{fields:[...changedBasicFields,...sensitiveFields],sensitiveFields,specialAuthorization:sensitiveFields.length>0});
+   await client.query('COMMIT');
+   return res.status(200).json({patient:updated.rows[0]});
+  }catch(e){
+   await client.query('ROLLBACK').catch(()=>{});
+   if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já vinculado a outro cadastro.',codigo:'IDENTIFIER_CONFLICT'});
+   return next(e);
+  }finally{client.release();}
  });
+
  router.post('/api/v1/professional-registry',requirePermission('professionals.registry.write'),async(req,res,next)=>{
   if(!usingPostgres())return unavailable(res);const b=req.body||{};
   if(!Number.isInteger(Number(b.userId))||Number(b.userId)<1||!CNS_RE.test(String(b.cns||''))||!CBO_RE.test(String(b.cbo||''))||!String(b.unitId||'').trim())return res.status(400).json({erro:'Informe usuário, CNS de 15 dígitos, CBO de 6 dígitos e unidade.'});
@@ -517,4 +567,4 @@ router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),asy
  });
  return router;
 }
-module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf};
+module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf,classifyIdentityChanges};

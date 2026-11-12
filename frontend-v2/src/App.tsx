@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AdvancedModulePage } from './pages/AdvancedModules';
 import { SentinelaAiPage } from './pages/SentinelaAi';
+import { ClinicalPlatformPage } from './pages/ClinicalPlatform';
 import { ReceptionWorkspace, TriageWorkspace, ConsultationWorkspace } from './pages/OperationalWorkspaces';
 import { PERMISSION_BY_PATH, canAccessPermission } from './access';
 
@@ -36,6 +37,7 @@ export default function App() {
     <Route path="/app" element={<AppShell />}>
       <Route index element={<Navigate to="dashboard" replace />} />
       <Route path="dashboard" element={<Protected path="/app/dashboard"><Dashboard /></Protected>} />
+      <Route path="plataforma-clinica" element={<Protected path="/app/plataforma-clinica"><ClinicalPlatformPage /></Protected>} />
       <Route path="sentinela-ai" element={<Protected path="/app/sentinela-ai"><SentinelaAiPage /></Protected>} />
       <Route path="pacientes" element={<Protected path="/app/pacientes"><PlaceholderPage page="pacientes" /></Protected>} />
       <Route path="triagem" element={<Protected path="/app/triagem"><TriageWorkspace /></Protected>} />

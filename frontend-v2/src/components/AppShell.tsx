@@ -44,6 +44,7 @@ const nav: NavGroup[] = [
     ['Imagem e laudos','/app/exames-imagem',FileText],
     ['Cardiologia','/app/cardiologia',HeartPulse],
     ['Resumo clínico com IA','/app/sentinela-ai',BrainCircuit],
+    ['Plataforma clínica','/app/plataforma-clinica',ClipboardList],
   ]},
   { label: 'Farmácia e suprimentos', items: [
     ['Farmácia','/app/farmacia',Pill],

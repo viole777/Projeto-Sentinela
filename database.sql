@@ -315,7 +315,12 @@ INSERT INTO permissions (name) VALUES
   ('purchasing.read'), ('users.read'), ('users.write'),
   ('professionals.read'), ('professionals.write'), ('roles.read'), ('roles.write'),
   ('permissions.read'), ('units.read'), ('units.write'),
-  ('settings.manage'), ('modules.manage'), ('safety.configure')
+  ('settings.manage'), ('modules.manage'), ('safety.configure'),
+  ('consultations.queue.read'), ('patients.identity.read'), ('patients.identity.write'), ('records.write'), ('records.sign'),
+  ('appointments.manage'), ('maternal.read'), ('maternal.write'), ('chronic.read'), ('chronic.write'),
+  ('immunizations.read'), ('immunizations.write'), ('referrals.read'), ('referrals.write'), ('notifications.write'),
+  ('billing.read'), ('billing.write'), ('integration.manage'), ('professionals.registry.write'), ('clinical.catalogs.read'),
+  ('clinical.audit.read'), ('nursing.write'), ('careplans.write')
 ON CONFLICT (name) DO NOTHING;
 
 -- RBAC de menor privilégio: o administrador técnico não recebe permissões
@@ -335,10 +340,12 @@ FROM roles r JOIN permissions p ON
     'roles.read','roles.write','permissions.read','units.read','units.write',
     'settings.manage','modules.manage','safety.configure','audit.read','reports.read')) OR
   (r.name IN ('cardiologist','medico') AND p.name IN (
-    'dashboard.read','patients.read','patients.write','records.read','appointments.read',
-    'triage.read','triage.close','consultations.read','consultations.write','consultations.finalize',
+    'dashboard.read','patients.read','patients.write','patients.identity.read','records.read','records.write','appointments.read','appointments.manage',
+    'consultations.queue.read','consultations.read','consultations.write','consultations.finalize',
     'exams.read','exams.write','exams.results.write','prescriptions.read','prescriptions.write',
-    'prescriptions.validate','alerts.read','alerts.resolve','ai.read','audit.read','reports.read',
+    'prescriptions.validate','alerts.read','alerts.resolve','ai.read','audit.read','clinical.audit.read','reports.read',
+    'maternal.read','maternal.write','chronic.read','chronic.write','immunizations.read','immunizations.write',
+    'referrals.read','referrals.write','notifications.write','clinical.catalogs.read',
     'medications.read','inventory.read','beds.read','hospitalizations.read','hospitalizations.write',
     'homecare.read','homecare.write','homecare.complete','files.read','queue.call')) OR
   (r.name = 'enfermagem' AND p.name IN (

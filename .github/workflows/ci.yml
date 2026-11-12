@@ -49,6 +49,12 @@ jobs:
           SENTINELA_FIXTURE_PATH: database/fixtures/demo-db.json
         run: npm run db:migrate
 
+      - name: Apply and verify clinical platform migration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sentinela_test
+          PGSSL: disable
+        run: node scripts/apply-clinical-platform-migration.js
+
       - name: Provision temporary CI admin
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sentinela_test

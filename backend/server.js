@@ -318,6 +318,8 @@ app.post("/login", authRateLimit, async (req, res) => {
         email: user.email || null,
         tipo: role, role, permissions,
         setor: user.setor || null,
+        unit: user.unit || user.unidade || user.setor || null,
+        sector: user.sector || user.setor || null,
         theme: user.theme || "light",
         mustChangePassword: false,
         expiresAt: Date.now() + SESSION_TTL_MS
@@ -360,6 +362,7 @@ app.get("/me", async (req, res) => {
             usuario: session.usuario, nome: session.nome || session.usuario,
             email: session.email || null, role, tipo: role,
             setor: session.setor || null,
+            unit: session.unit || null,
             theme: session.theme || "light",
             permissions
         });
@@ -1564,6 +1567,13 @@ app.get("/health", async (req, res) => {
         return res.status(503).json({ status: "degraded", app: "alive", database: "unavailable" });
     }
 });
+
+// API clínica versionada: schemas específicos, escopo por unidade e trilha de auditoria append-only.
+app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
+    requirePermission,
+    getPool,
+    usingPostgres
+}));
 
 // APIs CRUD para módulos avançados ainda sem rota própria. As rotas já existentes
 // continuam tendo precedência; estes handlers são registrados antes do 404 da SPA.

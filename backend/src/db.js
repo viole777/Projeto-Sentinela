@@ -45,6 +45,7 @@ const ROLE_PERMISSIONS = {
   enfermagem: [
     "dashboard.read", "patients.read", "appointments.read",
     "triage.read", "triage.write", "internacoes.read", "internacoes.write",
+    "hospitalizations.read", "hospitalizations.write",
     "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"
   ],
   triagem: [

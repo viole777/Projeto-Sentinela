@@ -343,7 +343,8 @@ FROM roles r JOIN permissions p ON
     'homecare.read','homecare.write','homecare.complete','files.read','queue.call')) OR
   (r.name = 'enfermagem' AND p.name IN (
     'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
-    'internacoes.read','internacoes.write','exams.read','alerts.read','beds.read','files.read','queue.call')) OR
+    'internacoes.read','internacoes.write','hospitalizations.read','hospitalizations.write',
+    'exams.read','alerts.read','beds.read','files.read','queue.call')) OR
   (r.name = 'triagem' AND p.name IN (
     'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
     'alerts.read','files.read','queue.call')) OR

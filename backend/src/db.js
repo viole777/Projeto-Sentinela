@@ -222,6 +222,7 @@ async function syncBuiltInRolePermissions(pool) {
 
   try {
     await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(73429012)");
     await client.query(
       "INSERT INTO roles (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
       [roleNames]

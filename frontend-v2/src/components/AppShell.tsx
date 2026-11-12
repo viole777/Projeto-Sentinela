@@ -17,7 +17,6 @@ const nav: NavGroup[] = [
   { label: 'Visão geral', items: [
     ['Dashboard','/app/dashboard',LayoutDashboard],
     ['Painel gerencial','/app/dashboard-gerencial',Activity],
-    ['Pacientes','/app/pacientes',Users],
     ['Recepção','/app/recepcao',Users],
     ['Agenda médica','/app/agenda-medica',CalendarDays],
     ['Disponibilidade','/app/disponibilidade',CalendarDays],
@@ -47,10 +46,8 @@ const nav: NavGroup[] = [
     ['Plataforma clínica','/app/plataforma-clinica',ClipboardList],
   ]},
   { label: 'Farmácia e suprimentos', items: [
-    ['Farmácia','/app/farmacia',Pill],
     ['Farmácia clínica','/app/farmacia-clinica',Pill],
     ['Medicamentos controlados','/app/controlados',Pill],
-    ['Estoque','/app/estoque',Boxes],
     ['Movimentações','/app/movimentacao-estoque',Boxes],
     ['Validade e perdas','/app/validade-perdas',PackageSearch],
     ['Solicitações de compra','/app/solicitacao-compras',ClipboardList],
@@ -74,8 +71,6 @@ const nav: NavGroup[] = [
     ['CCIH','/app/ccih-infeccao',ShieldCheck],
     ['LGPD e consentimentos','/app/lgpd-consentimentos',ShieldCheck],
     ['Trilha de auditoria','/app/trilha-auditoria',ShieldCheck],
-    ['Alertas clínicos','/app/alertas',Bell],
-    ['Safety Engine','/app/safety-engine',ShieldCheck],
   ]},
   { label: 'Comunicação', items: [
     ['Notificações','/app/notificacoes',Bell],
@@ -89,11 +84,8 @@ const nav: NavGroup[] = [
     ['Unidades e setores','/app/unidades-setores',Building2],
     ['Acesso por unidade','/app/acesso-unidade',ShieldCheck],
     ['Configurar protocolos','/app/configuracao-protocolos',Settings],
-    ['Configurar Safety Engine','/app/config-safety',ShieldCheck],
     ['Parâmetros por unidade','/app/parametros-unidade',Settings],
     ['Gestão de módulos','/app/modulos',Settings],
-    ['Relatórios','/app/relatorios',FileBarChart],
-    ['Configurações','/app/configuracoes',Settings],
   ]},
 ];
 

@@ -6,7 +6,7 @@ const RESOURCE_DEFS = Object.freeze({
  'soap-notes':{type:'soap',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode'],allowed:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode','diagnosisDescription','familyHistory','medicationsInUse','allergiesReviewed','recordedAt']},
  'vital-signs':{type:'vitals',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','recordedAt'],allowed:['patientCpf','recordedAt','systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm','notes']},
  diagnoses:{type:'diagnosis',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','system','code','description'],allowed:['patientCpf','system','code','description','recordedAt']},
- prescriptions:{type:'prescription',permission:'prescriptions.read',write:'prescriptions.write',professional:true,required:['patientCpf','medicationName','dose','route','frequency','quantity'],allowed:['patientCpf','medicationCode','medicationName','dose','route','frequency','duration','quantity','instructions','diagnosisCode','catalogVersion']},
+ prescriptions:{type:'prescription',permission:'prescriptions.read',write:'prescriptions.write',professional:true,required:['patientCpf','medicationCode','medicationName','dose','route','frequency','quantity'],allowed:['patientCpf','medicationCode','medicationName','dose','route','frequency','duration','quantity','instructions','diagnosisCode','catalogVersion']},
  'exam-orders':{type:'exam_order',permission:'exams.read',write:'exams.write',professional:true,required:['patientCpf','code','label','modality'],allowed:['patientCpf','code','label','modality','clinicalJustification','priority','requestedAt','catalogVersion']},
  documents:{type:'document',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','documentType','content'],allowed:['patientCpf','documentType','content','cidCode','issuedAt','validUntil','notes']},
  hospitalizations:{type:'hospitalization',permission:'hospitalizations.read',write:'hospitalizations.write',professional:true,required:['patientCpf','bedCode','admissionReason'],allowed:['patientCpf','bedCode','admissionReason','attendingProfessional','admittedAt','diet','careNotes']},
@@ -59,6 +59,12 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   const a=actorOf(req), auditUnit=a.unit||'platform', hash=cpf?crypto.createHash('sha256').update(String(cpf)).digest('hex'):null;
   await client.query('INSERT INTO clinical_audit_events(actor_username,actor_role,unit_id,action,resource_type,resource_id,patient_ref_hash,request_id,ip_address,user_agent,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
    [a.username,a.role,auditUnit,action,type,id||null,hash,req.get('x-request-id')||null,req.ip||null,String(req.get('user-agent')||'').slice(0,300),JSON.stringify(metadata)]);
+ }
+ async function officialCodeState(client,catalog,code){
+  const count=await client.query('SELECT COUNT(*)::int AS count FROM official_catalog_entries WHERE catalog=$1',[catalog]);
+  if(!count.rows[0].count)return{loaded:false,valid:false};
+  const match=await client.query('SELECT 1 FROM official_catalog_entries WHERE catalog=$1 AND code=$2 AND (effective_from IS NULL OR effective_from<=CURRENT_DATE) AND (effective_to IS NULL OR effective_to>=CURRENT_DATE) LIMIT 1',[catalog,String(code)]);
+  return{loaded:true,valid:!!match.rowCount};
  }
  async function requireProfessional(req,client){
   const a=actorOf(req),r=await client.query('SELECT pr.id,pr.cns,pr.cbo,pr.unit_id FROM users u JOIN professional_registry pr ON pr.user_id=u.id WHERE u.username=$1 AND pr.active=TRUE AND pr.unit_id=$2',[a.username,a.unit]);
@@ -363,6 +369,17 @@ router.get('/api/v1/:resource',async(req,res,next)=>{
     const original=await client.query('SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type=$2 AND unit_id=$3 FOR SHARE',[id,def.type,unitOf(req)]);
     if(!original.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Registro original não encontrado nesta unidade.'});}
     if((data.patientCpf||null)!==(original.rows[0].patient_cpf||null)){await client.query('ROLLBACK');return res.status(409).json({erro:'Uma correção não pode alterar o vínculo do paciente.',codigo:'CORRECTION_PATIENT_MISMATCH'});}
+    const catalogChecks=[];
+    if(def.type==='soap')catalogChecks.push([data.diagnosisSystem==='CID-10'?'CID10':'CIAP2',data.diagnosisCode]);
+    if(def.type==='diagnosis')catalogChecks.push([data.system==='CID-10'?'CID10':'CIAP2',data.code]);
+    if(def.type==='prescription')catalogChecks.push(['RENAME',data.medicationCode]);
+    if(def.type==='exam_order')catalogChecks.push(['SIGTAP',data.code]);
+    if(def.type==='billing')catalogChecks.push(['SIGTAP',data.sigtapCode],['CBO',data.cboCode],['CID10',data.cidCode]);
+    for(const [catalog,code] of catalogChecks){
+     const state=await officialCodeState(client,catalog,code);
+     if(!state.loaded){await client.query('ROLLBACK');return res.status(503).json({erro:'O catálogo oficial '+catalog+' ainda não foi importado. O registro foi bloqueado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED',catalog});}
+     if(!state.valid){await client.query('ROLLBACK');return res.status(400).json({erro:'Código não encontrado no catálogo oficial vigente: '+catalog+'.',codigo:'OFFICIAL_CODE_NOT_FOUND',catalog,code});}
+    }
     if(def.professional&&!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
     const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,resource_type,patient_cpf,status,data,created_at,supersedes_id',
      [def.type,original.rows[0].patient_cpf,unitOf(req),'correction',JSON.stringify(data),actor.username,actor.role,id]);
@@ -422,7 +439,7 @@ router.post('/api/v1/:resource',async(req,res,next)=>{
  });
  router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);const b=req.body||{};
-  if(!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Medicamento, lote, validade e quantidade positiva são obrigatórios.'});
+  if(!String(b.medicationCode||'').trim()||!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Medicamento, lote, validade e quantidade positiva são obrigatórios.'});
   try{const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_name,batch_number,expires_on,quantity_available',[b.medicationCode||null,String(b.medicationName).trim(),String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);return res.status(201).json({lot:r.rows[0]});}
   catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
  });
@@ -439,8 +456,8 @@ router.post('/api/v1/:resource',async(req,res,next)=>{
    const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1',[id]);
    const already=Number(prior.rows[0].dispensed||0);
    if(prescribed>0&&already+quantity>prescribed){await client.query('ROLLBACK');return res.status(409).json({erro:'Quantidade solicitada excede o saldo da prescrição.',codigo:'PRESCRIPTION_QUANTITY_EXCEEDED'});}
-   const med=String(p.rows[0].data.medicationName||'').trim();
-   const lots=await client.query('SELECT id,batch_number,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 AND medication_name=$2 AND expires_on>=CURRENT_DATE AND quantity_available>0 ORDER BY expires_on ASC,id ASC FOR UPDATE',[unitOf(req),med]);
+   const medCode=String(p.rows[0].data.medicationCode||'').trim();
+   const lots=await client.query('SELECT id,batch_number,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 AND medication_code=$2 AND expires_on>=CURRENT_DATE AND quantity_available>0 ORDER BY expires_on ASC,id ASC FOR UPDATE',[unitOf(req),medCode]);
    const total=lots.rows.reduce((sum,row)=>sum+Number(row.quantity_available),0);if(total<quantity){await client.query('ROLLBACK');return res.status(409).json({erro:'Estoque válido insuficiente para dispensação.',codigo:'INSUFFICIENT_VALID_STOCK'});}
    let remaining=quantity;const allocations=[];
    for(const lot of lots.rows){if(remaining<=0)break;const qty=Math.min(remaining,Number(lot.quantity_available));

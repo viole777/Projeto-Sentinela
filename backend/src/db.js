@@ -39,8 +39,8 @@ const ROLE_PERMISSIONS = {
     "exams.read", "exams.write", "exams.results.write",
     "prescriptions.read", "prescriptions.write", "prescriptions.validate",
     "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
-    "medications.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
-    "files.read", "queue.call"
+    "medications.read", "inventory.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   enfermagem: [
     "dashboard.read", "patients.read", "appointments.read",

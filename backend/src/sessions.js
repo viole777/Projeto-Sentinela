@@ -39,7 +39,6 @@ class SessionStore {
         this.pending = new Map();    // token → { session, attempts } aguardando upsert
         this.inflight = new Set();   // escritas em andamento (esperadas no shutdown)
         this.dirty = false;          // há mudanças para gravar no arquivo (modo JSON)
-        this.permissionLoader = null;
         this.drainTimer = null;      // agendador da descarga imediata da fila (Postgres)
 
         if (!usingPostgres()) this.loadFromFile();
@@ -52,9 +51,6 @@ class SessionStore {
 
         this.bindShutdown();
     }
-
-    // Permissões vêm das tabelas de RBAC (injetado pelo server.js: permissionsForRole).
-    setPermissionLoader(fn) { this.permissionLoader = fn; }
 
     // ── leitura ────────────────────────────────────────────────
     async get(token) {
@@ -84,14 +80,10 @@ class SessionStore {
             }
             const expiresAt = new Date(row.expires_at).getTime();
             if (!(expiresAt > Date.now())) { this.pgDelete(token); return undefined; }
-            let permissions;
-            if (this.permissionLoader) {
-                try { permissions = await this.permissionLoader(row.role); } catch (_) { permissions = undefined; }
-            }
             const session = {
                 usuario: row.username, nome: row.name, email: row.email,
                 tipo: row.role, role: row.role, theme: row.theme || "light",
-                permissions, expiresAt, pg: true, checkedAt: Date.now()
+                expiresAt, pg: true, checkedAt: Date.now()
             };
             this.map.set(token, session);
             return session;

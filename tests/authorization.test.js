@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { createAuthMiddleware } = require('../backend/src/middleware/auth');
-const { ROLE_PERMISSIONS } = require('../backend/src/db');
+const { ROLE_PERMISSIONS, syncBuiltInRolePermissions } = require('../backend/src/db');
 
 function makeHarness({ role = 'medico', effective = [], loader = async () => effective, sessionPermissions = [] } = {}) {
   const session = { role, tipo: role, permissions: sessionPermissions, expiresAt: 0 };
@@ -38,6 +38,20 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.admin.includes('patients.read'), 'technical admin must not inherit clinical access');
   assert.ok(ROLE_PERMISSIONS.admin.includes('users.write'));
   assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.write'));
+
+  {
+    const statements = [];
+    let released = false;
+    const client = {
+      async query(sql) { statements.push(String(sql).trim().split(/\\s+/)[0].toUpperCase()); return { rows: [] }; },
+      release() { released = true; }
+    };
+    await syncBuiltInRolePermissions({ async connect() { return client; } });
+    assert.equal(statements[0], 'BEGIN');
+    assert.equal(statements.at(-1), 'COMMIT');
+    assert.ok(statements.includes('DELETE'), 'startup reconciliation must revoke stale grants');
+    assert.equal(released, true, 'transaction client must always be released');
+  }
 
   {
     const { middleware } = makeHarness({ role: 'admin', effective: ROLE_PERMISSIONS.admin });

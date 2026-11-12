@@ -97,6 +97,18 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   }
 
   {
+    const { middleware } = makeHarness({ role: 'medico', effective: ROLE_PERMISSIONS.medico });
+    const result = await invoke(middleware.requirePermission('triage.read'));
+    assert.equal(result.res.statusCode, 403, 'medical role must be denied direct access to the triage API');
+  }
+
+  {
+    const { middleware } = makeHarness({ role: 'medico', effective: ROLE_PERMISSIONS.medico });
+    const result = await invoke(middleware.requirePermission('consultations.queue.read'));
+    assert.equal(result.nextCalled, true, 'medical role must access its dedicated consultation queue');
+  }
+
+  {
     const { middleware, session } = makeHarness({ role: 'medico', effective: ['consultations.write'], sessionPermissions: [] });
     const result = await invoke(middleware.requirePermission('consultations.write'));
     assert.equal(result.nextCalled, true);

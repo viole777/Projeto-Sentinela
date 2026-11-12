@@ -25,7 +25,16 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
 
     async function loadSession(req, res) {
         const token = parseCookies(req.headers.cookie).sentinela_session;
-        const session = token ? await sessions.get(token) : null;
+        let session = null;
+        try {
+            session = token ? await sessions.get(token) : null;
+        } catch (_) {
+            res.status(503).json({
+                erro: "O serviço de sessões está indisponível. Tente novamente.",
+                codigo: "SESSION_STORE_UNAVAILABLE"
+            });
+            return null;
+        }
         if (!session) {
             res.status(401).json({ erro: "Autenticação necessária" });
             return null;
@@ -33,10 +42,26 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
         return { token, session };
     }
 
-    function refreshSession(token, session, req) {
+    async function refreshSession(token, session, req) {
         session.expiresAt = Date.now() + sessionTtlMs;
-        sessions.touch(token, session);
+        try {
+            await sessions.touch(token, session);
+        } catch (_) {
+            const error = new Error("Não foi possível renovar a sessão com segurança.");
+            error.code = "SESSION_REFRESH_UNAVAILABLE";
+            throw error;
+        }
         req.user = session;
+    }
+
+    function handleMiddlewareError(error, res, next) {
+        if (error?.code === "SESSION_REFRESH_UNAVAILABLE") {
+            return res.status(503).json({
+                erro: "Não foi possível renovar a sessão com segurança. Tente novamente.",
+                codigo: error.code
+            });
+        }
+        return next(error);
     }
 
     function requireAuth(roles = []) {
@@ -50,10 +75,10 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
                 if (allowed.length && !allowed.includes(role)) {
                     return res.status(403).json({ erro: "Perfil sem permissão para esta operação" });
                 }
-                refreshSession(auth.token, auth.session, req);
+                await refreshSession(auth.token, auth.session, req);
                 return next();
             } catch (error) {
-                return next(error);
+                return handleMiddlewareError(error, res, next);
             }
         };
     }

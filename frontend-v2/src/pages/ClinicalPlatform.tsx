@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Activity, AlertTriangle, RefreshCw, Search, ShieldCheck, PlusCircle } from 'lucide-react';
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
 
@@ -53,7 +54,7 @@ export function ClinicalPlatformPage(){
  },[current]);
  useEffect(()=>{setSelected(v=>visible.some(m=>m.key===v)?v:(visible[0]?.key||''));},[visible]);
  useEffect(()=>{void load();},[load]);
- async function submit(e:React.FormEvent){
+ async function submit(e:FormEvent){
   e.preventDefault();if(!current||!canWrite)return;setSaving(true);setError('');setNotice('');
   const body:Record<string,unknown>={...form};
   for(const k of ['systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm','gestationalAgeWeeks','childAgeMonths','quantity'])if(body[k])body[k]=Number(body[k]);
@@ -63,7 +64,7 @@ export function ClinicalPlatformPage(){
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar.');}
   finally{setSaving(false);}
  }
- async function searchPatient(e:React.FormEvent){
+ async function searchPatient(e:FormEvent){
   e.preventDefault();setPatientResult('');try{const r=await fetch('/api/v1/patient-identities?identifier='+encodeURIComponent(patientLookup),{credentials:'include',headers:{Accept:'application/json'}});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.erro||'Busca indisponível.');setPatientResult(JSON.stringify(b.patients||[],null,2));}catch(e){setPatientResult(e instanceof Error?e.message:'Falha na busca.');}
  }
  async function loadCatalog(){setCatalogResult('');try{const r=await fetch('/api/v1/catalogs/'+catalog,{credentials:'include',headers:{Accept:'application/json'}});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.erro||'Catálogo indisponível.');setCatalogResult(JSON.stringify(b.items||[],null,2));}catch(e){setCatalogResult(e instanceof Error?e.message:'Catálogo indisponível.');}}

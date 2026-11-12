@@ -40,6 +40,13 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.admin.includes('patients.read'), 'technical admin must not inherit clinical access');
   assert.ok(ROLE_PERMISSIONS.admin.includes('users.write'));
   assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.write'));
+  assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.queue.read'), 'medical role must use the dedicated consultation queue');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.read'), 'medical role must not read the triage workspace');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.write'), 'medical role must not create triage assessments');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.close'), 'medical role must not close triage records');
+  assert.ok(!ROLE_PERMISSIONS.cardiologist.includes('triage.read'), 'cardiology role must not read the triage workspace');
+  assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.close'), 'triage role must be able to close its own workflow');
+
   assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.write'));
   assert.ok(!ROLE_PERMISSIONS.triagem.includes('consultations.write'), 'triage role must not access medical consultation writes');
   assert.ok(ROLE_PERMISSIONS.recepcao.includes('appointments.write'));

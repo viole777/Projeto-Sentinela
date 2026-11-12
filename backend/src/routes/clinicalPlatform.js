@@ -172,7 +172,8 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  router.post('/api/v1/discharges',requirePermission('hospitalizations.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const v=validateResourcePayload('discharges',req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
-  const data=v.data,actor=actorOf(req),client=await getPool().connect();
+   const data=v.data,actor=actorOf(req),client=await getPool().connect();
+   if(!Number.isSafeInteger(Number(data.hospitalizationId))||Number(data.hospitalizationId)<1)return res.status(400).json({erro:'ID da internação inválido.'});
   try{await client.query('BEGIN');
    const h=await client.query('SELECT id,patient_cpf,bed_code FROM hospitalizations WHERE id=$1 AND patient_cpf=$2 AND unit_id=$3 AND discharged_at IS NULL FOR UPDATE',[Number(data.hospitalizationId),data.patientCpf,unitOf(req)]);
    if(!h.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Internação ativa não encontrada nesta unidade.'});}

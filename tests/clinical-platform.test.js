@@ -24,7 +24,7 @@ assert.equal(validateResourcePayload('vital-signs',{patientCpf:'12345678900',rec
 assert.equal(validateResourcePayload('vital-signs',{patientCpf:'12345678900',recordedAt:'12/11/2026'}).ok,false);
 
 assert.equal(validateResourcePayload('prescriptions',{
- patientCpf:'12345678900',medicationName:'Medicamento',dose:'1 unidade',route:'oral',frequency:'conforme prescrição',quantity:30
+ patientCpf:'12345678900',medicationCode:'123',medicationName:'Medicamento',dose:'1 unidade',route:'oral',frequency:'conforme prescrição',quantity:30
 }).ok,true);
 assert.equal(validateResourcePayload('billing',{
  instrument:'AIH',competence:'202611',sigtapCode:'0000000000',cboCode:'225125',cidCode:'I10'
@@ -69,5 +69,6 @@ assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.read'));
 assert.ok(ROLE_PERMISSIONS.farmacia.includes('prescriptions.dispense'));
 assert.ok(ROLE_PERMISSIONS.recepcao.includes('patients.identity.write'));
 assert.ok(ROLE_PERMISSIONS.admin.includes('integration.manage'));
+assert.ok(!ROLE_PERMISSIONS.admin.includes('clinical.audit.read'),'technical admin must not read patient audit trail');
 
 console.log('clinical platform schema validation tests passed');

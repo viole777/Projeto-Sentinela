@@ -1,6 +1,6 @@
 export const PERMISSION_BY_PATH: Record<string, string> = {
   '/app/dashboard': 'dashboard.read',
-  '/app/plataforma-clinica': 'patients.identity.read',
+  '/app/plataforma-clinica': 'dashboard.read',
   '/app/dashboard-gerencial': 'reports.read',
   '/app/pacientes': 'patients.read',
   '/app/recepcao': 'appointments.read',

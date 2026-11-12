@@ -113,6 +113,20 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   }
 
   {
+    const { middleware } = makeHarness({ role: 'medico', effective: ['*'] });
+    const result = await invoke(middleware.requirePermission('patients.read'));
+    assert.equal(result.res.statusCode, 403, 'a wildcard stored in the database must never grant universal access');
+  }
+
+  {
+    const { middleware } = makeHarness({ role: 'medico', effective: ['*', 'consultations.write'] });
+    const allowed = await invoke(middleware.requirePermission('consultations.write'));
+    const denied = await invoke(middleware.requirePermission('patients.identity.sensitive.write'));
+    assert.equal(allowed.nextCalled, true, 'explicit grants remain valid alongside a stale wildcard');
+    assert.equal(denied.res.statusCode, 403, 'a stale wildcard must not expand explicit grants');
+  }
+
+  {
     const { middleware } = makeHarness({ role: 'medico', effective: ROLE_PERMISSIONS.medico });
     const result = await invoke(middleware.requirePermission('triage.read'));
     assert.equal(result.res.statusCode, 403, 'medical role must be denied direct access to the triage API');

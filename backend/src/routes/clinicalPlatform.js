@@ -195,20 +195,27 @@ router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=
  router.get('/api/v1/patient-consents',requirePermission('patients.identity.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const cpf=normalizeCpf(req.query.cpf||'');if(!CPF_RE.test(cpf))return res.status(400).json({erro:'Informe CPF válido.'});
-  try{const r=await getPool().query('SELECT id,patient_cpf,purpose,legal_basis,status,recorded_by,recorded_at,expires_at,evidence_ref FROM patient_consents WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY recorded_at DESC LIMIT 100',[cpf,unitOf(req)]);return res.json({items:r.rows,appendOnly:true});}
-  catch(e){return next(e);}
- });
- router.post('/api/v1/patient-consents',requirePermission('patients.identity.write'),async(req,res,next)=>{
+  const client=await getPool().connect();
+  try{const r=await client.query('SELECT id,patient_cpf,purpose,legal_basis,status,recorded_by,recorded_at,expires_at,evidence_ref FROM patient_consents WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY recorded_at DESC LIMIT 100',[cpf,unitOf(req)]);
+   await audit(req,client,'read','patient_consent',null,cpf,{count:r.rowCount});
+   return res.json({items:r.rows,appendOnly:true});
+  }catch(e){return next(e);}finally{client.release();}
+});
+router.post('/api/v1/patient-consents',requirePermission('patients.identity.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
   if(!CPF_RE.test(cpf)||!String(b.purpose||'').trim()||!String(b.legalBasis||'').trim()||!['granted','revoked','expired'].includes(b.status))return res.status(400).json({erro:'Paciente, finalidade, base legal e status válidos são obrigatórios.'});
-  try{const patient=await getPool().query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
-   const r=await getPool().query('INSERT INTO patient_consents(patient_cpf,unit_id,purpose,legal_basis,status,recorded_by,expires_at,evidence_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,patient_cpf,purpose,legal_basis,status,recorded_at',
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const patient=await client.query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
+   if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+   const r=await client.query('INSERT INTO patient_consents(patient_cpf,unit_id,purpose,legal_basis,status,recorded_by,expires_at,evidence_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,patient_cpf,purpose,legal_basis,status,recorded_at',
     [cpf,unitOf(req),String(b.purpose).slice(0,300),String(b.legalBasis).slice(0,100),b.status,actorOf(req).username,b.expiresAt||null,b.evidenceRef||null]);
-   return res.status(201).json({consent:r.rows[0],appendOnly:true});
-  }catch(e){return next(e);}
- });
- router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.manage'),async(req,res,next)=>{
+   await audit(req,client,'create','patient_consent',r.rows[0].id,cpf,{status:b.status,purpose:String(b.purpose).slice(0,100)});
+   await client.query('COMMIT');return res.status(201).json({consent:r.rows[0],appendOnly:true});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.manage'),async(req,res,next)=>{
   if(!usingPostgres())return unavailable(res);
   const catalog=String(req.params.catalog||'').toUpperCase(),b=req.body||{};
   if(!['CID10','CIAP2','SIGTAP','RENAME','CBO','CNES'].includes(catalog)||!String(b.sourceVersion||'').trim()||!Array.isArray(b.entries)||b.entries.length<1||b.entries.length>5000)return res.status(400).json({erro:'Catálogo, versão da fonte e lista de 1 a 5000 entradas são obrigatórios.'});

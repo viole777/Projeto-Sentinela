@@ -22,7 +22,7 @@ export function ClinicalPlatformAdmin({permissions}:Props){
  const [dispense,setDispense]=useState({prescriptionId:'',quantity:''}),[dispenseMsg,setDispenseMsg]=useState('');
  const [validation,setValidation]=useState({prescriptionId:'',decision:'approved',reason:''}),[validationMsg,setValidationMsg]=useState('');
  const [interactionCodes,setInteractionCodes]=useState(''),[interactionResult,setInteractionResult]=useState('');
- const [interactionVersion,setInteractionVersion]=useState(''),[interactionEntries,setInteractionEntries]=useState('[\\n  {"codeA":"","codeB":"","severity":"","description":""}\\n]'),[interactionImportMsg,setInteractionImportMsg]=useState('');
+ const [interactionVersion,setInteractionVersion]=useState(''),[interactionEntries,setInteractionEntries]=useState('[{"codeA":"","codeB":"","severity":"","description":""}]'),[interactionImportMsg,setInteractionImportMsg]=useState('');
  const [lots,setLots]=useState<Record<string,unknown>[]>([]);
  const loadBeds=useCallback(async()=>{const r=await call('/api/v1/bed-map');setBedRows(Array.isArray(r.body.items)?r.body.items as Record<string,unknown>[]:[]);},[]);
  const loadLots=useCallback(async()=>{const r=await call('/api/v1/medication-lots');setLots(Array.isArray(r.body.items)?r.body.items as Record<string,unknown>[]:[]);},[]);

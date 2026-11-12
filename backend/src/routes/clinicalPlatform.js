@@ -11,13 +11,14 @@ const RESOURCE_DEFS = Object.freeze({
  documents:{type:'document',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','documentType','content'],allowed:['patientCpf','documentType','content','cidCode','issuedAt','validUntil','notes']},
  hospitalizations:{type:'hospitalization',permission:'hospitalizations.read',write:'hospitalizations.write',professional:true,required:['patientCpf','bedCode','admissionReason'],allowed:['patientCpf','bedCode','admissionReason','attendingProfessional','admittedAt','diet','careNotes']},
  discharges:{type:'discharge',permission:'hospitalizations.read',write:'hospitalizations.write',professional:true,required:['patientCpf','hospitalizationId','summary','instructions'],allowed:['patientCpf','hospitalizationId','summary','medicationReconciliation','instructions','followUp','dischargedAt']},
- 'maternal-child':{type:'maternal_child',permission:'maternal.read',write:'maternal.write',professional:true,required:['patientCpf','kind','recordedAt'],allowed:['patientCpf','kind','recordedAt','gestationalAgeWeeks','estimatedDueDate','prenatalVisit','fundalHeightCm','fetalHeartRate','weightKg','childAgeMonths','heightCm','headCircumferenceCm','developmentNotes']},
+ 'maternal-child':{type:'maternal_child',permission:'maternal.read',write:'maternal.write',professional:true,required:['patientCpf','kind','recordedAt'],allowed:['patientCpf','kind','recordedAt','gestationalAgeWeeks','lastMenstrualPeriod','estimatedDueDate','prenatalVisit','fundalHeightCm','fetalHeartRate','weightKg','childAgeMonths','heightCm','headCircumferenceCm','developmentNotes']},
  'chronic-care':{type:'chronic_care',permission:'chronic.read',write:'chronic.write',professional:true,required:['patientCpf','condition','recordedAt'],allowed:['patientCpf','condition','recordedAt','measurements','medicationReview','carePlan','nextReviewAt']},
  immunizations:{type:'immunization',permission:'immunizations.read',write:'immunizations.write',professional:true,required:['patientCpf','vaccine','dose','lot','manufacturer','administeredAt'],allowed:['patientCpf','vaccine','dose','lot','manufacturer','administeredAt','site','vaccinator','nextDoseAt']},
  referrals:{type:'referral',permission:'referrals.read',write:'referrals.write',professional:true,required:['patientCpf','destination','specialty','reason','priority'],allowed:['patientCpf','destination','destinationCnes','specialty','reason','priority','requestedAt','clinicalSummary']},
  notifications:{type:'notification',permission:'records.read',write:'notifications.write',professional:true,required:['patientCpf','diseaseCode','caseDate'],allowed:['patientCpf','diseaseCode','caseDate','notificationType','epidemiologicalNotes','status']},
  billing:{type:'billing',permission:'billing.read',write:'billing.write',professional:false,required:['instrument','competence','sigtapCode','cboCode','cidCode'],allowed:['patientCpf','instrument','competence','sigtapCode','cboCode','cidCode','quantity','professionalCns','cnes','authorizationNumber']},
  'nursing-evolutions':{type:'nursing_evolution',permission:'records.read',write:'nursing.write',professional:true,required:['patientCpf','assessment','interventions','recordedAt'],allowed:['patientCpf','assessment','interventions','response','carePlan','recordedAt']},
+ 'exam-results':{type:'exam_result',permission:'exams.read',write:'exams.results.write',professional:true,required:['patientCpf','examRecordId','result','releasedAt'],allowed:['patientCpf','examRecordId','result','releasedAt','reportingProfessional']},
  'care-plans':{type:'care_plan',permission:'records.read',write:'careplans.write',professional:true,required:['patientCpf','goals','interventions','reviewAt'],allowed:['patientCpf','goals','interventions','reviewAt','responsibleTeam']}
 });
 const CPF_RE=/^\d{11}$/, CNS_RE=/^\d{15}$/, CBO_RE=/^\d{6}$/;
@@ -39,7 +40,7 @@ function validateResourcePayload(key,input){
  if(data.instrument&&!['BPA-C','BPA-I','AIH','APAC'].includes(data.instrument))return{ok:false,error:'Instrumento de faturamento inválido.'};
  if(data.competence&&!/^\d{6}$/.test(String(data.competence)))return{ok:false,error:'Competência deve estar no formato AAAAMM.'};
  if(data.priority&&!['routine','urgent','high','emergency'].includes(String(data.priority).toLowerCase()))return{ok:false,error:'Prioridade inválida.'};
- for(const k of ['recordedAt','administeredAt','caseDate','requestedAt','issuedAt','reviewAt','admittedAt','dischargedAt'])if(data[k]&&!DATE_RE.test(String(data[k])))return{ok:false,error:'Data inválida em '+k+'.'};
+ for(const k of ['recordedAt','administeredAt','caseDate','requestedAt','issuedAt','reviewAt','admittedAt','dischargedAt','lastMenstrualPeriod','estimatedDueDate','nextDoseAt'])if(data[k]&&!DATE_RE.test(String(data[k])))return{ok:false,error:'Data inválida em '+k+'.'};
  for(const k of ['systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm','gestationalAgeWeeks','fetalHeartRate','childAgeMonths','headCircumferenceCm','quantity'])if(data[k]!==undefined&&(!Number.isFinite(Number(data[k]))||Number(data[k])<0))return{ok:false,error:'Valor numérico inválido em '+k+'.'};
  if(data.oxygenSaturation!==undefined&&Number(data.oxygenSaturation)>100)return{ok:false,error:'Saturação deve estar entre 0 e 100.'};
  if(data.kind&&!['prenatal','puericulture'].includes(data.kind))return{ok:false,error:'Tipo deve ser prenatal ou puericulture.'};
@@ -125,6 +126,130 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    [Number(b.userId),String(b.cns),String(b.cbo),String(b.unitId).trim(),b.councilType||null,b.councilNumber||null,b.councilState||null,b.cnes||null]);return res.status(201).json({professional:r.rows[0]});}
   catch(e){return next(e);}
  });
+
+ router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  try{const r=await getPool().query('SELECT b.id,b.code,b.status,b.patient_cpf,b.patient_name,b.occupied_since,w.name AS ward FROM beds b LEFT JOIN wards w ON w.id=b.ward_id WHERE b.unit_id=$1 ORDER BY w.name,b.code',[unitOf(req)]);return res.json({items:r.rows});}
+  catch(e){return next(e);}
+ });
+ router.post('/api/v1/beds',requirePermission('beds.manage'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const code=String(req.body?.code||'').trim(),ward=String(req.body?.ward||'').trim();
+  if(!code||!ward)return res.status(400).json({erro:'Código do leito e ala são obrigatórios.'});
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const w=await client.query('INSERT INTO wards(name,unit_id) VALUES($1,$2) ON CONFLICT(name) DO UPDATE SET unit_id=COALESCE(wards.unit_id,EXCLUDED.unit_id) RETURNING id',[ward,unitOf(req)]);
+   const r=await client.query('INSERT INTO beds(code,ward_id,status,unit_id) VALUES($1,$2,\\'free\\',$3) RETURNING id,code,status,unit_id',[code,w.rows[0].id,unitOf(req)]);
+   await audit(req,client,'create','bed',r.rows[0].id,null,{code,ward});await client.query('COMMIT');return res.status(201).json({bed:r.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({erro:'Código de leito já cadastrado.'});return next(e);}
+  finally{client.release();}
+ });
+ router.get('/api/v1/hospitalizations',requirePermission('hospitalizations.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  try{const r=await getPool().query('SELECT id,patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,discharged_at FROM hospitalizations WHERE unit_id=$1 ORDER BY admitted_at DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
+  catch(e){return next(e);}
+ });
+ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const v=validateResourcePayload('hospitalizations',req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
+  const data=v.data,actor=actorOf(req),client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const patient=await client.query('SELECT cpf,name FROM patients WHERE cpf=$1 AND unit_id=$2',[data.patientCpf,unitOf(req)]);
+   if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+   if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
+   const bed=await client.query('SELECT id,code,status FROM beds WHERE code=$1 AND unit_id=$2 FOR UPDATE',[data.bedCode,unitOf(req)]);
+   if(!bed.rowCount||!['free','livre'].includes(String(bed.rows[0].status).toLowerCase())){await client.query('ROLLBACK');return res.status(409).json({erro:'Leito inexistente ou indisponível nesta unidade.',codigo:'BED_NOT_AVAILABLE'});}
+   const admission=await client.query('INSERT INTO hospitalizations(patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,unit_id) VALUES($1,$2,$3,$4,$5,COALESCE($6::timestamptz,NOW()),$7) RETURNING id,patient_cpf,patient_name,bed_code,reason,admitted_at',
+    [data.patientCpf,patient.rows[0].name,data.bedCode,data.admissionReason,data.attendingProfessional||actor.username,data.admittedAt||null,unitOf(req)]);
+   await client.query('UPDATE beds SET status=\\'occupied\\',patient_cpf=$1,patient_name=$2,occupied_since=NOW() WHERE id=$3',[data.patientCpf,patient.rows[0].name,bed.rows[0].id]);
+   const record=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES(\\'hospitalization\\',$1,$2,\\'admitted\\',$3,$4,$5) RETURNING id,created_at',
+    [data.patientCpf,unitOf(req),JSON.stringify({...data,hospitalizationId:admission.rows[0].id}),actor.username,actor.role]);
+   await audit(req,client,'create','hospitalization',record.rows[0].id,data.patientCpf,{hospitalizationId:admission.rows[0].id,bedCode:data.bedCode});
+   await client.query('COMMIT');return res.status(201).json({hospitalization:admission.rows[0],record:record.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.post('/api/v1/discharges',requirePermission('hospitalizations.write'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const v=validateResourcePayload('discharges',req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
+  const data=v.data,actor=actorOf(req),client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const h=await client.query('SELECT id,patient_cpf,bed_code FROM hospitalizations WHERE id=$1 AND patient_cpf=$2 AND unit_id=$3 AND discharged_at IS NULL FOR UPDATE',[Number(data.hospitalizationId),data.patientCpf,unitOf(req)]);
+   if(!h.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Internação ativa não encontrada nesta unidade.'});}
+   if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
+   await client.query('UPDATE hospitalizations SET discharged_at=COALESCE($1::timestamptz,NOW()) WHERE id=$2',[data.dischargedAt||null,h.rows[0].id]);
+   await client.query('UPDATE beds SET status=\\'free\\',patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$1 AND unit_id=$2',[h.rows[0].bed_code,unitOf(req)]);
+   const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES(\\'discharge\\',$1,$2,\\'discharged\\',$3,$4,$5,$6) RETURNING id,created_at',
+    [data.patientCpf,unitOf(req),JSON.stringify(data),actor.username,actor.role,h.rows[0].id]);
+   await audit(req,client,'create','discharge',r.rows[0].id,data.patientCpf,{hospitalizationId:h.rows[0].id,bedCode:h.rows[0].bed_code});
+   await client.query('COMMIT');return res.status(201).json({discharge:r.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.get('/api/v1/patient-consents',requirePermission('patients.identity.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const cpf=normalizeCpf(req.query.cpf||'');if(!CPF_RE.test(cpf))return res.status(400).json({erro:'Informe CPF válido.'});
+  try{const r=await getPool().query('SELECT id,patient_cpf,purpose,legal_basis,status,recorded_by,recorded_at,expires_at,evidence_ref FROM patient_consents WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY recorded_at DESC LIMIT 100',[cpf,unitOf(req)]);return res.json({items:r.rows,appendOnly:true});}
+  catch(e){return next(e);}
+ });
+ router.post('/api/v1/patient-consents',requirePermission('patients.identity.write'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
+  if(!CPF_RE.test(cpf)||!String(b.purpose||'').trim()||!String(b.legalBasis||'').trim()||!['granted','revoked','expired'].includes(b.status))return res.status(400).json({erro:'Paciente, finalidade, base legal e status válidos são obrigatórios.'});
+  try{const patient=await getPool().query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
+   const r=await getPool().query('INSERT INTO patient_consents(patient_cpf,unit_id,purpose,legal_basis,status,recorded_by,expires_at,evidence_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,patient_cpf,purpose,legal_basis,status,recorded_at',
+    [cpf,unitOf(req),String(b.purpose).slice(0,300),String(b.legalBasis).slice(0,100),b.status,actorOf(req).username,b.expiresAt||null,b.evidenceRef||null]);
+   return res.status(201).json({consent:r.rows[0],appendOnly:true});
+  }catch(e){return next(e);}
+ });
+ router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.manage'),async(req,res,next)=>{
+  if(!usingPostgres())return unavailable(res);
+  const catalog=String(req.params.catalog||'').toUpperCase(),b=req.body||{};
+  if(!['CID10','CIAP2','SIGTAP','RENAME','CBO','CNES'].includes(catalog)||!String(b.sourceVersion||'').trim()||!Array.isArray(b.entries)||b.entries.length<1||b.entries.length>5000)return res.status(400).json({erro:'Catálogo, versão da fonte e lista de 1 a 5000 entradas são obrigatórios.'});
+  for(const entry of b.entries)if(!String(entry.code||'').trim()||!String(entry.label||'').trim())return res.status(400).json({erro:'Cada entrada precisa de código e descrição.'});
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');let count=0;
+   for(const entry of b.entries){await client.query('INSERT INTO official_catalog_entries(catalog,code,label,source_version,effective_from,effective_to,metadata) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(catalog,code,source_version) DO UPDATE SET label=EXCLUDED.label,effective_from=EXCLUDED.effective_from,effective_to=EXCLUDED.effective_to,metadata=EXCLUDED.metadata',
+    [catalog,String(entry.code).trim(),String(entry.label).trim(),String(b.sourceVersion).trim(),entry.effectiveFrom||null,entry.effectiveTo||null,JSON.stringify(entry.metadata||{})]);count++;}
+   await audit(req,client,'create','catalog_'+catalog,null,null,{sourceVersion:b.sourceVersion,count});
+   await client.query('COMMIT');return res.status(201).json({catalog,sourceVersion:b.sourceVersion,imported:count});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.read'),async(req,res,next)=>{
+  if(!usingPostgres())return unavailable(res);
+  const codes=Array.isArray(req.query.codes)?req.query.codes:String(req.query.codes||'').split(',').filter(Boolean);
+  if(codes.length<2||codes.length>20)return res.status(400).json({erro:'Informe de 2 a 20 códigos de medicamentos.'});
+  try{const r=await getPool().query('SELECT medication_code_a,medication_code_b,severity,description,source_version FROM medication_interaction_catalog WHERE medication_code_a=ANY($1::text[]) OR medication_code_b=ANY($1::text[]) ORDER BY severity',[codes]);
+   if(!r.rowCount)return res.status(503).json({erro:'Base oficial de interações ainda não foi carregada; não é possível concluir que não existam interações.',codigo:'INTERACTION_CATALOG_NOT_LOADED'});
+   return res.json({items:r.rows,sourceValidated:true});
+  }catch(e){return next(e);}
+ });
+ router.get('/api/v1/billing-batches',requirePermission('billing.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  try{const r=await getPool().query('SELECT id,instrument,competence,status,record_ids,layout_version,created_by,created_at FROM billing_batches WHERE unit_id=$1 ORDER BY id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
+  catch(e){return next(e);}
+ });
+ router.post('/api/v1/billing-batches',requirePermission('billing.write'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const b=req.body||{};if(!['BPA-C','BPA-I','AIH','APAC'].includes(b.instrument)||!/^\d{6}$/.test(String(b.competence||''))||!Array.isArray(b.recordIds)||!b.recordIds.length||b.recordIds.length>500)return res.status(400).json({erro:'Instrumento, competência AAAAMM e lista de até 500 registros são obrigatórios.'});
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const records=await client.query('SELECT id FROM clinical_records WHERE id=ANY($1::bigint[]) AND unit_id=$2',[b.recordIds.map(Number),unitOf(req)]);
+   if(records.rowCount!==b.recordIds.length){await client.query('ROLLBACK');return res.status(400).json({erro:'Um ou mais registros não pertencem à unidade ou não existem.'});}
+   const a=actorOf(req),r=await client.query('INSERT INTO billing_batches(unit_id,instrument,competence,status,record_ids,created_by) VALUES($1,$2,$3,\\'pending_validation\\',$4,$5) RETURNING id,instrument,competence,status,record_ids,created_at',
+    [unitOf(req),b.instrument,String(b.competence),b.recordIds.map(Number),a.username]);
+   await audit(req,client,'create','billing_batch',r.rows[0].id,null,{instrument:b.instrument,recordCount:b.recordIds.length});
+   await client.query('COMMIT');return res.status(201).json({batch:r.rows[0],exportEnabled:false});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.post('/api/v1/signatures/request',requirePermission('records.sign'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const provider=req.body?.provider;
+  if(!['GOVBR','ICP_BRASIL'].includes(provider))return res.status(400).json({erro:'Provedor deve ser GOVBR ou ICP_BRASIL.'});
+  try{const r=await getPool().query('SELECT enabled,endpoint_configured,credentials_configured,homologated FROM external_integration_registry WHERE provider=$1',[provider]);
+   if(!r.rowCount||!r.rows[0].enabled||!r.rows[0].endpoint_configured||!r.rows[0].credentials_configured||!r.rows[0].homologated)return res.status(503).json({erro:'Provedor de assinatura não está configurado e homologado. Nenhum documento foi assinado.',codigo:'SIGNATURE_PROVIDER_NOT_READY'});
+   return res.status(501).json({erro:'O provedor está marcado como homologado, mas o adaptador de assinatura ainda não foi implementado. Nenhuma assinatura foi criada.',codigo:'SIGNATURE_ADAPTER_NOT_IMPLEMENTED'});
+  }catch(e){return next(e);}
+ });
+
  router.get('/api/v1/:resource',async(req,res,next)=>{
   const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
   return requirePermission(def.permission)(req,res,async error=>{

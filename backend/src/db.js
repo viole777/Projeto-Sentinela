@@ -14,53 +14,62 @@ const { getPool, usingPostgres } = require('./config/database');
 // ── RBAC: papéis → permissões (fallback quando banco indisponível; no
 // Postgres a tabela role_permissions é a fonte usada em requireAuth) ──
 const ROLE_PERMISSIONS = {
-  admin: ["*"],
+  // Administrador técnico: gestão da plataforma, sem acesso clínico implícito.
+  admin: [
+    "dashboard.read", "users.read", "users.write",
+    "professionals.read", "professionals.write",
+    "roles.read", "roles.write", "permissions.read",
+    "units.read", "units.write", "settings.manage", "modules.manage",
+    "safety.configure", "audit.read", "reports.read"
+  ],
   cardiologist: [
-    "dashboard.read",
-    "patients.read", "patients.write",
-    "appointments.read", "triage.read",
-    "consultations.read", "consultations.write",
-    "exams.read", "exams.write",
-    "prescriptions.read", "prescriptions.write",
-    "alerts.read", "alerts.resolve",
-    "ai.read", "audit.read", "reports.read"
+    "dashboard.read", "patients.read", "patients.write", "records.read",
+    "appointments.read", "triage.read", "triage.close",
+    "consultations.read", "consultations.write", "consultations.finalize",
+    "exams.read", "exams.write", "exams.results.write",
+    "prescriptions.read", "prescriptions.write", "prescriptions.validate",
+    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
+    "medications.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "files.read", "queue.call"
   ],
   medico: [
-    "dashboard.read",
-    "patients.read", "patients.write",
-    "appointments.read", "triage.read",
-    "consultations.read", "consultations.write",
-    "exams.read", "exams.write",
-    "prescriptions.read", "prescriptions.write",
-    "alerts.read", "alerts.resolve",
-    "ai.read", "audit.read", "reports.read"
+    "dashboard.read", "patients.read", "patients.write", "records.read",
+    "appointments.read", "triage.read", "triage.close",
+    "consultations.read", "consultations.write", "consultations.finalize",
+    "exams.read", "exams.write", "exams.results.write",
+    "prescriptions.read", "prescriptions.write", "prescriptions.validate",
+    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
+    "medications.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "files.read", "queue.call"
   ],
   enfermagem: [
-    "dashboard.read", "patients.read",
-    "appointments.read", "triage.read", "triage.write",
-    "internacoes.read", "internacoes.write",
-    "exams.read", "alerts.read"
+    "dashboard.read", "patients.read", "appointments.read",
+    "triage.read", "triage.write", "internacoes.read", "internacoes.write",
+    "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"
   ],
   triagem: [
-    "dashboard.read", "patients.read",
-    "appointments.read", "triage.read", "triage.write", "alerts.read"
+    "dashboard.read", "patients.read", "appointments.read",
+    "triage.read", "triage.write", "alerts.read", "files.read", "queue.call"
   ],
   farmacia: [
-    "dashboard.read", "patients.read",
-    "prescriptions.read", "prescriptions.dispense",
-    "estoque.read", "estoque.write", "alerts.read"
+    "dashboard.read", "patients.read", "prescriptions.read",
+    "prescriptions.dispense", "inventory.read", "inventory.write",
+    "alerts.read", "medications.read", "purchasing.read", "files.read"
   ],
   atendimento: [
     "dashboard.read", "patients.read", "patients.write",
-    "appointments.read", "appointments.write"
+    "appointments.read", "appointments.write", "homecare.read",
+    "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   recepcao: [
     "dashboard.read", "patients.read", "patients.write",
-    "appointments.read", "appointments.write"
+    "appointments.read", "appointments.write", "homecare.read",
+    "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   direcao: [
     "dashboard.read", "reports.read", "audit.read",
-    "patients.read", "alerts.read"
+    "alerts.read", "alerts.resolve", "inventory.read",
+    "users.read", "professionals.read", "roles.read", "units.read"
   ]
 };
 

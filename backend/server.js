@@ -819,6 +819,9 @@ app.post("/consulta", requirePermission("consultations.write"), (req, res) => {
     }
 
     const triagem = (db.triagens || []).slice().reverse().find(t => String(t.pacienteCpf) === String(paciente.cpf)) || null;
+    if (triagem && String(triagem.status || "").toLowerCase() === "atendida") {
+        return res.status(409).json({ erro: "Esta triagem já foi vinculada a uma consulta.", codigo: "TRIAGE_ALREADY_ATTENDED" });
+    }
 
     const prescricao = {
         diagnostico: String(req.body.diagnostico || "").trim(),
@@ -858,6 +861,11 @@ app.post("/consulta", requirePermission("consultations.write"), (req, res) => {
     // atualiza status do paciente (opcional)
     paciente.status = "em_consulta";
     paciente.updatedAt = new Date().toISOString();
+    if (triagem && String(triagem.status || "").toLowerCase() !== "encerrada") {
+        triagem.status = "atendida";
+        triagem.atendidaPor = req.user.usuario;
+        triagem.atendidaEm = new Date().toISOString();
+    }
 
     writeDB(db);
     audit(req, "consulta_criada", { pacienteCpf: paciente.cpf, consultaId: consulta.id, achados: achados.length });

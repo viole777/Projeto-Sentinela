@@ -95,3 +95,16 @@ A PR pode preparar adaptadores, contratos, testes, documentação e controles, m
 - O método aceita um pool injetável para testes determinísticos de commit/rollback.
 - `tests/db-transaction.test.js` cobre sucesso, rollback e liberação do cliente e integra `lint`/`test:unit`.
 - Limite: isto torna atômica a sincronização do snapshot, mas não substitui a migração das mutações clínicas para repositórios/transações por operação nem resolve a confirmação assíncrona dos handlers legados.
+
+
+## Incrementos implementados nesta continuação
+
+### Autorização backend (implementado no código; aguarda CI)
+- O middleware não interpreta mais a permissão `*` como concessão universal. A autorização depende de cada permissão explícita retornada pelo servidor.
+- Testes negativos cobrem wildcard isolado e wildcard misturado a permissões explícitas.
+
+### Auditoria legada (melhoria parcial; não equivale à transação clínica)
+- O adaptador legado deixa de engolir exceções de leitura/gravação e não trunca mais o histórico em 2.000 eventos.
+- Testes cobrem falha de leitura, falha de escrita e preservação do histórico.
+- A sincronização legada deixa de atualizar eventos existentes por conflito de ID; a migração instala bloqueio SQL contra UPDATE/DELETE em audit_logs.
+- Limite importante: handlers legados ainda chamam a auditoria fora da mesma transação da mutação. Somente o escritor de auditoria que recebe o mesmo cliente PostgreSQL da operação clínica pode oferecer atomicidade; essa migração por handler continua pendente.

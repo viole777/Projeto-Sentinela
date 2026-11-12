@@ -66,6 +66,9 @@ jobs:
           TEST_TRIAGE_PASSWORD: ci-triage-${{ github.run_id }}-${{ github.run_attempt }}-zK7!
         run: node scripts/provision-ci-admin.js
 
+      - name: Build frontend for browser navigation
+        run: npm run build:frontend
+
       - name: Start application
         run: |
           node backend/server.js > /tmp/sentinela.log 2>&1 &

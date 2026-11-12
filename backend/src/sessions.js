@@ -106,6 +106,21 @@ class SessionStore {
     }
 
 
+    // Cria a sessão no PostgreSQL antes de devolver o cookie ao cliente.
+    // A leitura revalida no banco a cada requisição; portanto, uma sessão
+    // recém-criada não pode depender do flush assíncrono da fila.
+    async persist(token, session) {
+        if (!token || !session) throw new Error("Token ou sessão inválidos");
+        this.map.set(token, session);
+        if (usingPostgres()) {
+            this.pending.delete(token);
+            await this.upsert(token, session);
+        } else {
+            this.dirty = true;
+        }
+        return this;
+    }
+
     // Renova a validade (chamado a cada requisição autenticada): atualiza o
     // cache e, em produção, o expires_at no PostgreSQL. Antes disso a renovação
     // nunca chegava ao banco e um token ativo "morria" no restart.
@@ -235,7 +250,7 @@ class SessionStore {
             [identifier]
         );
         const userId = u.rows[0] && u.rows[0].id;
-        if (!userId) return; // usuário não existe no Postgres; sessão segue só no cache
+        if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL')
         await pool.query(
             `INSERT INTO sessions (token, user_id, expires_at)
              VALUES ($1, $2, $3)

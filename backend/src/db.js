@@ -66,9 +66,14 @@ const ROLE_PERMISSIONS = {
     "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   recepcao: [
-    "dashboard.read", "patients.read", "patients.write",
+    "dashboard.read", "patients.read", "patients.write", "patients.identity.read", "patients.identity.write",
     "appointments.read", "appointments.write", "appointments.manage", "homecare.read",
     "homecare.write", "homecare.complete", "files.read", "queue.call"
+  ],
+  // Papel dedicado: só deve ser atribuído após autorização formal para correção de identificadores.
+  supervisor_cadastro: [
+    "dashboard.read", "patients.read", "patients.identity.read", "patients.identity.write",
+    "patients.identity.sensitive.write"
   ],
   direcao: [
     "dashboard.read", "reports.read", "audit.read", "clinical.audit.read", "billing.read",

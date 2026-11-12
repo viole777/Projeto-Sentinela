@@ -70,6 +70,8 @@ export function AdvancedModulePage({page}:{page:string}){
  const key=aliases[page]||page;const unsupported=!modules[key];const c=modules[key]||{title:'Módulo não mapeado',description:'Esta rota ainda não possui uma configuração de tela e API.',endpoint:'',columns:[],fields:[],icon:AlertCircle,group:'Rotas',readOnly:true};const Icon=c.icon;
  const writePermissionByEndpoint:Record<string,string>={
   '/profissionais':'professionals.write',
+  '/internacoes':'hospitalizations.write',
+  '/exames':'exams.write',
   '/agenda':'appointments.write',
   '/enfermagem/evolucoes':'internacoes.write',
   '/prescricoes':'prescriptions.write',

@@ -48,7 +48,7 @@ const ROLE_PERMISSIONS = {
   enfermagem: [
     "dashboard.read", "patients.read", "patients.identity.read", "appointments.read", "records.read", "records.write", "nursing.write", "careplans.write", "clinical.catalogs.read", "maternal.read", "maternal.write", "chronic.read", "chronic.write", "immunizations.read", "immunizations.write",
     "triage.read", "triage.write", "triage.close", "internacoes.read", "internacoes.write",
-    "hospitalizations.read", "hospitalizations.write",
+    "hospitalizations.read", "hospitalizations.write", "beds.manage",
     "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"
   ],
   triagem: [
@@ -73,7 +73,7 @@ const ROLE_PERMISSIONS = {
   direcao: [
     "dashboard.read", "reports.read", "audit.read", "clinical.audit.read", "billing.read",
     "alerts.read", "alerts.resolve", "inventory.read",
-    "users.read", "professionals.read", "roles.read", "units.read"
+    "users.read", "professionals.read", "roles.read", "units.read", "beds.manage"
   ]
 };
 

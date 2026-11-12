@@ -271,8 +271,9 @@ router.post('/api/v1/catalogs/:catalog/import',requirePermission('integration.ma
   if(!usingPostgres())return unavailable(res);
   const codes=Array.isArray(req.query.codes)?req.query.codes:String(req.query.codes||'').split(',').filter(Boolean);
   if(codes.length<2||codes.length>20)return res.status(400).json({erro:'Informe de 2 a 20 códigos de medicamentos.'});
-  try{const r=await getPool().query('SELECT medication_code_a,medication_code_b,severity,description,source_version FROM medication_interaction_catalog WHERE medication_code_a=ANY($1::text[]) OR medication_code_b=ANY($1::text[]) ORDER BY severity',[codes]);
-   if(!r.rowCount)return res.status(503).json({erro:'Base oficial de interações ainda não foi carregada; não é possível concluir que não existam interações.',codigo:'INTERACTION_CATALOG_NOT_LOADED'});
+  try{const loaded=await getPool().query('SELECT COUNT(*)::int AS count FROM medication_interaction_catalog');
+   if(!loaded.rows[0].count)return res.status(503).json({erro:'Base oficial de interações ainda não foi carregada; não é possível concluir que não existam interações.',codigo:'INTERACTION_CATALOG_NOT_LOADED'});
+   const r=await getPool().query('SELECT medication_code_a,medication_code_b,severity,description,source_version FROM medication_interaction_catalog WHERE medication_code_a=ANY($1::text[]) OR medication_code_b=ANY($1::text[]) ORDER BY severity',[codes]);
    return res.json({items:r.rows,sourceValidated:true});
   }catch(e){return next(e);}
  });
@@ -350,7 +351,27 @@ router.get('/api/v1/:resource',async(req,res,next)=>{
    }catch(e){return next(e);}finally{client.release();}
   });
  });
- router.post('/api/v1/:resource',async(req,res,next)=>{
+ router.post('/api/v1/:resource/:id/corrections',async(req,res,next)=>{
+  const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
+  return requirePermission(def.write)(req,res,async error=>{
+   if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+   const id=Number(req.params.id),v=validateResourcePayload(req.params.resource,req.body);
+   if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({erro:'Identificador original inválido.'});
+   if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
+   const data=v.data,actor=actorOf(req),client=await getPool().connect();
+   try{await client.query('BEGIN');
+    const original=await client.query('SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type=$2 AND unit_id=$3 FOR SHARE',[id,def.type,unitOf(req)]);
+    if(!original.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Registro original não encontrado nesta unidade.'});}
+    if((data.patientCpf||null)!==(original.rows[0].patient_cpf||null)){await client.query('ROLLBACK');return res.status(409).json({erro:'Uma correção não pode alterar o vínculo do paciente.',codigo:'CORRECTION_PATIENT_MISMATCH'});}
+    if(def.professional&&!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
+    const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,resource_type,patient_cpf,status,data,created_at,supersedes_id',
+     [def.type,original.rows[0].patient_cpf,unitOf(req),'correction',JSON.stringify(data),actor.username,actor.role,id]);
+    await audit(req,client,'update',def.type,r.rows[0].id,original.rows[0].patient_cpf,{supersedesId:id});
+    await client.query('COMMIT');return res.status(201).json({item:r.rows[0],immutableOriginal:true});
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+  });
+});
+router.post('/api/v1/:resource',async(req,res,next)=>{
   const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
   return requirePermission(def.write)(req,res,async error=>{
    if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

@@ -107,7 +107,7 @@ export function TriageWorkspace() {
     finally { setLoading(false); }
   }, [patientCpf]);
   useEffect(() => { void load(); }, [load]);
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       await api<Triage>('/triagem',{method:'POST',body:JSON.stringify({
@@ -172,7 +172,7 @@ export function ConsultationWorkspace() {
     finally { setLoading(false); }
   }, [selected]);
   useEffect(() => { void load(); }, [load]);
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       const result = await api<{alertasGerados?:Array<{nivel?:string;mensagem?:string}>}>('/consulta',{method:'POST',body:JSON.stringify({

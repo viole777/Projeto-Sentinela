@@ -21,7 +21,6 @@ const { getPool, usingPostgres } = require("./config/database");
 
 const FILE = path.join(__dirname, "..", "sessions.json");
 const FLUSH_INTERVAL_MS = 30 * 1000;   // limpa vencidas + grava pendências
-const UPSERT_MAX_ATTEMPTS = 5;         // desiste de gravar um token no banco após N falhas
 const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao desligar
 
 // Mesma consulta do requireAuth antigo: token → usuário → cargo.
@@ -36,10 +35,8 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 class SessionStore {
     constructor() {
         this.map = new Map();        // token → sessão (cache de leitura)
-        this.pending = new Map();    // token → { session, attempts } aguardando upsert
         this.inflight = new Set();   // escritas em andamento (esperadas no shutdown)
         this.dirty = false;          // há mudanças para gravar no arquivo (modo JSON)
-        this.drainTimer = null;      // agendador da descarga imediata da fila (Postgres)
 
         if (!usingPostgres()) this.loadFromFile();
 
@@ -93,19 +90,6 @@ class SessionStore {
     }
 
     // ── escrita (mesma assinatura do Map) ──────────────────────
-    set(token, session) {
-        if (!token || !session) return this;
-        this.map.set(token, session);
-        if (usingPostgres()) {
-            this.pending.set(token, { session, attempts: 0 }); // upsert com retry
-            this.scheduleDrain(); // aterrissa no PostgreSQL quase na hora do login
-        } else {
-            this.dirty = true;
-        }
-        return this;
-    }
-
-
     // Cria a sessão no PostgreSQL antes de devolver o cookie ao cliente.
     // A leitura revalida no banco a cada requisição; portanto, uma sessão
     // recém-criada não pode depender do flush assíncrono da fila.
@@ -113,8 +97,9 @@ class SessionStore {
         if (!token || !session) throw new Error("Token ou sessão inválidos");
         this.map.set(token, session);
         if (usingPostgres()) {
-            this.pending.delete(token);
-            await this.upsert(token, session);
+            const operation = this.upsert(token, session);
+            this.track(operation);
+            await operation;
         } else {
             this.dirty = true;
         }
@@ -139,7 +124,6 @@ class SessionStore {
 
     async delete(token) {
         const removed = this.map.delete(token);
-        this.pending.delete(token);
         if (usingPostgres()) {
             this.pgDelete(token); // logout vale em todas as instâncias
             return removed;
@@ -161,7 +145,6 @@ class SessionStore {
                 .map(value => String(value).trim().toLowerCase());
             if (sessionIdentifiers.some(value => identifiers.includes(value))) {
                 this.map.delete(token);
-                this.pending.delete(token);
                 removed += 1;
                 if (usingPostgres()) this.pgDelete(token);
                 else this.dirty = true;
@@ -189,7 +172,6 @@ class SessionStore {
         for (const [token, session] of this.map) {
             if (this.isExpired(session)) {
                 this.map.delete(token);
-                this.pending.delete(token);
             }
         }
         if (usingPostgres()) {
@@ -201,7 +183,7 @@ class SessionStore {
     }
 
     flush() {
-        if (usingPostgres()) { this.drainPending(); return; }
+        if (usingPostgres()) return;
         if (!this.dirty) return;
         try {
             const tmp = FILE + ".tmp";
@@ -211,32 +193,6 @@ class SessionStore {
         } catch (err) {
             console.warn("[sessions] falha ao gravar sessions.json:", err.message);
         }
-    }
-
-    drainPending() {
-        if (this.drainTimer) { clearTimeout(this.drainTimer); this.drainTimer = null; }
-        for (const [token, entry] of [...this.pending]) {
-            this.pending.delete(token);
-            const p = this.upsert(token, entry.session)
-                .catch(() => {
-                    entry.attempts += 1;
-                    if (entry.attempts < UPSERT_MAX_ATTEMPTS) this.pending.set(token, entry);
-                    else console.warn(`[sessions] desistindo do token ${String(token).slice(0, 8)}… após ${entry.attempts} tentativas`);
-                });
-            this.track(p);
-        }
-    }
-
-    // Descarrega a fila de upserts ~250ms depois da última escrita (coalescido),
-    // em vez de esperar o ciclo de 30s — a sessão chega ao PostgreSQL logo após
-    // o login, e o shutdown continua cobrindo o caso de morte súbita.
-    scheduleDrain() {
-        if (this.drainTimer) return;
-        this.drainTimer = setTimeout(() => {
-            this.drainTimer = null;
-            this.flush();
-        }, 250);
-        if (this.drainTimer.unref) this.drainTimer.unref();
     }
 
     // token + usuário → linha na tabela sessions do PostgreSQL.
@@ -270,8 +226,8 @@ class SessionStore {
         this.track(this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]));
     }
 
-    // Registra a promessa para o shutdown esperar; engole rejeições, porque
-    // sessão é melhor-esforço: falha de gravação nunca pode derrubar a rota.
+    // Registra operações PostgreSQL para o shutdown aguardar. O chamador de
+    // persist() continua recebendo a rejeição e pode negar o login.
     track(promise) {
         this.inflight.add(promise);
         Promise.resolve(promise).catch(() => {}).then(() => { this.inflight.delete(promise); });
@@ -293,8 +249,7 @@ class SessionStore {
             done = true;
             try {
                 if (usingPostgres()) {
-                    this.drainPending();
-                    // dá até 2s para o PostgreSQL receber o que está pendente
+                    // dá até 2s para concluir gravações/revogações já iniciadas
                     await Promise.race([Promise.allSettled([...this.inflight]), delay(SHUTDOWN_GRACE_MS)]);
                 } else {
                     this.flush(); // grava o que mudou desde o último ciclo

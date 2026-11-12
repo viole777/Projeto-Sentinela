@@ -95,14 +95,33 @@ const nav: NavGroup[] = [
   ]},
 ];
 
-const adminPaths = ['/app/safety-engine','/app/config-safety','/app/gestao-usuarios','/app/gestao-perfis','/app/unidades-setores','/app/acesso-unidade','/app/parametros-unidade','/app/modulos','/app/configuracao-protocolos','/app/lgpd-consentimentos'];
-function isAdminRole() {
-  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return ['admin','administrador','administrator','superadmin','super_admin'].includes(role);
+const adminPermissionByPath: Record<string, string> = {
+  '/app/safety-engine': 'safety.configure',
+  '/app/config-safety': 'safety.configure',
+  '/app/gestao-usuarios': 'users.read',
+  '/app/gestao-perfis': 'roles.read',
+  '/app/unidades-setores': 'units.read',
+  '/app/acesso-unidade': 'units.read',
+  '/app/parametros-unidade': 'settings.manage',
+  '/app/modulos': 'modules.manage',
+  '/app/configuracao-protocolos': 'settings.manage',
+  '/app/lgpd-consentimentos': 'settings.manage'
+};
+function readPermissions(): string[] {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('sentinelaPermissions') || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+function canAccessPermission(permission?: string) {
+  if (!permission) return true;
+  const permissions = readPermissions();
+  return permissions.includes('*') || permissions.includes(permission);
 }
 function canAccessAiSummary() {
-  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return ['admin', 'medico', 'cardiologist', 'cardiologista'].includes(role);
+  return canAccessPermission('ai.read');
 }
 
 export function AppShell() {
@@ -113,16 +132,15 @@ export function AppShell() {
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
   const navigate = useNavigate();
   const location = useLocation();
-  const admin = isAdminRole();
   const canUseAi = canAccessAiSummary();
   const visibleGroups = useMemo(() => nav.map(group => ({
     ...group,
     items: group.items.filter(([label, path]) =>
-      (!adminPaths.includes(path) || admin) &&
+      (!adminPermissionByPath[path] || canAccessPermission(adminPermissionByPath[path])) &&
       (path !== '/app/sentinela-ai' || canUseAi) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
-  })).filter(group => group.items.length), [admin, query]);
+  })).filter(group => group.items.length), [query]);
 
   function toggleDark() {
     const next = !dark;
@@ -178,7 +196,7 @@ export function AppShell() {
         <div className="sent-topbar-actions">
           <button className="sent-icon-button sent-notification" aria-label="Notificações" onClick={() => navigate('/app/notificacoes')}><Bell size={19}/><i/></button>
           <button className="sent-icon-button" onClick={toggleDark} aria-label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}>{dark ? <Sun size={19}/> : <Moon size={19}/>}</button>
-          <div className="sent-user-chip"><span className="sent-user-avatar">{(sessionStorage.getItem('sentinelaNome') || 'P').trim().charAt(0).toUpperCase()}</span><div><strong>{sessionStorage.getItem('sentinelaNome') || 'Profissional'}</strong><small>{admin ? 'Administrador' : 'Acesso profissional'}</small></div></div>
+          <div className="sent-user-chip"><span className="sent-user-avatar">{(sessionStorage.getItem('sentinelaNome') || 'P').trim().charAt(0).toUpperCase()}</span><div><strong>{sessionStorage.getItem('sentinelaNome') || 'Profissional'}</strong><small>{(sessionStorage.getItem('sentinelaRole') || '').toLowerCase() === 'admin' ? 'Administrador' : 'Acesso profissional'}</small></div></div>
         </div>
       </header>
       <main className="sent-content"><div className="sent-breadcrumb"><span>Sentinela</span><ChevronRight size={13}/><span>Área clínica</span><ChevronRight size={13}/><strong>{activeLabel}</strong></div><Outlet/></main>

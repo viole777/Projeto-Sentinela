@@ -132,6 +132,35 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    await client.query('COMMIT');return res.status(201).json({professional:r.rows[0]});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
+router.get('/api/v1/appointments',requirePermission('appointments.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  try{const r=await getPool().query('SELECT a.id,a.patient_cpf,p.name AS patient_name,a.appointment_type,a.scheduled_at,a.professional,a.specialty,a.status,a.appointment_mode,a.created_at FROM appointments a JOIN patients p ON p.cpf=a.patient_cpf WHERE a.unit_id=$1 ORDER BY a.scheduled_at DESC NULLS LAST,a.id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
+  catch(e){return next(e);}
+});
+router.post('/api/v1/appointments',requirePermission('appointments.manage'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
+  if(!CPF_RE.test(cpf)||!String(b.appointmentType||'').trim()||!DATE_RE.test(String(b.scheduledAt||'')))return res.status(400).json({erro:'Paciente, tipo de atendimento e data/hora válidos são obrigatórios.'});
+  try{const patient=await getPool().query('SELECT name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
+   const r=await getPool().query('INSERT INTO appointments(patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_at',
+    [cpf,patient.rows[0].name,String(b.appointmentType).slice(0,120),b.scheduledAt,b.professional||null,b.specialty||null,'scheduled',b.appointmentMode||'in_person',actorOf(req).username,unitOf(req)]);
+   const client=await getPool().connect();try{await audit(req,client,'create','appointment',r.rows[0].id,cpf,{status:'scheduled'});}finally{client.release();}
+   return res.status(201).json({appointment:r.rows[0]});
+  }catch(e){return next(e);}
+});
+router.post('/api/v1/appointments/:id/status',requirePermission('appointments.manage'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const id=Number(req.params.id),status=String(req.body?.status||'');
+  if(!Number.isSafeInteger(id)||id<1||!['scheduled','confirmed','checked_in','in_progress','completed','cancelled','no_show'].includes(status))return res.status(400).json({erro:'ID ou status de agendamento inválido.'});
+  const client=await getPool().connect();
+  try{await client.query('BEGIN');
+   const old=await client.query('SELECT id,patient_cpf,status FROM appointments WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+   if(!old.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Agendamento não encontrado nesta unidade.'});}
+   const r=await client.query('UPDATE appointments SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);
+   await audit(req,client,'create','appointment_status',id,old.rows[0].patient_cpf,{previous:old.rows[0].status,next:status});
+   await client.query('COMMIT');return res.json({appointment:r.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
 router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   try{const r=await getPool().query('SELECT b.id,b.code,b.status,b.patient_cpf,b.patient_name,b.occupied_since,w.name AS ward FROM beds b LEFT JOIN wards w ON w.id=b.ward_id WHERE b.unit_id=$1 ORDER BY w.name,b.code',[unitOf(req)]);return res.json({items:r.rows});}

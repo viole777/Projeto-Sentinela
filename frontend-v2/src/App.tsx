@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { AppShell } from './components/AppShell';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -8,7 +9,7 @@ import { SentinelaAiPage } from './pages/SentinelaAi';
 import { ReceptionWorkspace, TriageWorkspace, ConsultationWorkspace } from './pages/OperationalWorkspaces';
 import { PERMISSION_BY_PATH, canAccessPermission } from './access';
 
-function Protected({ path, children }: { path: string; children: JSX.Element }) {
+function Protected({ path, children }: { path: string; children: ReactNode }) {
   const permission = PERMISSION_BY_PATH[path];
   return canAccessPermission(permission) ? children : <Navigate to={canAccessPermission('dashboard.read') ? '/app/dashboard' : '/login'} replace />;
 }

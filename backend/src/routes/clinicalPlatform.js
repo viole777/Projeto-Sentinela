@@ -23,6 +23,11 @@ const RESOURCE_DEFS = Object.freeze({
 const CPF_RE=/^\d{11}$/, CNS_RE=/^\d{15}$/, CBO_RE=/^\d{6}$/;
 const DATE_RE=/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 function normalizeCpf(value){return String(value||'').replace(/\D/g,'');}
+function validCpf(value){
+ const cpf=normalizeCpf(value);if(!/^\d{11}$/.test(cpf)||/^([0-9])\1{10}$/.test(cpf))return false;
+ const digit=(base)=>{let sum=0;for(let i=0;i<base.length;i++)sum+=Number(base[i])*(base.length+1-i);const mod=(sum*10)%11;return mod===10?0:mod;};
+ return digit(cpf.slice(0,9))===Number(cpf[9])&&digit(cpf.slice(0,10))===Number(cpf[10]);
+}
 function validateResourcePayload(key,input){
  const def=RESOURCE_DEFS[key]; if(!def)return{ok:false,error:'Recurso não reconhecido.'};
  if(!input||typeof input!=='object'||Array.isArray(input))return{ok:false,error:'O corpo deve ser um objeto JSON.'};
@@ -57,6 +62,23 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   return r.rows[0]||null;
  }
  router.get('/api/v1/health',(req,res)=>res.json({api:'v1',status:'ok',storage:usingPostgres()?'postgresql':'not-configured'}));
+ router.get('/api/v1/patients',requirePermission('patients.read'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));
+  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,status,created_at FROM patients WHERE unit_id=$1 ORDER BY id DESC LIMIT $2',[unitOf(req),limit]);return res.json({items:r.rows});}
+  catch(e){return next(e);}
+ });
+ router.post('/api/v1/patients',requirePermission('patients.write'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);const b=req.body||{};
+  const cpf=normalizeCpf(b.cpf),cns=String(b.cns||'').replace(/\D/g,'');
+  if(!String(b.name||'').trim()||!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'Nome, CPF válido e CNS com 15 dígitos (quando disponível) são obrigatórios.'});
+  if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
+  try{const r=await getPool().query('INSERT INTO patients(name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,name,cpf,cns,birth_date,status,created_at',
+   [String(b.name).trim(),cpf,cns||null,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req),'triagem']);
+   const client=await getPool().connect();try{await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});}finally{client.release();}
+   return res.status(201).json({patient:r.rows[0]});
+  }catch(e){if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});return next(e);}
+ });
  router.get('/api/v1/catalogs/:catalog',requirePermission('clinical.catalogs.read'),async(req,res,next)=>{
   const catalog=String(req.params.catalog||'').toUpperCase();if(!['CID10','CIAP2','SIGTAP','RENAME','CBO','CNES'].includes(catalog))return res.status(400).json({erro:'Catálogo inválido.'});
   if(!usingPostgres())return unavailable(res);
@@ -135,7 +157,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    const v=validateResourcePayload(req.params.resource,req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
    const data=v.data,actor=actorOf(req),client=await getPool().connect();
    try{await client.query('BEGIN');
-    if(data.patientCpf){const p=await client.query('SELECT cpf FROM patients WHERE cpf=$1',[data.patientCpf]);if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado.'});}}
+    if(data.patientCpf){const p=await client.query('SELECT cpf FROM patients WHERE cpf=$1 AND unit_id=$2',[data.patientCpf,unitOf(req)]);if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado.'});}}
     if(def.professional&&!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Profissional sem vínculo CNS/CBO ativo na unidade. Cadastre o vínculo profissional antes de registrar este evento.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
     let status='recorded';if(def.type==='prescription')status='pending_professional_validation';if(def.type==='document')status='draft_pending_signature';if(def.type==='billing')status='pending_catalog_validation';if(def.type==='notification')status='draft_pending_external_submission';
     const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,sector_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,created_at',

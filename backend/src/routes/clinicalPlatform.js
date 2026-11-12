@@ -101,12 +101,13 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   if(!cpf&&!cns)return res.status(400).json({erro:'Informe CPF ou CNS para a busca.'});
   if(cpf&&!CPF_RE.test(cpf))return res.status(400).json({erro:'CPF inválido.'});
   if(cns&&!CNS_RE.test(cns))return res.status(400).json({erro:'CNS deve conter 15 dígitos.'});
-  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin FROM patients WHERE unit_id=$3 AND (($1::text IS NOT NULL AND cpf=$1) OR ($2::text IS NOT NULL AND cns=$2)) LIMIT 2',[cpf||null,cns||null,unitOf(req)]);
-   const client=await getPool().connect();try{await audit(req,client,'read','patient_identity',r.rows[0]?.id||null,r.rows[0]?.cpf||null,{source:'patient-identity-search'});}finally{client.release();}
+  const client=await getPool().connect();
+  try{const r=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin FROM patients WHERE unit_id=$3 AND (($1::text IS NOT NULL AND cpf=$1) OR ($2::text IS NOT NULL AND cns=$2)) LIMIT 2',[cpf||null,cns||null,unitOf(req)]);
+   for(const patient of r.rows)await audit(req,client,'read','patient_identity',patient.id,patient.cpf,{source:'patient-identity-search'});
    return res.json({patients:r.rows});
-  }catch(e){return next(e);}
- });
- router.post('/api/v1/patient-identities',requirePermission('patients.identity.write'),async(req,res,next)=>{
+  }catch(e){return next(e);}finally{client.release();}
+});
+router.post('/api/v1/patient-identities',requirePermission('patients.identity.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const cpf=normalizeCpf(req.body?.cpf),cns=String(req.body?.cns||'').replace(/\D/g,'');
   if(!CPF_RE.test(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'CPF ou CNS em formato inválido.'});
@@ -134,8 +135,11 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
 });
 router.get('/api/v1/appointments',requirePermission('appointments.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  try{const r=await getPool().query('SELECT a.id,a.patient_cpf,p.name AS patient_name,a.appointment_type,a.scheduled_at,a.professional,a.specialty,a.status,a.appointment_mode,a.created_at FROM appointments a JOIN patients p ON p.cpf=a.patient_cpf WHERE a.unit_id=$1 ORDER BY a.scheduled_at DESC NULLS LAST,a.id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
-  catch(e){return next(e);}
+  const client=await getPool().connect();
+  try{const r=await client.query('SELECT a.id,a.patient_cpf,p.name AS patient_name,a.appointment_type,a.scheduled_at,a.professional,a.specialty,a.status,a.appointment_mode,a.created_at FROM appointments a JOIN patients p ON p.cpf=a.patient_cpf WHERE a.unit_id=$1 ORDER BY a.scheduled_at DESC NULLS LAST,a.id DESC LIMIT 100',[unitOf(req)]);
+   for(const item of r.rows)await audit(req,client,'read','appointment',item.id,item.patient_cpf,{status:item.status});
+   return res.json({items:r.rows});
+  }catch(e){return next(e);}finally{client.release();}
 });
 router.post('/api/v1/appointments',requirePermission('appointments.manage'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
@@ -163,10 +167,13 @@ router.post('/api/v1/appointments/:id/status',requirePermission('appointments.ma
 });
 router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  try{const r=await getPool().query('SELECT b.id,b.code,b.status,b.patient_cpf,b.patient_name,b.occupied_since,w.name AS ward FROM beds b LEFT JOIN wards w ON w.id=b.ward_id WHERE b.unit_id=$1 ORDER BY w.name,b.code',[unitOf(req)]);return res.json({items:r.rows});}
-  catch(e){return next(e);}
- });
- router.post('/api/v1/beds',requirePermission('beds.manage'),async(req,res,next)=>{
+  const client=await getPool().connect();
+  try{const r=await client.query('SELECT b.id,b.code,b.status,b.patient_cpf,b.patient_name,b.occupied_since,w.name AS ward FROM beds b LEFT JOIN wards w ON w.id=b.ward_id WHERE b.unit_id=$1 ORDER BY w.name,b.code',[unitOf(req)]);
+   for(const item of r.rows)if(item.patient_cpf)await audit(req,client,'read','bed_map',item.id,item.patient_cpf,{code:item.code});
+   return res.json({items:r.rows});
+  }catch(e){return next(e);}finally{client.release();}
+});
+router.post('/api/v1/beds',requirePermission('beds.manage'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const code=String(req.body?.code||'').trim(),ward=String(req.body?.ward||'').trim();
   if(!code||!ward)return res.status(400).json({erro:'Código do leito e ala são obrigatórios.'});
@@ -181,10 +188,13 @@ router.get('/api/v1/bed-map',requirePermission('beds.read'),async(req,res,next)=
  });
  router.get('/api/v1/hospitalizations',requirePermission('hospitalizations.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  try{const r=await getPool().query('SELECT id,patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,discharged_at FROM hospitalizations WHERE unit_id=$1 ORDER BY admitted_at DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
-  catch(e){return next(e);}
- });
- router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write'),async(req,res,next)=>{
+  const client=await getPool().connect();
+  try{const r=await client.query('SELECT id,patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,discharged_at FROM hospitalizations WHERE unit_id=$1 ORDER BY admitted_at DESC LIMIT 100',[unitOf(req)]);
+   for(const item of r.rows)await audit(req,client,'read','hospitalization',item.id,item.patient_cpf,{discharged:!!item.discharged_at});
+   return res.json({items:r.rows});
+  }catch(e){return next(e);}finally{client.release();}
+});
+router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const v=validateResourcePayload('hospitalizations',req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
   const data=v.data,actor=actorOf(req),client=await getPool().connect();
@@ -323,7 +333,7 @@ router.get('/api/v1/:resource',async(req,res,next)=>{
    if(cursor!==null&&(!Number.isSafeInteger(cursor)||cursor<1))return res.status(400).json({erro:'Cursor inválido.'});
    const client=await getPool().connect();
    try{const r=await client.query('SELECT id,resource_type,patient_cpf,status,data,created_by,created_by_role,created_at,supersedes_id FROM clinical_records WHERE resource_type=$1 AND unit_id=$2 AND ($3::bigint IS NULL OR id<$3) ORDER BY id DESC LIMIT $4',[def.type,unitOf(req),cursor,limit]);
-    await audit(req,client,'read',def.type,null,null,{count:r.rowCount});
+    for(const item of r.rows)await audit(req,client,'read',def.type,item.id,item.patient_cpf,{});
     return res.json({items:r.rows,nextCursor:r.rows.length===limit?String(r.rows[r.rows.length-1].id):null});
    }catch(e){return next(e);}finally{client.release();}
   });

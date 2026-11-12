@@ -68,6 +68,10 @@ const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/2026
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
+assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');
+assert.match(routerSource,/CPF_CHANGE_REQUIRES_RELATIONAL_REKEY/, 'CPF changes must remain blocked until references can be rekeyed safely');
+assert.match(routerSource,/audit\\(req,client,'access_denied','patient_identity'/, 'denied sensitive identity changes must be audited');
+assert.match(routerSource,/audit\\(req,client,'update','patient_identity'/, 'successful identity changes must be audited as updates');
 assert.match(routerSource,/ORDER BY expires_on ASC,id ASC FOR UPDATE/, 'dispensing must lock FEFO lots');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');

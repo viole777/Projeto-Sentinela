@@ -7,6 +7,10 @@ ON CONFLICT (name) DO NOTHING;
 INSERT INTO permissions (name) VALUES
   ('dashboard.read'), ('patients.read'), ('patients.write'),
   ('patients.identity.read'), ('patients.identity.write'), ('patients.identity.sensitive.write'),
+  ('users.read'), ('users.write'), ('professionals.read'), ('professionals.write'),
+  ('roles.read'), ('roles.write'), ('permissions.read'), ('units.read'), ('units.write'),
+  ('settings.manage'), ('modules.manage'), ('safety.configure'), ('integration.manage'),
+  ('clinical.catalogs.read'), ('professionals.registry.write'),
   ('appointments.read'), ('appointments.write'),
   ('triage.read'), ('triage.write'),
   ('consultations.read'), ('consultations.write'),
@@ -23,7 +27,11 @@ ON CONFLICT (name) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON
-  (r.name = 'admin' AND p.name IN ('dashboard.read','audit.read','reports.read')) OR
+  (r.name = 'admin' AND p.name IN (
+    'dashboard.read','users.read','users.write','professionals.read','professionals.write',
+    'roles.read','roles.write','permissions.read','units.read','units.write','settings.manage',
+    'modules.manage','safety.configure','audit.read','reports.read','integration.manage',
+    'clinical.catalogs.read','professionals.registry.write')) OR
   (r.name IN ('cardiologist', 'medico') AND p.name IN (
     'dashboard.read','patients.read','patients.write','appointments.read','triage.read',
     'consultations.read','consultations.write','exams.read','exams.write',

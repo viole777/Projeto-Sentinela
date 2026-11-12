@@ -49,7 +49,7 @@ export function ReceptionWorkspace() {
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
-      await api<Patient>('/atendimento', { method: 'POST', body: JSON.stringify({ nome: name.trim(), cpf: cpf.replace(/\D/g, ''), tipo }) });
+      await api<Patient>('/atendimento', { method: 'POST', body: JSON.stringify({ nome: name.trim(), cpf: cpf.replace(/\D/g, ''), tipo: type }) });
       setName(''); setCpf(''); setNotice('Cadastro/atendimento registrado e encaminhado para a fila de triagem.'); await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível registrar o atendimento.'); }
     finally { setSaving(false); }
@@ -109,7 +109,7 @@ export function TriageWorkspace() {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       await api<Triage>('/triagem',{method:'POST',body:JSON.stringify({
-        pacienteCpf: patientCpf, sintomas, temperatura, pas, pad, fc, spo2, fr, risco: risk
+        pacienteCpf: patientCpf, sintomas: symptoms, temperatura: temperature, pas, pad, fc, spo2, fr, risco: risk
       })});
       setSymptoms(''); setTemperature(''); setPas(''); setPad(''); setFc(''); setSpo2(''); setFr('');
       setNotice('Avaliação registrada. A prioridade retornada pelo servidor deve ser revisada por profissional habilitado.'); await load();

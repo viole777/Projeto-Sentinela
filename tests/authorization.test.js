@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createAuthMiddleware } = require('../backend/src/middleware/auth');
 const { ROLE_PERMISSIONS, syncBuiltInRolePermissions } = require('../backend/src/db');
 
@@ -38,6 +40,16 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.admin.includes('patients.read'), 'technical admin must not inherit clinical access');
   assert.ok(ROLE_PERMISSIONS.admin.includes('users.write'));
   assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.write'));
+
+  {
+    const knownPermissions = new Set(Object.values(ROLE_PERMISSIONS).flat());
+    const legacyLayout = fs.readFileSync(path.join(__dirname, '../frontend/layout.js'), 'utf8');
+    const menuPermissions = [...legacyLayout.matchAll(/item\\([^\\n]*?,\\s*"([a-z][a-z.]+)"\\)/g)].map(match => match[1]);
+    assert.ok(menuPermissions.length > 0, 'legacy navigation must declare permission codes');
+    for (const permission of menuPermissions) {
+      assert.ok(knownPermissions.has(permission), `legacy menu permission is missing from RBAC matrix: ${permission}`);
+    }
+  }
 
   {
     const statements = [];

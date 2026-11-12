@@ -68,25 +68,26 @@ class SessionStore {
 
     // Cache frio → PostgreSQL. É o que mantém o login vivo após um restart.
     async rehydrate(token) {
-        try {
-            const r = await getPool().query(SELECT_SESSION, [token]);
-            const row = r.rows[0];
-            if (!row) {
-                this.map.delete(token);
-                return undefined;
-            }
-            const expiresAt = new Date(row.expires_at).getTime();
-            if (!(expiresAt > Date.now())) { this.pgDelete(token); return undefined; }
-            const session = {
-                usuario: row.username, nome: row.name, email: row.email,
-                tipo: row.role, role: row.role, theme: row.theme || "light",
-                setor: row.unit || null, expiresAt
-            };
-            this.map.set(token, session);
-            return session;
-        } catch (_) {
-            return undefined; // banco fora do ar → 401 (mesmo comportamento de antes)
+        const pool = getPool();
+        if (!pool) throw new Error("Banco de sessões indisponível");
+        const r = await pool.query(SELECT_SESSION, [token]);
+        const row = r.rows[0];
+        if (!row) {
+            this.map.delete(token);
+            return undefined;
         }
+        const expiresAt = new Date(row.expires_at).getTime();
+        if (!(expiresAt > Date.now())) {
+            this.pgDelete(token);
+            return undefined;
+        }
+        const session = {
+            usuario: row.username, nome: row.name, email: row.email,
+            tipo: row.role, role: row.role, theme: row.theme || "light",
+            setor: row.unit || null, expiresAt
+        };
+        this.map.set(token, session);
+        return session;
     }
 
     // ── escrita ─────────────────────────────────────────────────
@@ -109,14 +110,16 @@ class SessionStore {
     // Renova a validade (chamado a cada requisição autenticada): atualiza o
     // cache e, em produção, o expires_at no PostgreSQL. Antes disso a renovação
     // nunca chegava ao banco e um token ativo "morria" no restart.
-    touch(token, session) {
+    async touch(token, session) {
         if (!token || !session) return;
         this.map.set(token, session);
         if (usingPostgres()) {
-            this.track(this.pgQuery(
+            const operation = this.pgQuery(
                 `UPDATE sessions SET expires_at = $2 WHERE token = $1`,
                 [token, new Date(session.expiresAt).toISOString()]
-            ));
+            );
+            this.track(operation);
+            await operation;
         } else {
             this.dirty = true; // o flush periódico (ou o shutdown) grava a renovação
         }
@@ -146,8 +149,7 @@ class SessionStore {
             if (sessionIdentifiers.some(value => identifiers.includes(value))) {
                 this.map.delete(token);
                 removed += 1;
-                if (usingPostgres()) this.pgDelete(token);
-                else this.dirty = true;
+                if (!usingPostgres()) this.dirty = true;
             }
         }
         if (usingPostgres() && identifiers.length) {

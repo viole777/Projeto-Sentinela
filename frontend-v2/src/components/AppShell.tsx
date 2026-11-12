@@ -137,7 +137,6 @@ export function AppShell() {
     ...group,
     items: group.items.filter(([label, path]) =>
       canAccessPermission(PERMISSION_BY_PATH[path]) &&
-      (path !== '/app/sentinela-ai' || canUseAi) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
   })).filter(group => group.items.length), [query, permissionRevision]);

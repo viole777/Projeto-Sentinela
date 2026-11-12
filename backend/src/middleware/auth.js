@@ -112,7 +112,7 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
                 }
 
                 auth.session.permissions = effective;
-                refreshSession(auth.token, auth.session, req);
+                await refreshSession(auth.token, auth.session, req);
                 return next();
             } catch (error) {
                 return handleMiddlewareError(error, res, next);

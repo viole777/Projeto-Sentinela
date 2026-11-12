@@ -73,3 +73,19 @@ A PR pode preparar adaptadores, contratos, testes, documentação e controles, m
 - Não usar dados reais de pacientes em CI ou demonstrações.
 - Não enfraquecer testes/controles para obter CI verde.
 - Não declarar prontidão para piloto ou produção enquanto houver bloqueadores críticos ou validações independentes pendentes.
+
+## Implementações parciais já registradas nesta PR
+
+### Segurança e identidade (parcial)
+- O guard de acesso do frontend não aceita mais `*` como permissão universal. O backend permanece como autoridade final e revalida permissões nos endpoints.
+- Teste estático impede regressão do wildcard no frontend.
+- A matriz de recepção/supervisor e os testes de CPF/CNS existentes foram preservados; a recepção continua limitada a dados básicos, enquanto CPF/CNS exigem permissão especial.
+
+### Persistência (parcial)
+- Em `NODE_ENV=production`, `readDB()` e `writeDB()` agora falham explicitamente se `DATABASE_URL` estiver ausente ou se a hidratação PostgreSQL ainda não tiver ocorrido. O armazenamento JSON não pode ser usado como fallback nessas condições.
+- Testes isolados cobrem produção sem `DATABASE_URL` e acesso antes da hidratação; foram adicionados a `lint` e `test:unit`.
+
+### Limitações ainda abertas
+- Isso não conclui as fases 1, 2, 3 ou 5: auditoria legada, confirmação transacional de gravações, migração TypeScript, MFA, autorização contextual e testes BOLA/IDOR ainda exigem implementação e validação.
+- Safety Engine, frontend completo, pentest, validação clínica, LGPD/jurídico, infraestrutura e recuperação de desastre continuam pendentes até haver código e evidências próprias.
+- Nenhuma execução local dos testes foi possível por esta integração; a aprovação depende do CI da PR.

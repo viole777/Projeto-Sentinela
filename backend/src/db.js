@@ -214,6 +214,47 @@ async function importJsonIfPostgresEmpty(pgDb) {
 
 // Carrega o estado inicial: Postgres (produção) ou JSON (dev). Chamado antes
 // do app.listen() — as rotas que usam readDB() sincrono recebem dados reais.
+async function syncBuiltInRolePermissions(pool) {
+  const roleNames = Object.keys(ROLE_PERMISSIONS);
+  const permissionNames = [...new Set(Object.values(ROLE_PERMISSIONS).flat())];
+
+  await pool.query("BEGIN");
+  try {
+    await pool.query(
+      "INSERT INTO roles (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
+      [roleNames]
+    );
+    await pool.query(
+      "INSERT INTO permissions (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
+      [permissionNames]
+    );
+
+    // Reconcile grants for built-in roles on every startup. This revokes
+    // stale privileges from previous matrices while leaving custom roles intact.
+    await pool.query(
+      `DELETE FROM role_permissions rp
+       USING roles r
+       WHERE rp.role_id = r.id AND r.name = ANY($1::text[])`,
+      [roleNames]
+    );
+
+    for (const [roleName, permissions] of Object.entries(ROLE_PERMISSIONS)) {
+      await pool.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT r.id, p.id
+         FROM roles r CROSS JOIN permissions p
+         WHERE r.name = $1 AND p.name = ANY($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [roleName, permissions]
+      );
+    }
+    await pool.query("COMMIT");
+  } catch (error) {
+    await pool.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
+}
+
 async function hydrate() {
   if (!usingPostgres() || !getPool()) {
     if (process.env.NODE_ENV === 'production') {
@@ -227,6 +268,7 @@ async function hydrate() {
     // Migração leve e idempotente: contas recém-criadas precisam persistir
     // o hash e a validade da senha temporária também no PostgreSQL.
     const pool = getPool();
+    await syncBuiltInRolePermissions(pool);
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_hash TEXT");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ");
     current = await readAllFromPostgres();
@@ -923,5 +965,6 @@ module.exports = {
   usingPostgres,
   getPool,
   hydrate,
-  syncToPostgres
+  syncToPostgres,
+  syncBuiltInRolePermissions
 };

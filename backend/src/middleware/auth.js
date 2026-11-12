@@ -105,7 +105,7 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
                 if (!Array.isArray(effective)) effective = [];
 
                 const allowed = requiredPermissions.every(permission =>
-                    effective.includes("*") || effective.includes(permission)
+                    effective.includes(permission)
                 );
                 if (!allowed) {
                     return res.status(403).json({ erro: "Sem permissão para esta operação" });

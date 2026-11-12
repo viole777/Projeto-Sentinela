@@ -39,6 +39,20 @@ As alterações abaixo foram reunidas de PRs anteriores e commits de consolidaç
 | Dependências | Removidos adaptadores não utilizados e atualizadas dependências com advisories identificados | Reexecutar auditoria e revisar dependências transitivas |
 | Monitoramento de dependências | Dependabot e workflow de auditoria somente leitura | Confirmar execução e cobertura dos diretórios/lockfiles |
 
+### Complemento de implementação — PR #54
+
+A branch `refactor/permissions-and-code-cleanup` acrescenta uma primeira correção estrutural do controle de acesso:
+
+- Rotas de negócio migradas de listas amplas de cargos para permissões explícitas por ação e módulo (`requirePermission`).
+- O backend resolve permissões no servidor; valores armazenados no navegador não autorizam operações.
+- O papel `admin` foi convertido em administrador técnico de menor privilégio, sem acesso clínico implícito por curinga.
+- A matriz de papéis embutidos é reconciliada no PostgreSQL durante a inicialização, revogando concessões antigas dos papéis padrão.
+- Sessões PostgreSQL são revalidadas no banco em cada requisição protegida, incluindo estado ativo e papel atual; o login só emite o cookie após persistir a sessão, e a fila assíncrona antiga de upsert foi removida.
+- Navegação e controles de escrita dos frontends passam a usar permissões explícitas.
+- Foram removidos auxiliares sem uso (`sessionCan`, `mapUserRecord`, revalidação antiga em cache e carregador duplicado de permissões), um terminador redundante e a dependência `cors`, não utilizada no código.
+
+**Limite desta entrega:** a autorização por ação/módulo está implementada como primeira camada. A segregação por unidade, setor, vínculo assistencial e paciente ainda não está concluída. Endpoints que retornam listas clínicas ainda precisam de filtros de escopo e minimização de campos; a matriz de papéis não substitui autorização por recurso. A revisão independente de BOLA/IDOR continua obrigatória.
+
 ## 3. Bloqueadores críticos ainda abertos
 
 ### 3.1 Autorização e privacidade por função

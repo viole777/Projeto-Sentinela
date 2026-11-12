@@ -12,7 +12,7 @@
 //   • Sem DATABASE_URL (dev local): persiste em backend/sessions.json com
 //     gravação atômica (escreve no .tmp e renomeia — nunca sobra JSON pela metade).
 //
-// A API é a de um Map (get/set/delete/size), então nenhuma rota precisou mudar.
+// Store de sessões: persistência JSON em desenvolvimento e PostgreSQL em produção.
 // get() e delete() são async porque podem falar com o banco.
 
 const fs = require("fs");
@@ -20,28 +20,23 @@ const path = require("path");
 const { getPool, usingPostgres } = require("./config/database");
 
 const FILE = path.join(__dirname, "..", "sessions.json");
-const FLUSH_INTERVAL_MS = 30 * 1000;   // limpa vencidas + grava pendências
-const REVALIDATE_MS = 60 * 1000;       // reconfere o cache contra o banco (logout em outra instância)
-const UPSERT_MAX_ATTEMPTS = 5;         // desiste de gravar um token no banco após N falhas
+const FLUSH_INTERVAL_MS = 30 * 1000;   // limpeza periódica + flush do JSON local
 const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao desligar
 
 // Mesma consulta do requireAuth antigo: token → usuário → cargo.
 const SELECT_SESSION = `
-    SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
+    SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, u.unit, COALESCE(r.name, u.role) AS role
     FROM sessions s JOIN users u ON u.id = s.user_id
     LEFT JOIN roles r ON r.id = u.role_id
-    WHERE s.token = $1 LIMIT 1`;
+    WHERE s.token = $1 AND u.active = TRUE LIMIT 1`;
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 class SessionStore {
     constructor() {
         this.map = new Map();        // token → sessão (cache de leitura)
-        this.pending = new Map();    // token → { session, attempts } aguardando upsert
         this.inflight = new Set();   // escritas em andamento (esperadas no shutdown)
         this.dirty = false;          // há mudanças para gravar no arquivo (modo JSON)
-        this.permissionLoader = null;
-        this.drainTimer = null;      // agendador da descarga imediata da fila (Postgres)
 
         if (!usingPostgres()) this.loadFromFile();
 
@@ -54,27 +49,21 @@ class SessionStore {
         this.bindShutdown();
     }
 
-    // Permissões vêm das tabelas de RBAC (injetado pelo server.js: permissionsForRole).
-    setPermissionLoader(fn) { this.permissionLoader = fn; }
-
     // ── leitura ────────────────────────────────────────────────
     async get(token) {
         if (!token) return undefined;
-        const cached = this.map.get(token);
-        if (cached) {
-            if (this.isExpired(cached)) { this.delete(token); return undefined; }
-            // Multi-instância: outra instância pode ter apagado o token (logout).
-            // Reconfere no banco a cada 60s SEM bloquear a resposta atual — mas
-            // só para sessões que já existem no PostgreSQL (pg=true após o upsert),
-            // senão uma sessão recém-criada levaria "delete" antes de persistir.
-            if (usingPostgres() && cached.pg && Date.now() - (cached.checkedAt || 0) > REVALIDATE_MS) {
-                cached.checkedAt = Date.now();
-                this.revalidate(token).catch(() => {});
-            }
-            return cached;
+        if (usingPostgres()) {
+            // Em produção, revalida sessão, usuário ativo e papel no banco em
+            // toda requisição protegida. Logout, bloqueio e troca de papel
+            // passam a valer imediatamente entre instâncias.
+            return this.rehydrate(token);
         }
-        if (!usingPostgres()) return undefined;
-        return this.rehydrate(token);
+        const cached = this.map.get(token);
+        if (!cached || this.isExpired(cached)) {
+            this.map.delete(token);
+            return undefined;
+        }
+        return cached;
     }
 
     // Cache frio → PostgreSQL. É o que mantém o login vivo após um restart.
@@ -82,17 +71,16 @@ class SessionStore {
         try {
             const r = await getPool().query(SELECT_SESSION, [token]);
             const row = r.rows[0];
-            if (!row) return undefined;
+            if (!row) {
+                this.map.delete(token);
+                return undefined;
+            }
             const expiresAt = new Date(row.expires_at).getTime();
             if (!(expiresAt > Date.now())) { this.pgDelete(token); return undefined; }
-            let permissions;
-            if (this.permissionLoader) {
-                try { permissions = await this.permissionLoader(row.role); } catch (_) { permissions = undefined; }
-            }
             const session = {
                 usuario: row.username, nome: row.name, email: row.email,
                 tipo: row.role, role: row.role, theme: row.theme || "light",
-                permissions, expiresAt, pg: true, checkedAt: Date.now()
+                setor: row.unit || null, expiresAt
             };
             this.map.set(token, session);
             return session;
@@ -101,35 +89,28 @@ class SessionStore {
         }
     }
 
-    // Logout na instância A precisa matar a sessão na instância B.
-    async revalidate(token) {
-        try {
-            const r = await getPool().query(`SELECT expires_at FROM sessions WHERE token = $1`, [token]);
-            const row = r.rows[0];
-            if (!row || new Date(row.expires_at).getTime() <= Date.now()) this.map.delete(token);
-        } catch (_) { /* banco fora do ar: mantém o cache, não derruba ninguém */ }
-    }
-
-    // ── escrita (mesma assinatura do Map) ──────────────────────
-    set(token, session) {
-        if (!token || !session) return this;
+    // ── escrita ─────────────────────────────────────────────────
+    // Cria a sessão no PostgreSQL antes de devolver o cookie ao cliente.
+    // A leitura revalida no banco a cada requisição; portanto, uma sessão
+    // recém-criada não pode depender do flush assíncrono da fila.
+    async persist(token, session) {
+        if (!token || !session) throw new Error("Token ou sessão inválidos");
         this.map.set(token, session);
         if (usingPostgres()) {
-            this.pending.set(token, { session, attempts: 0 }); // upsert com retry
-            this.scheduleDrain(); // aterrissa no PostgreSQL quase na hora do login
+            const operation = this.upsert(token, session);
+            this.track(operation);
+            await operation;
         } else {
             this.dirty = true;
         }
         return this;
     }
 
-
     // Renova a validade (chamado a cada requisição autenticada): atualiza o
     // cache e, em produção, o expires_at no PostgreSQL. Antes disso a renovação
     // nunca chegava ao banco e um token ativo "morria" no restart.
     touch(token, session) {
         if (!token || !session) return;
-        session.checkedAt = Date.now();
         this.map.set(token, session);
         if (usingPostgres()) {
             this.track(this.pgQuery(
@@ -143,9 +124,8 @@ class SessionStore {
 
     async delete(token) {
         const removed = this.map.delete(token);
-        this.pending.delete(token);
         if (usingPostgres()) {
-            this.pgDelete(token); // logout vale em todas as instâncias
+            await this.pgDelete(token); // logout só confirma após revogar no banco
             return removed;
         }
         if (removed) this.dirty = true;
@@ -165,7 +145,6 @@ class SessionStore {
                 .map(value => String(value).trim().toLowerCase());
             if (sessionIdentifiers.some(value => identifiers.includes(value))) {
                 this.map.delete(token);
-                this.pending.delete(token);
                 removed += 1;
                 if (usingPostgres()) this.pgDelete(token);
                 else this.dirty = true;
@@ -193,7 +172,6 @@ class SessionStore {
         for (const [token, session] of this.map) {
             if (this.isExpired(session)) {
                 this.map.delete(token);
-                this.pending.delete(token);
             }
         }
         if (usingPostgres()) {
@@ -205,7 +183,7 @@ class SessionStore {
     }
 
     flush() {
-        if (usingPostgres()) { this.drainPending(); return; }
+        if (usingPostgres()) return;
         if (!this.dirty) return;
         try {
             const tmp = FILE + ".tmp";
@@ -217,45 +195,18 @@ class SessionStore {
         }
     }
 
-    drainPending() {
-        if (this.drainTimer) { clearTimeout(this.drainTimer); this.drainTimer = null; }
-        for (const [token, entry] of [...this.pending]) {
-            this.pending.delete(token);
-            const p = this.upsert(token, entry.session)
-                .then(() => { entry.session.pg = true; })
-                .catch(() => {
-                    entry.attempts += 1;
-                    if (entry.attempts < UPSERT_MAX_ATTEMPTS) this.pending.set(token, entry);
-                    else console.warn(`[sessions] desistindo do token ${String(token).slice(0, 8)}… após ${entry.attempts} tentativas`);
-                });
-            this.track(p);
-        }
-    }
-
-    // Descarrega a fila de upserts ~250ms depois da última escrita (coalescido),
-    // em vez de esperar o ciclo de 30s — a sessão chega ao PostgreSQL logo após
-    // o login, e o shutdown continua cobrindo o caso de morte súbita.
-    scheduleDrain() {
-        if (this.drainTimer) return;
-        this.drainTimer = setTimeout(() => {
-            this.drainTimer = null;
-            this.flush();
-        }, 250);
-        if (this.drainTimer.unref) this.drainTimer.unref();
-    }
-
     // token + usuário → linha na tabela sessions do PostgreSQL.
     // Mesma resolução de usuário do antigo persistSession (username OU e-mail).
     async upsert(token, session) {
         const identifier = String(session.usuario || session.email || "").trim();
-        if (!identifier) return;
+        if (!identifier) throw new Error('Identificador do usuário da sessão ausente');
         const pool = getPool();
         const u = await pool.query(
             `SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
             [identifier]
         );
         const userId = u.rows[0] && u.rows[0].id;
-        if (!userId) return; // usuário não existe no Postgres; sessão segue só no cache
+        if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL');
         await pool.query(
             `INSERT INTO sessions (token, user_id, expires_at)
              VALUES ($1, $2, $3)
@@ -272,11 +223,13 @@ class SessionStore {
     }
 
     pgDelete(token) {
-        this.track(this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]));
+        const operation = this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]);
+        this.track(operation);
+        return operation;
     }
 
-    // Registra a promessa para o shutdown esperar; engole rejeições, porque
-    // sessão é melhor-esforço: falha de gravação nunca pode derrubar a rota.
+    // Registra operações PostgreSQL para o shutdown aguardar. O chamador de
+    // persist() continua recebendo a rejeição e pode negar o login.
     track(promise) {
         this.inflight.add(promise);
         Promise.resolve(promise).catch(() => {}).then(() => { this.inflight.delete(promise); });
@@ -298,8 +251,7 @@ class SessionStore {
             done = true;
             try {
                 if (usingPostgres()) {
-                    this.drainPending();
-                    // dá até 2s para o PostgreSQL receber o que está pendente
+                    // dá até 2s para concluir gravações/revogações já iniciadas
                     await Promise.race([Promise.allSettled([...this.inflight]), delay(SHUTDOWN_GRACE_MS)]);
                 } else {
                     this.flush(); // grava o que mudou desde o último ciclo

@@ -6,15 +6,30 @@ import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AdvancedModulePage } from './pages/AdvancedModules';
 import { SentinelaAiPage } from './pages/SentinelaAi';
 
-function isAdminRole() {
-  const role = (sessionStorage.getItem('sentinelaRole') ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return ['admin', 'administrador', 'administrator', 'superadmin', 'super_admin'].includes(role);
+function hasPermission(permission: string) {
+  try {
+    const permissions = JSON.parse(sessionStorage.getItem('sentinelaPermissions') || '[]');
+    return Array.isArray(permissions) && (permissions.includes('*') || permissions.includes(permission));
+  } catch {
+    return false;
+  }
 }
+const adminPermissionByPage: Record<string, string> = {
+  'config-safety': 'safety.configure',
+  'gestao-usuarios': 'users.read',
+  'gestao-perfis': 'roles.read',
+  'unidades-setores': 'units.read',
+  'acesso-unidade': 'units.read',
+  'parametros-unidade': 'settings.manage',
+  'modulos': 'modules.manage',
+  'configuracao-protocolos': 'settings.manage',
+  'lgpd-consentimentos': 'settings.manage'
+};
 function AdminOnly() {
-  return isAdminRole() ? <PlaceholderPage page="safety-engine" /> : <Navigate to="/app/dashboard" replace />;
+  return hasPermission('safety.configure') ? <PlaceholderPage page="safety-engine" /> : <Navigate to="/app/dashboard" replace />;
 }
 function AdminAdvanced({ page }: { page: string }) {
-  if (!isAdminRole()) return <Navigate to="/app/dashboard" replace />;
+  if (!hasPermission(adminPermissionByPage[page] || 'settings.manage')) return <Navigate to="/app/dashboard" replace />;
   if (page === 'config-safety') return <PlaceholderPage page="safety-engine" />;
   return <AdvancedModulePage page={page} />;
 }

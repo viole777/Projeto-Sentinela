@@ -14,53 +14,63 @@ const { getPool, usingPostgres } = require('./config/database');
 // ── RBAC: papéis → permissões (fallback quando banco indisponível; no
 // Postgres a tabela role_permissions é a fonte usada em requireAuth) ──
 const ROLE_PERMISSIONS = {
-  admin: ["*"],
+  // Administrador técnico: gestão da plataforma, sem acesso clínico implícito.
+  admin: [
+    "dashboard.read", "users.read", "users.write",
+    "professionals.read", "professionals.write",
+    "roles.read", "roles.write", "permissions.read",
+    "units.read", "units.write", "settings.manage", "modules.manage",
+    "safety.configure", "audit.read", "reports.read"
+  ],
   cardiologist: [
-    "dashboard.read",
-    "patients.read", "patients.write",
-    "appointments.read", "triage.read",
-    "consultations.read", "consultations.write",
-    "exams.read", "exams.write",
-    "prescriptions.read", "prescriptions.write",
-    "alerts.read", "alerts.resolve",
-    "ai.read", "audit.read", "reports.read"
+    "dashboard.read", "patients.read", "patients.write", "records.read",
+    "appointments.read", "triage.read", "triage.close",
+    "consultations.read", "consultations.write", "consultations.finalize",
+    "exams.read", "exams.write", "exams.results.write",
+    "prescriptions.read", "prescriptions.write", "prescriptions.validate",
+    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
+    "medications.read", "inventory.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   medico: [
-    "dashboard.read",
-    "patients.read", "patients.write",
-    "appointments.read", "triage.read",
-    "consultations.read", "consultations.write",
-    "exams.read", "exams.write",
-    "prescriptions.read", "prescriptions.write",
-    "alerts.read", "alerts.resolve",
-    "ai.read", "audit.read", "reports.read"
+    "dashboard.read", "patients.read", "patients.write", "records.read",
+    "appointments.read", "triage.read", "triage.close",
+    "consultations.read", "consultations.write", "consultations.finalize",
+    "exams.read", "exams.write", "exams.results.write",
+    "prescriptions.read", "prescriptions.write", "prescriptions.validate",
+    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
+    "medications.read", "inventory.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
+    "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   enfermagem: [
-    "dashboard.read", "patients.read",
-    "appointments.read", "triage.read", "triage.write",
-    "internacoes.read", "internacoes.write",
-    "exams.read", "alerts.read"
+    "dashboard.read", "patients.read", "appointments.read",
+    "triage.read", "triage.write", "internacoes.read", "internacoes.write",
+    "hospitalizations.read", "hospitalizations.write",
+    "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"
   ],
   triagem: [
-    "dashboard.read", "patients.read",
-    "appointments.read", "triage.read", "triage.write", "alerts.read"
+    "dashboard.read", "patients.read", "appointments.read",
+    "triage.read", "triage.write", "alerts.read", "files.read", "queue.call"
   ],
   farmacia: [
-    "dashboard.read", "patients.read",
-    "prescriptions.read", "prescriptions.dispense",
-    "estoque.read", "estoque.write", "alerts.read"
+    "dashboard.read", "patients.read", "prescriptions.read",
+    "prescriptions.dispense", "inventory.read", "inventory.write",
+    "alerts.read", "medications.read", "purchasing.read", "reports.read", "files.read"
   ],
   atendimento: [
     "dashboard.read", "patients.read", "patients.write",
-    "appointments.read", "appointments.write"
+    "appointments.read", "appointments.write", "homecare.read",
+    "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   recepcao: [
     "dashboard.read", "patients.read", "patients.write",
-    "appointments.read", "appointments.write"
+    "appointments.read", "appointments.write", "homecare.read",
+    "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   direcao: [
     "dashboard.read", "reports.read", "audit.read",
-    "patients.read", "alerts.read"
+    "alerts.read", "alerts.resolve", "inventory.read",
+    "users.read", "professionals.read", "roles.read", "units.read"
   ]
 };
 
@@ -205,6 +215,51 @@ async function importJsonIfPostgresEmpty(pgDb) {
 
 // Carrega o estado inicial: Postgres (produção) ou JSON (dev). Chamado antes
 // do app.listen() — as rotas que usam readDB() sincrono recebem dados reais.
+async function syncBuiltInRolePermissions(pool) {
+  const roleNames = Object.keys(ROLE_PERMISSIONS);
+  const permissionNames = [...new Set(Object.values(ROLE_PERMISSIONS).flat())];
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(73429012)");
+    await client.query(
+      "INSERT INTO roles (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
+      [roleNames]
+    );
+    await client.query(
+      "INSERT INTO permissions (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
+      [permissionNames]
+    );
+
+    // Reconcile grants for built-in roles on every startup. This revokes
+    // stale privileges from previous matrices while leaving custom roles intact.
+    await client.query(
+      `DELETE FROM role_permissions rp
+       USING roles r
+       WHERE rp.role_id = r.id AND r.name = ANY($1::text[])`,
+      [roleNames]
+    );
+
+    for (const [roleName, permissions] of Object.entries(ROLE_PERMISSIONS)) {
+      await client.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT r.id, p.id
+         FROM roles r CROSS JOIN permissions p
+         WHERE r.name = $1 AND p.name = ANY($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [roleName, permissions]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function hydrate() {
   if (!usingPostgres() || !getPool()) {
     if (process.env.NODE_ENV === 'production') {
@@ -218,6 +273,7 @@ async function hydrate() {
     // Migração leve e idempotente: contas recém-criadas precisam persistir
     // o hash e a validade da senha temporária também no PostgreSQL.
     const pool = getPool();
+    await syncBuiltInRolePermissions(pool);
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_hash TEXT");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ");
     current = await readAllFromPostgres();
@@ -914,5 +970,6 @@ module.exports = {
   usingPostgres,
   getPool,
   hydrate,
-  syncToPostgres
+  syncToPostgres,
+  syncBuiltInRolePermissions
 };

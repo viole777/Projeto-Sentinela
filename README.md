@@ -135,7 +135,7 @@ Se a chave não estiver presente, o sistema continua funcionando com fallback lo
 
 ## Segurança e IA
 
-A avaliação de prontidão comercial, os bloqueadores conhecidos e os critérios para piloto/produção estão em [docs/COMMERCIAL_READINESS_AUDIT.md](docs/COMMERCIAL_READINESS_AUDIT.md). A existência de uma funcionalidade não representa validação clínica ou autorização para uso assistencial.
+A avaliação de prontidão comercial, os bloqueadores conhecidos e os critérios para piloto/produção estão em [docs/COMMERCIAL_READINESS_AUDIT.md](docs/COMMERCIAL_READINESS_AUDIT.md). A matriz de papéis e permissões está em [docs/AUTHORIZATION_MATRIX.md](docs/AUTHORIZATION_MATRIX.md). A existência de uma funcionalidade não representa validação clínica ou autorização para uso assistencial.
 
 
 A aplicação inclui um Safety Engine para avaliar prescrições e alertar sobre inconsistências. Ele funciona como apoio clínico e não substitui a decisão do profissional.

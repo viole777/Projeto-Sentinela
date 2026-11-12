@@ -31,11 +31,11 @@ window.Sentinela = {
       ]],
       ["Operação", [
         item("atendimento", "atendimento.html", "Atendimento", "appointments.read"),
-        item("casa", "atendimento-casa.html", "Atend. Domiciliar", "appointments.read"),
-        item("fila", "fila.html", "Fila", "appointments.read"),
+        item("casa", "atendimento-casa.html", "Atend. Domiciliar", "homecare.read"),
+        item("fila", "fila.html", "Fila", "queue.call"),
         item("triagem", "triagem.html", "Triagem", "triage.read"),
         item("consulta", "medico.html", "Consultas", "consultations.read"),
-        item("prontuario", "prontuario.html", "Prontuários", "consultations.read")
+        item("prontuario", "prontuario.html", "Prontuários", "records.read")
       ]],
       ["Cardiologia", [
         item("exames", "exames.html", "Exames", "exams.read"),
@@ -43,19 +43,19 @@ window.Sentinela = {
       ]],
       ["Farmácia", [
         item("farmacia", "farmacia.html", "Prescrições", "prescriptions.read"),
-        item("estoque", "estoque.html", "Estoque", "estoque.read")
+        item("estoque", "estoque.html", "Estoque", "inventory.read")
       ]],
       ["Internação", [
-        item("internacao", "internacao.html", "Internações", "internacoes.read"),
-        item("leitos", "leitos.html", "Leitos", "internacoes.read")
+        item("internacao", "internacao.html", "Internações", "hospitalizations.read"),
+        item("leitos", "leitos.html", "Leitos", "beds.read")
       ]],
       ["Gestão", [
         item("alertas", "alertas.html", "Alertas", "alerts.read"),
-        item("safety", "safety-engine.html", "Safety Engine", "alerts.read"),
+        item("safety", "safety-engine.html", "Safety Engine", "safety.configure"),
         item("relatorios", "relatorios.html", "Relatórios", "reports.read"),
-        item("profissionais", "profissionais.html", "Profissionais", "audit.read"),
+        item("profissionais", "profissionais.html", "Profissionais", "professionals.read"),
         item("auditoria", "auditoria.html", "Auditoria", "audit.read"),
-        item("config", "configuracoes.html", "Configurações", "dashboard.read")
+        item("config", "configuracoes.html", "Configurações", "settings.manage")
       ]]
     ];
 

@@ -143,6 +143,12 @@ async function main() {
   });
   assertCondition(missingClosureReason.response.status === 400, `Encerramento sem justificativa adequada deveria ser rejeitado: HTTP ${missingClosureReason.response.status}`);
 
+  const adminClinicalData = await request('/pacientes', { headers: { Cookie: sessionCookie } });
+  assertCondition(adminClinicalData.response.status === 403, `Administrador técnico não deve acessar pacientes sem permissão clínica: HTTP ${adminClinicalData.response.status}`);
+
+  const adminInventory = await request('/estoque', { headers: { Cookie: sessionCookie } });
+  assertCondition(adminInventory.response.status === 403, `Administrador técnico não deve acessar estoque sem permissão operacional: HTTP ${adminInventory.response.status}`);
+
   const adminSafetyRules = await request('/safety/regras', { headers: { Cookie: sessionCookie } });
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
 
@@ -236,7 +242,7 @@ async function main() {
 
   const estoqueResult = await request('/estoque', {
     headers: {
-      Cookie: sessionCookie,
+      Cookie: pharmacistCookie,
     },
   });
 
@@ -245,7 +251,7 @@ async function main() {
 
   const casaResult = await request('/atendimentos-casa', {
     headers: {
-      Cookie: sessionCookie,
+      Cookie: doctorCookie,
     },
   });
 

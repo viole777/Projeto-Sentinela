@@ -14,7 +14,7 @@ const ENDPOINTS = [
   '/configuracoes/unidades', '/configuracoes/modulos', '/fila', '/transferencias',
   '/producao-sus', '/faturamento/dashboard', '/acessos/unidades',
   '/agenda/disponibilidade', '/exames/resultados'
-];;
+ ];
 
 module.exports = function createAdvancedModulesRouter({ requireAuth }) {
   const router = express.Router();

@@ -129,19 +129,24 @@ async function main() {
   assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
   assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
 
+  const doctorTriageScreen = await request('/triagem', { headers: { Cookie: doctorCookie } });
+  assertCondition(doctorTriageScreen.response.status === 403, `Perfil médico não deve consultar a API da triagem: HTTP ${doctorTriageScreen.response.status}`);
+
+  const doctorConsultationQueue = await request('/consultas/fila', { headers: { Cookie: doctorCookie } });
+  assertCondition(doctorConsultationQueue.response.ok && Array.isArray(doctorConsultationQueue.body), 'Fila médica dedicada deve estar disponível ao perfil médico');
+
   const blockedTriageDelete = await request('/triagem?id=999999', {
     method: 'DELETE',
     headers: { Cookie: doctorCookie },
   });
-  assertCondition(blockedTriageDelete.response.status === 405, `Exclusão física de triagem deveria ser bloqueada: HTTP ${blockedTriageDelete.response.status}`);
-  assertCondition(blockedTriageDelete.body?.codigo === 'CLINICAL_RECORD_IMMUTABLE', 'Bloqueio de exclusão deveria identificar registro clínico imutável');
+  assertCondition(blockedTriageDelete.response.status === 403, `Médico não deve acessar a operação de exclusão/encerramento da triagem: HTTP ${blockedTriageDelete.response.status}`);
 
   const missingClosureReason = await request('/triagem/999999/encerrar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: doctorCookie },
     body: JSON.stringify({ motivo: 'curto' }),
   });
-  assertCondition(missingClosureReason.response.status === 400, `Encerramento sem justificativa adequada deveria ser rejeitado: HTTP ${missingClosureReason.response.status}`);
+  assertCondition(missingClosureReason.response.status === 403, `Médico não deve encerrar triagem: HTTP ${missingClosureReason.response.status}`);
 
   const adminClinicalData = await request('/pacientes', { headers: { Cookie: sessionCookie } });
   assertCondition(adminClinicalData.response.status === 403, `Administrador técnico não deve acessar pacientes sem permissão clínica: HTTP ${adminClinicalData.response.status}`);

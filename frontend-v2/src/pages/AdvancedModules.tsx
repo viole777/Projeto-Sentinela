@@ -104,7 +104,23 @@ export function AdvancedModulePage({page}:{page:string}){
   '/acessos/unidades':'units.write'
  };
  const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
- const canCreate=!unsupported&&!c.readOnly&&!!writePermissionByEndpoint[c.endpoint]&&hasPermission(writePermissionByEndpoint[c.endpoint]);
+ // ENDPOINTS registered in advancedModules.js deliberately return 501 until
+ // a dedicated, validated API exists. Only /exames and /internacoes have
+ // concrete handlers registered before that fallback router.
+ const blockedModuleEndpoints=new Set([
+  '/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/faturamento',
+  '/perfis','/unidades','/sinais-vitais','/exames/imagem','/cardiologia',
+  '/evolucoes-medicas','/enfermagem/plano-cuidados','/medicamentos/administracao',
+  '/incidentes','/protocolos','/alergias','/farmacia/avaliacoes','/farmacia/controlados',
+  '/estoque/movimentacoes','/estoque/validade','/compras','/faturamento/glosas',
+  '/escalas','/escalas/trocas','/frequencia','/indicadores/qualidade',
+  '/relatorios/gerencial','/ccih','/lgpd/consentimentos','/notificacoes',
+  '/comunicados','/encaminhamentos','/portal-paciente','/configuracoes/protocolos',
+  '/configuracoes/unidades','/configuracoes/modulos','/fila','/transferencias',
+  '/producao-sus','/faturamento/dashboard','/acessos/unidades',
+  '/agenda/disponibilidade','/exames/resultados'
+ ]);
+ const canCreate=!unsupported&&!c.readOnly&&!blockedModuleEndpoints.has(c.endpoint)&&!!writePermissionByEndpoint[c.endpoint]&&hasPermission(writePermissionByEndpoint[c.endpoint]);
  const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[notice,setNotice]=useState(''),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState<Record<string,string>>({}),[temporaryPassword,setTemporaryPassword]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError('');if(!c.endpoint){setRows([]);setError('Esta rota ainda não está ligada a um endpoint válido.');setLoading(false);return;}try{const r=await fetch(c.endpoint,{credentials:'include',headers:{Accept:'application/json'}});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(String(body.erro||body.error||'Não foi possível carregar os dados deste módulo.'));setRows(normalizeRows(body));}catch(e){setRows([]);setError(e instanceof Error?e.message:'Falha de conexão com o servidor.');}finally{setLoading(false);}},[c.endpoint]);
  useEffect(()=>{void load();},[load]);

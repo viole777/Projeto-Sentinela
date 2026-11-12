@@ -115,7 +115,7 @@ function createAuthMiddleware({ sessions, normalizeRole, permissionsForRole, ses
                 refreshSession(auth.token, auth.session, req);
                 return next();
             } catch (error) {
-                return next(error);
+                return handleMiddlewareError(error, res, next);
             }
         };
     }

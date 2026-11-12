@@ -67,7 +67,7 @@ const ROLE_PERMISSIONS = {
   ],
   recepcao: [
     "dashboard.read", "patients.read", "patients.write",
-    "appointments.read", "appointments.write", "homecare.read",
+    "appointments.read", "appointments.write", "appointments.manage", "homecare.read",
     "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   direcao: [

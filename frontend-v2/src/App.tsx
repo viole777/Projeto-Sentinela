@@ -18,7 +18,7 @@ function AdminAdvanced({ page }: { page: string }) {
   return <AdvancedModulePage page={page} />;
 }
 const advancedRoutes = [
-  'agenda-medica','disponibilidade','recepcao','fila-chamada','transferencias','mapa-leitos','internacoes','alta-hospitalar',
+  'agenda-medica','disponibilidade','fila-chamada','transferencias','mapa-leitos','internacoes','alta-hospitalar',
   'evolucao-medica','evolucao-enfermagem','plano-cuidados','sinais-vitais','prescricao-eletronica-avancada','administracao-medicamentos',
   'incidentes','protocolos-clinicos','alergias','exames-laboratoriais','resultados-laboratoriais','exames-imagem','cardiologia',
   'farmacia-clinica','controlados','movimentacao-estoque','validade-perdas','solicitacao-compras','faturamento-sus','producao-sus',

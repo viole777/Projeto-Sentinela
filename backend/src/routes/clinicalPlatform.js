@@ -247,7 +247,9 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  });
  router.post('/api/v1/signatures/request',requirePermission('records.sign'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const provider=req.body?.provider;
+  const provider=req.body?.provider,recordId=Number(req.body?.clinicalRecordId);
+  if(!Number.isSafeInteger(recordId)||recordId<1)return res.status(400).json({erro:'Informe o identificador do documento clínico.'});
+  try{const record=await getPool().query('SELECT id FROM clinical_records WHERE id=$1 AND unit_id=$2 AND resource_type IN (\'soap\',\'prescription\',\'document\',\'discharge\')',[recordId,unitOf(req)]);if(!record.rowCount)return res.status(404).json({erro:'Documento clínico não encontrado nesta unidade.'});}catch(e){return next(e);}
   if(!['GOVBR','ICP_BRASIL'].includes(provider))return res.status(400).json({erro:'Provedor deve ser GOVBR ou ICP_BRASIL.'});
   try{const r=await getPool().query('SELECT enabled,endpoint_configured,credentials_configured,homologated FROM external_integration_registry WHERE provider=$1',[provider]);
    if(!r.rowCount||!r.rows[0].enabled||!r.rows[0].endpoint_configured||!r.rows[0].credentials_configured||!r.rows[0].homologated)return res.status(503).json({erro:'Provedor de assinatura não está configurado e homologado. Nenhum documento foi assinado.',codigo:'SIGNATURE_PROVIDER_NOT_READY'});
@@ -299,6 +301,10 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    const actor=actorOf(req),client=await getPool().connect();
    try{await client.query('BEGIN');
     if(data.patientCpf){const p=await client.query('SELECT cpf FROM patients WHERE cpf=$1 AND unit_id=$2',[data.patientCpf,unitOf(req)]);if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado.'});}}
+    if(def.type==='exam_result'){
+     const exam=await client.query("SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type='exam_order' AND unit_id=$2 FOR SHARE",[Number(data.examRecordId),unitOf(req)]);
+     if(!exam.rowCount||exam.rows[0].patient_cpf!==data.patientCpf){await client.query('ROLLBACK');return res.status(404).json({erro:'Solicitação de exame não encontrada para este paciente e unidade.'});}
+    }
     if(def.professional&&!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Profissional sem vínculo CNS/CBO ativo na unidade. Cadastre o vínculo profissional antes de registrar este evento.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
     let status='recorded';if(def.type==='prescription')status='pending_professional_validation';if(def.type==='document')status='draft_pending_signature';if(def.type==='billing')status='pending_catalog_validation';if(def.type==='notification')status='draft_pending_external_submission';
     const r=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,sector_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,created_at',

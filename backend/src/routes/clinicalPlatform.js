@@ -157,7 +157,7 @@ router.post('/api/v1/appointments/:id/status',requirePermission('appointments.ma
    const old=await client.query('SELECT id,patient_cpf,status FROM appointments WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
    if(!old.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Agendamento não encontrado nesta unidade.'});}
    const r=await client.query('UPDATE appointments SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);
-   await audit(req,client,'create','appointment_status',id,old.rows[0].patient_cpf,{previous:old.rows[0].status,next:status});
+   await audit(req,client,'update','appointment_status',id,old.rows[0].patient_cpf,{previous:old.rows[0].status,next:status});
    await client.query('COMMIT');return res.json({appointment:r.rows[0]});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });

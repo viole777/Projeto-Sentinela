@@ -68,10 +68,41 @@ const human=(s:string)=>s.replace(/([A-Z])/g,' $1').replace(/^./,x=>x.toUpperCas
 const valueText=(v:unknown)=>v==null||v===''?'—':typeof v==='object'?JSON.stringify(v):String(v);
 export function AdvancedModulePage({page}:{page:string}){
  const key=aliases[page]||page;const unsupported=!modules[key];const c=modules[key]||{title:'Módulo não mapeado',description:'Esta rota ainda não possui uma configuração de tela e API.',endpoint:'',columns:[],fields:[],icon:AlertCircle,group:'Rotas',readOnly:true,createRoles:[]};const Icon=c.icon;
- const role=(sessionStorage.getItem('sentinelaRole')||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
- const clinicalWriteEndpoints=new Set(['/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/sinais-vitais','/exames/imagem','/cardiologia','/evolucoes-medicas','/enfermagem/plano-cuidados','/medicamentos/administracao','/incidentes','/protocolos','/alergias','/farmacia/avaliacoes','/farmacia/controlados','/estoque/movimentacoes','/estoque/validade','/compras','/escalas','/escalas/trocas','/frequencia','/ccih','/encaminhamentos','/fila','/transferencias','/agenda/disponibilidade','/exames/resultados']);
- const defaultCreateRoles=clinicalWriteEndpoints.has(c.endpoint)?['admin','medico','cardiologist','enfermagem','triagem','farmacia']:['admin'];
- const canCreate=!unsupported&&!c.readOnly&&(c.createRoles||defaultCreateRoles).includes(role);
+ const writePermissionByEndpoint:Record<string,string>={
+  '/profissionais':'professionals.write',
+  '/agenda':'appointments.write',
+  '/enfermagem/evolucoes':'internacoes.write',
+  '/prescricoes':'prescriptions.write',
+  '/altas':'hospitalizations.write',
+  '/sinais-vitais':'triage.write',
+  '/exames/imagem':'exams.write',
+  '/cardiologia':'consultations.write',
+  '/evolucoes-medicas':'consultations.write',
+  '/enfermagem/plano-cuidados':'internacoes.write',
+  '/medicamentos/administracao':'prescriptions.dispense',
+  '/protocolos':'settings.manage',
+  '/alergias':'patients.write',
+  '/farmacia/avaliacoes':'prescriptions.validate',
+  '/farmacia/controlados':'prescriptions.dispense',
+  '/estoque/movimentacoes':'inventory.write',
+  '/estoque/validade':'inventory.write',
+  '/compras':'purchasing.read',
+  '/escalas':'professionals.write',
+  '/escalas/trocas':'professionals.write',
+  '/frequencia':'professionals.write',
+  '/ccih':'settings.manage',
+  '/encaminhamentos':'consultations.write',
+  '/fila':'queue.call',
+  '/transferencias':'hospitalizations.write',
+  '/agenda/disponibilidade':'appointments.write',
+  '/exames/resultados':'exams.results.write',
+  '/configuracoes/protocolos':'settings.manage',
+  '/configuracoes/unidades':'units.write',
+  '/configuracoes/modulos':'modules.manage',
+  '/acessos/unidades':'units.write'
+ };
+ const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
+ const canCreate=!unsupported&&!c.readOnly&&!!writePermissionByEndpoint[c.endpoint]&&hasPermission(writePermissionByEndpoint[c.endpoint]);
  const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[notice,setNotice]=useState(''),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState<Record<string,string>>({}),[temporaryPassword,setTemporaryPassword]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError('');if(!c.endpoint){setRows([]);setError('Esta rota ainda não está ligada a um endpoint válido.');setLoading(false);return;}try{const r=await fetch(c.endpoint,{credentials:'include',headers:{Accept:'application/json'}});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(String(body.erro||body.error||'Não foi possível carregar os dados deste módulo.'));setRows(normalizeRows(body));}catch(e){setRows([]);setError(e instanceof Error?e.message:'Falha de conexão com o servidor.');}finally{setLoading(false);}},[c.endpoint]);
  useEffect(()=>{void load();},[load]);

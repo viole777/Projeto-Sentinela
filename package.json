@@ -15,7 +15,8 @@
     "test": "node tests/security.test.js && node tests/clinical-platform.test.js && node tests/authorization.test.js && node tests/frontend-access.test.js && node scripts/ai-service-test.js && node scripts/safety-engine-test.js && node scripts/smoke-test.js && node scripts/frontend-syntax-test.js",
     "test:security": "node tests/security.test.js && node tests/authorization.test.js",
     "prestart": "npm install --prefix frontend-v2 --include=dev && npm run build --prefix frontend-v2",
-    "build:frontend": "npm install --prefix frontend-v2 --include=dev && npm run build --prefix frontend-v2"
+    "build:frontend": "npm install --prefix frontend-v2 --include=dev && npm run build --prefix frontend-v2",
+    "db:migrate:clinical": "node scripts/apply-clinical-platform-migration.js"
   },
   "keywords": [],
   "author": "",

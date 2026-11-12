@@ -1,11 +1,12 @@
 -- Seeds mínimos do Sentinela
 INSERT INTO roles (name) VALUES
   ('admin'), ('cardiologist'), ('medico'), ('enfermagem'),
-  ('triagem'), ('farmacia'), ('atendimento'), ('recepcao'), ('direcao')
+  ('triagem'), ('farmacia'), ('atendimento'), ('recepcao'), ('supervisor_cadastro'), ('direcao')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO permissions (name) VALUES
   ('dashboard.read'), ('patients.read'), ('patients.write'),
+  ('patients.identity.read'), ('patients.identity.write'), ('patients.identity.sensitive.write'),
   ('appointments.read'), ('appointments.write'),
   ('triage.read'), ('triage.write'),
   ('consultations.read'), ('consultations.write'),
@@ -37,7 +38,9 @@ FROM roles r JOIN permissions p ON
     'dashboard.read','patients.read','prescriptions.read','prescriptions.dispense',
     'estoque.read','estoque.write','alerts.read')) OR
   (r.name IN ('atendimento','recepcao') AND p.name IN (
-    'dashboard.read','patients.read','patients.write','appointments.read','appointments.write')) OR
+    'dashboard.read','patients.read','patients.write','patients.identity.read','patients.identity.write','appointments.read','appointments.write')) OR
+  (r.name = 'supervisor_cadastro' AND p.name IN (
+    'dashboard.read','patients.read','patients.identity.read','patients.identity.write','patients.identity.sensitive.write')) OR
   (r.name = 'direcao' AND p.name IN (
     'dashboard.read','reports.read','audit.read','patients.read','alerts.read'))
 ON CONFLICT DO NOTHING;

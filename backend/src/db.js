@@ -33,12 +33,15 @@ const ROLE_PERMISSIONS = {
     "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],
   medico: [
-    "dashboard.read", "patients.read", "patients.write", "records.read",
-    "appointments.read", "consultations.queue.read",
+    "dashboard.read", "patients.read", "patients.write", "patients.identity.read", "records.read", "records.write",
+    "appointments.read", "appointments.manage", "consultations.queue.read",
     "consultations.read", "consultations.write", "consultations.finalize",
     "exams.read", "exams.write", "exams.results.write",
     "prescriptions.read", "prescriptions.write", "prescriptions.validate",
-    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "reports.read",
+    "alerts.read", "alerts.resolve", "ai.read", "audit.read", "clinical.audit.read", "reports.read",
+    "maternal.read", "maternal.write", "chronic.read", "chronic.write",
+    "immunizations.read", "immunizations.write", "referrals.read", "referrals.write",
+    "notifications.write", "clinical.catalogs.read",
     "medications.read", "inventory.read", "beds.read", "hospitalizations.read", "hospitalizations.write",
     "homecare.read", "homecare.write", "homecare.complete", "files.read", "queue.call"
   ],

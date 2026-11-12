@@ -63,8 +63,8 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  async function officialCodeState(client,catalog,code){
   const count=await client.query('SELECT COUNT(*)::int AS count FROM official_catalog_entries WHERE catalog=$1',[catalog]);
   if(!count.rows[0].count)return{loaded:false,valid:false};
-  const match=await client.query('SELECT 1 FROM official_catalog_entries WHERE catalog=$1 AND code=$2 AND (effective_from IS NULL OR effective_from<=CURRENT_DATE) AND (effective_to IS NULL OR effective_to>=CURRENT_DATE) LIMIT 1',[catalog,String(code)]);
-  return{loaded:true,valid:!!match.rowCount};
+  const match=await client.query('SELECT label FROM official_catalog_entries WHERE catalog=$1 AND code=$2 AND (effective_from IS NULL OR effective_from<=CURRENT_DATE) AND (effective_to IS NULL OR effective_to>=CURRENT_DATE) ORDER BY imported_at DESC LIMIT 1',[catalog,String(code)]);
+  return{loaded:true,valid:!!match.rowCount,label:match.rows[0]?.label||null};
  }
  async function requireProfessional(req,client){
   const a=actorOf(req),r=await client.query('SELECT pr.id,pr.cns,pr.cbo,pr.unit_id FROM users u JOIN professional_registry pr ON pr.user_id=u.id WHERE u.username=$1 AND pr.active=TRUE AND pr.unit_id=$2',[a.username,a.unit]);

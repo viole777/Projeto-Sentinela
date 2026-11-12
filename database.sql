@@ -321,7 +321,11 @@ ON CONFLICT (name) DO NOTHING;
 -- RBAC de menor privilégio: o administrador técnico não recebe permissões
 -- clínicas por herdar um curinga. Ações clínicas exigem um papel assistencial.
 -- Reaplica a matriz completa para revogar privilégios antigos.
-DELETE FROM role_permissions;
+BEGIN;
+DELETE FROM role_permissions
+WHERE role_id IN (SELECT id FROM roles WHERE name IN (
+  'admin','cardiologist','medico','enfermagem','triagem','farmacia','atendimento','recepcao','direcao'
+));
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
@@ -353,6 +357,7 @@ FROM roles r JOIN permissions p ON
     'dashboard.read','reports.read','audit.read','alerts.read','alerts.resolve','inventory.read',
     'users.read','professionals.read','roles.read','units.read'))
 ON CONFLICT DO NOTHING;
+COMMIT;
 
 INSERT INTO wards (name) VALUES ('CARDIOLOGIA'), ('UTI CARDIOVASCULAR')
 ON CONFLICT (name) DO NOTHING;

@@ -3,6 +3,8 @@
 -- Reference data and external services remain unavailable until their official datasets/contracts are loaded.
 
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS cns VARCHAR(15);
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS unit_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_patients_unit_id ON patients(unit_id);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS birth_date DATE;
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS sex_at_birth TEXT;
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender_identity TEXT;

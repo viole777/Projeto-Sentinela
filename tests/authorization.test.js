@@ -40,6 +40,12 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.admin.includes('patients.read'), 'technical admin must not inherit clinical access');
   assert.ok(ROLE_PERMISSIONS.admin.includes('users.write'));
   assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.write'));
+  assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.write'));
+  assert.ok(!ROLE_PERMISSIONS.triagem.includes('consultations.write'), 'triage role must not access medical consultation writes');
+  assert.ok(ROLE_PERMISSIONS.recepcao.includes('appointments.write'));
+  assert.ok(!ROLE_PERMISSIONS.recepcao.includes('triage.write'), 'reception role must not write triage assessments');
+  assert.ok(ROLE_PERMISSIONS.farmacia.includes('inventory.write'));
+  assert.ok(!ROLE_PERMISSIONS.farmacia.includes('consultations.write'), 'pharmacy role must not write medical consultations');
 
   {
     const knownPermissions = new Set(Object.values(ROLE_PERMISSIONS).flat());

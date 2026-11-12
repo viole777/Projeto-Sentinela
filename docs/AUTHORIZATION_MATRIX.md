@@ -73,3 +73,17 @@ As rotas de negócio do `backend/server.js` usam permissões específicas. O rot
 - Processo de concessão, revisão periódica e revogação de permissões individuais.
 
 **Não usar dados reais de pacientes para validar a matriz.** Usar contas e registros sintéticos em ambiente isolado.
+
+
+## Complemento — PR de fluxos operacionais e autorização de interface
+
+A interface React passa a aguardar a resposta de `/me` antes de renderizar as rotas protegidas. A matriz de caminhos do frontend é explícita: caminho sem permissão mapeada não aparece na navegação e o acesso direto à URL é negado. Isso é uma camada de UX; a autorização real continua sendo responsabilidade do middleware do backend.
+
+Foram criadas áreas operacionais conectadas aos endpoints existentes:
+- **Recepção:** cadastro/atualização de paciente e abertura de atendimento, com encaminhamento para a fila.
+- **Triagem:** consulta à lista de pacientes e à fila, registro de sintomas e sinais observados, e acompanhamento do estado.
+- **Atendimento médico:** fila de triagens pendentes e registro de consulta, com a verificação de segurança mantida no servidor.
+
+Ao persistir uma consulta, a triagem vinculada passa ao estado `atendida`; a triagem não é excluída. Uma segunda tentativa de registrar consulta para a mesma triagem é recusada com HTTP 409.
+
+A matriz de papéis padrão permanece segregada: recepção pode abrir atendimentos, triagem pode registrar avaliações e o perfil médico pode registrar consultas. Esses fluxos ainda são protótipos operacionais e não substituem validação clínica, escopo por paciente/unidade, transações e auditoria durável.

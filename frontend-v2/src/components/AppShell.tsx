@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { PERMISSION_BY_PATH, canAccessPermission } from '../access';
 import {
   Activity, Bell, Boxes, CalendarDays, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardCheck, ClipboardList, FileBarChart, FileText, HeartPulse,
@@ -24,7 +25,7 @@ const nav: NavGroup[] = [
   { label: 'Fluxo do paciente', items: [
     ['Triagem','/app/triagem',Activity],
     ['Fila e chamada','/app/fila-chamada',BellRing],
-    ['Consultas médicas','/app/consultas',Stethoscope],
+    ['Atendimento médico','/app/consultas',Stethoscope],
     ['Transferências','/app/transferencias',Building2],
     ['Mapa de leitos','/app/mapa-leitos',BedDouble],
     ['Internações','/app/internacoes',Building2],
@@ -95,92 +96,12 @@ const nav: NavGroup[] = [
   ]},
 ];
 
-const permissionByPath: Record<string, string> = {
-  '/app/dashboard': 'dashboard.read',
-  '/app/dashboard-gerencial': 'reports.read',
-  '/app/pacientes': 'patients.read',
-  '/app/recepcao': 'appointments.read',
-  '/app/agenda-medica': 'appointments.read',
-  '/app/disponibilidade': 'appointments.read',
-  '/app/triagem': 'triage.read',
-  '/app/fila-chamada': 'queue.call',
-  '/app/consultas': 'consultations.read',
-  '/app/transferencias': 'hospitalizations.write',
-  '/app/mapa-leitos': 'beds.read',
-  '/app/internacoes': 'hospitalizations.read',
-  '/app/alta-hospitalar': 'hospitalizations.write',
-  '/app/evolucao-medica': 'consultations.write',
-  '/app/evolucao-enfermagem': 'internacoes.write',
-  '/app/plano-cuidados': 'internacoes.write',
-  '/app/sinais-vitais': 'triage.write',
-  '/app/prescricao-eletronica-avancada': 'prescriptions.write',
-  '/app/administracao-medicamentos': 'prescriptions.dispense',
-  '/app/protocolos-clinicos': 'settings.manage',
-  '/app/alergias': 'patients.write',
-  '/app/exames-laboratoriais': 'exams.read',
-  '/app/exames-imagem': 'exams.read',
-  '/app/cardiologia': 'consultations.read',
-  '/app/sentinela-ai': 'ai.read',
-  '/app/farmacia': 'prescriptions.read',
-  '/app/farmacia-clinica': 'prescriptions.validate',
-  '/app/controlados': 'prescriptions.dispense',
-  '/app/estoque': 'inventory.read',
-  '/app/movimentacao-estoque': 'inventory.write',
-  '/app/validade-perdas': 'inventory.write',
-  '/app/solicitacao-compras': 'purchasing.read',
-  '/app/faturamento-sus': 'reports.read',
-  '/app/producao-sus': 'reports.read',
-  '/app/faturamento-dashboard': 'reports.read',
-  '/app/glosas': 'reports.read',
-  '/app/relatorios-producao': 'reports.read',
-  '/app/profissionais': 'professionals.read',
-  '/app/escalas': 'professionals.read',
-  '/app/troca-plantao': 'professionals.read',
-  '/app/frequencia': 'professionals.read',
-  '/app/incidentes': 'alerts.read',
-  '/app/indicadores-qualidade': 'reports.read',
-  '/app/ccih-infeccao': 'reports.read',
-  '/app/lgpd-consentimentos': 'settings.manage',
-  '/app/trilha-auditoria': 'audit.read',
-  '/app/alertas': 'alerts.read',
-  '/app/safety-engine': 'safety.configure',
-  '/app/notificacoes': 'dashboard.read',
-  '/app/comunicados': 'dashboard.read',
-  '/app/encaminhamentos': 'consultations.write',
-  '/app/portal-paciente': 'patients.read',
-  '/app/gestao-usuarios': 'users.read',
-  '/app/gestao-perfis': 'roles.read',
-  '/app/unidades-setores': 'units.read',
-  '/app/acesso-unidade': 'units.read',
-  '/app/configuracao-protocolos': 'settings.manage',
-  '/app/config-safety': 'safety.configure',
-  '/app/parametros-unidade': 'settings.manage',
-  '/app/modulos': 'modules.manage',
-  '/app/relatorios': 'reports.read',
-  '/app/configuracoes': 'settings.manage'
-};
-function readPermissions(): string[] {
-  try {
-    const value = JSON.parse(sessionStorage.getItem('sentinelaPermissions') || '[]');
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-function canAccessPermission(permission?: string) {
-  if (!permission) return true;
-  const permissions = readPermissions();
-  return permissions.includes('*') || permissions.includes(permission);
-}
-function canAccessAiSummary() {
-  return canAccessPermission('ai.read');
-}
-
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [permissionRevision, setPermissionRevision] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
   useEffect(() => {
@@ -196,23 +117,25 @@ export function AppShell() {
         sessionStorage.setItem('sentinelaPermissions', JSON.stringify(Array.isArray(me.permissions) ? me.permissions : []));
         sessionStorage.setItem('sentinelaNome', String(me.nome || me.usuario || ''));
         setPermissionRevision(value => value + 1);
+        setAuthReady(true);
       })
       .catch(() => {
         if (!active) return;
         sessionStorage.removeItem('sentinelaPermissions');
+        sessionStorage.removeItem('sentinelaRole');
+        sessionStorage.removeItem('sentinelaNome');
         setPermissionRevision(value => value + 1);
+        setAuthReady(true);
       });
     return () => { active = false; };
   }, []);
 
   const navigate = useNavigate();
   const location = useLocation();
-  const canUseAi = canAccessAiSummary();
   const visibleGroups = useMemo(() => nav.map(group => ({
     ...group,
     items: group.items.filter(([label, path]) =>
-      canAccessPermission(permissionByPath[path]) &&
-      (path !== '/app/sentinela-ai' || canUseAi) &&
+      canAccessPermission(PERMISSION_BY_PATH[path]) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
   })).filter(group => group.items.length), [query, permissionRevision]);
@@ -269,12 +192,12 @@ export function AppShell() {
         <button className="sent-icon-button sent-mobile-menu" aria-label="Abrir menu" onClick={() => setMobileOpen(true)}><Menu size={21}/></button>
         <div className="sent-topbar-context"><span className="sent-context-kicker">SENTINELA / OPERAÇÕES</span><strong>{activeLabel}</strong></div>
         <div className="sent-topbar-actions">
-          <button className="sent-icon-button sent-notification" aria-label="Notificações" onClick={() => navigate('/app/notificacoes')}><Bell size={19}/><i/></button>
+          {canAccessPermission(PERMISSION_BY_PATH['/app/notificacoes']) && <button className="sent-icon-button sent-notification" aria-label="Notificações" onClick={() => navigate('/app/notificacoes')}><Bell size={19}/><i/></button>}
           <button className="sent-icon-button" onClick={toggleDark} aria-label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}>{dark ? <Sun size={19}/> : <Moon size={19}/>}</button>
           <div className="sent-user-chip"><span className="sent-user-avatar">{(sessionStorage.getItem('sentinelaNome') || 'P').trim().charAt(0).toUpperCase()}</span><div><strong>{sessionStorage.getItem('sentinelaNome') || 'Profissional'}</strong><small>{(sessionStorage.getItem('sentinelaRole') || '').toLowerCase() === 'admin' ? 'Administrador' : 'Acesso profissional'}</small></div></div>
         </div>
       </header>
-      <main className="sent-content"><div className="sent-breadcrumb"><span>Sentinela</span><ChevronRight size={13}/><span>Área clínica</span><ChevronRight size={13}/><strong>{activeLabel}</strong></div><Outlet/></main>
+      <main className="sent-content"><div className="sent-breadcrumb"><span>Sentinela</span><ChevronRight size={13}/><span>Área clínica</span><ChevronRight size={13}/><strong>{activeLabel}</strong></div>{authReady ? <Outlet/> : <div className="rounded-lg border p-8 text-center text-sm muted" style={{borderColor:'var(--border)'}}>Validando sessão e permissões…</div>}</main>
       <footer className="sent-footer"><span>Sentinela · Plataforma assistencial</span><span>Ambiente de trabalho</span></footer>
     </div>
   </div>;

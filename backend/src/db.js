@@ -218,21 +218,22 @@ async function importJsonIfPostgresEmpty(pgDb) {
 async function syncBuiltInRolePermissions(pool) {
   const roleNames = Object.keys(ROLE_PERMISSIONS);
   const permissionNames = [...new Set(Object.values(ROLE_PERMISSIONS).flat())];
+  const client = await pool.connect();
 
-  await pool.query("BEGIN");
   try {
-    await pool.query(
+    await client.query("BEGIN");
+    await client.query(
       "INSERT INTO roles (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
       [roleNames]
     );
-    await pool.query(
+    await client.query(
       "INSERT INTO permissions (name) SELECT UNNEST($1::text[]) ON CONFLICT (name) DO NOTHING",
       [permissionNames]
     );
 
     // Reconcile grants for built-in roles on every startup. This revokes
     // stale privileges from previous matrices while leaving custom roles intact.
-    await pool.query(
+    await client.query(
       `DELETE FROM role_permissions rp
        USING roles r
        WHERE rp.role_id = r.id AND r.name = ANY($1::text[])`,
@@ -240,7 +241,7 @@ async function syncBuiltInRolePermissions(pool) {
     );
 
     for (const [roleName, permissions] of Object.entries(ROLE_PERMISSIONS)) {
-      await pool.query(
+      await client.query(
         `INSERT INTO role_permissions (role_id, permission_id)
          SELECT r.id, p.id
          FROM roles r CROSS JOIN permissions p
@@ -249,10 +250,12 @@ async function syncBuiltInRolePermissions(pool) {
         [roleName, permissions]
       );
     }
-    await pool.query("COMMIT");
+    await client.query("COMMIT");
   } catch (error) {
-    await pool.query("ROLLBACK").catch(() => {});
+    await client.query("ROLLBACK").catch(() => {});
     throw error;
+  } finally {
+    client.release();
   }
 }
 

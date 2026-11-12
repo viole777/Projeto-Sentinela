@@ -73,11 +73,11 @@ CREATE INDEX IF NOT EXISTS idx_clinical_records_status ON clinical_records(statu
 
 
 CREATE OR REPLACE FUNCTION sentinela_reject_clinical_record_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $trigger$
 BEGIN
   RAISE EXCEPTION 'clinical records are immutable; append a correction record';
 END;
-$;
+$trigger$;
 DROP TRIGGER IF EXISTS clinical_records_immutable ON clinical_records;
 CREATE TRIGGER clinical_records_immutable BEFORE UPDATE OR DELETE ON clinical_records
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_clinical_record_mutation();
@@ -159,11 +159,11 @@ CREATE TABLE IF NOT EXISTS patient_consents (
 );
 CREATE INDEX IF NOT EXISTS idx_patient_consents_patient ON patient_consents(patient_cpf, recorded_at DESC);
 CREATE OR REPLACE FUNCTION sentinela_reject_consent_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $trigger$
 BEGIN
   RAISE EXCEPTION 'consent history is append-only; record a new consent event';
 END;
-$;
+$trigger$;
 DROP TRIGGER IF EXISTS patient_consents_immutable ON patient_consents;
 CREATE TRIGGER patient_consents_immutable BEFORE UPDATE OR DELETE ON patient_consents
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_consent_mutation();
@@ -262,8 +262,8 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
  (r.name='admin' AND p.name IN (
   'dashboard.read','users.read','users.write','professionals.read','professionals.write',
   'professionals.registry.write','roles.read','roles.write','permissions.read','units.read','units.write',
-  'settings.manage','modules.manage','safety.configure','audit.read','clinical.audit.read',
-  'reports.read','integration.manage','clinical.catalogs.read','billing.read'
+  'settings.manage','modules.manage','safety.configure','audit.read',
+  'reports.read','integration.manage','clinical.catalogs.read'
  )) OR
  (r.name IN ('cardiologist','medico') AND p.name IN (
   'dashboard.read','patients.read','patients.write','patients.identity.read','records.read','records.write',

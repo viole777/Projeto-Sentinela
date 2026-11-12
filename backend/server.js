@@ -341,20 +341,34 @@ app.post("/login", authRateLimit, async (req, res) => {
 // Sessão atual → o frontend decide o dashboard pelo cargo (sem escolher perfil)
 app.get("/me", async (req, res) => {
     const token = parseCookies(req.headers.cookie).sentinela_session;
-    // get() reidrata do PostgreSQL — o /me é a primeira chamada do frontend,
-    // então é ele que evita o "chute para o login" após um restart.
-    const session = token ? await sessions.get(token) : null;
-    if (!session) {
-        return res.status(401).json({ erro: "Autenticação necessária" });
+    try {
+        // /me é a primeira chamada do frontend e precisa distinguir sessão
+        // inválida de indisponibilidade do armazenamento/autorização.
+        const session = token ? await sessions.get(token) : null;
+        if (!session) return res.status(401).json({ erro: "Autenticação necessária" });
+        const role = session.role || session.tipo;
+        let permissions;
+        try {
+            permissions = await permissionsForRole(role);
+        } catch (_) {
+            return res.status(503).json({
+                erro: "Não foi possível validar as permissões. Tente novamente.",
+                codigo: "AUTHORIZATION_UNAVAILABLE"
+            });
+        }
+        return res.json({
+            usuario: session.usuario, nome: session.nome || session.usuario,
+            email: session.email || null, role, tipo: role,
+            setor: session.setor || null,
+            theme: session.theme || "light",
+            permissions
+        });
+    } catch (_) {
+        return res.status(503).json({
+            erro: "O serviço de sessões está indisponível. Tente novamente.",
+            codigo: "SESSION_STORE_UNAVAILABLE"
+        });
     }
-    const role = session.role || session.tipo;
-    res.json({
-        usuario: session.usuario, nome: session.nome || session.usuario,
-        email: session.email || null, role, tipo: role,
-        setor: session.setor || null,
-        theme: session.theme || "light",
-        permissions: await permissionsForRole(role)
-    });
 });
 
 // Preferência de tema claro/escuro por usuário (vale em todos os dispositivos)
@@ -693,11 +707,34 @@ app.get("/triagens", requirePermission("triage.read"), (req, res) => {
     res.json(db.triagens);
 });
 
+// Fila clínica do médico: expõe somente os campos necessários ao atendimento.
+// A consulta não concede acesso à tela nem ao histórico completo de triagem.
+app.get("/consultas/fila", requirePermission("consultations.queue.read"), (req, res) => {
+    const db = readDB();
+    const queue = (db.triagens || [])
+        .filter(item => String(item.status || "").toLowerCase() === "aguardando_medico")
+        .map(item => ({
+            triageId: item.id,
+            pacienteId: item.pacienteId,
+            pacienteNome: item.pacienteNome,
+            sintomas: item.sintomas || "",
+            risco: item.risco || null,
+            temperatura: item.temperatura ?? null,
+            pas: item.pas ?? null,
+            pad: item.pad ?? null,
+            fc: item.fc ?? null,
+            spo2: item.spo2 ?? null,
+            fr: item.fr ?? null,
+            createdAt: item.createdAt || null
+        }));
+    return res.json(queue);
+});
+
 // Encerramento da triagem preserva o histórico clínico e seus vínculos.
 app.post("/triagem/:id/encerrar", requirePermission("triage.close"), (req, res) => {
-    const role = String(req.user?.role || req.user?.tipo || "").toLowerCase();
-    if (!["medico", "cardiologist"].includes(role)) {
-        return res.status(403).json({ erro: "Somente profissionais médicos podem encerrar uma triagem." });
+    const role = normalizeRole(req.user?.role || req.user?.tipo || "");
+    if (!["triagem", "enfermagem"].includes(role)) {
+        return res.status(403).json({ erro: "Somente os perfis responsáveis pelo acolhimento podem encerrar uma triagem." });
     }
 
     const motivo = String(req.body.motivo || "").trim();
@@ -803,22 +840,31 @@ app.post("/atendimento-casa/:id/concluir", requirePermission("homecare.complete"
 app.post("/consulta", requirePermission("consultations.write"), (req, res) => {
     const db = readDB();
 
-    const pacienteCpf = String(req.body.pacienteCpf || "").trim();
-    const pacienteId = req.body.pacienteId;
+    const requestedTriageId = String(req.body.triageId ?? "").trim();
+    let triagem = requestedTriageId
+        ? (db.triagens || []).find(item => String(item.id) === requestedTriageId) || null
+        : null;
+    if (requestedTriageId && !triagem) {
+        return res.status(404).json({ erro: "Triagem não encontrada.", codigo: "TRIAGE_NOT_FOUND" });
+    }
+    if (triagem && String(triagem.status || "").toLowerCase() !== "aguardando_medico") {
+        return res.status(409).json({ erro: "Esta triagem não está mais disponível para atendimento.", codigo: "TRIAGE_NOT_PENDING" });
+    }
 
+    const pacienteCpf = String(triagem?.pacienteCpf || req.body.pacienteCpf || "").trim();
+    const pacienteId = triagem?.pacienteId || req.body.pacienteId;
     let paciente;
-    if (pacienteId) {
-        paciente = db.pacientes.find(p => Number(p.id) === Number(pacienteId));
+    if (triagem) {
+        paciente = db.pacientes.find(p => String(p.cpf) === String(triagem.pacienteCpf));
+    } else {
+        if (pacienteId) paciente = db.pacientes.find(p => Number(p.id) === Number(pacienteId));
+        if (!paciente && pacienteCpf) paciente = db.pacientes.find(p => String(p.cpf) === pacienteCpf);
     }
-    if (!paciente && pacienteCpf) {
-        paciente = db.pacientes.find(p => String(p.cpf) === pacienteCpf);
-    }
+    if (!paciente) return res.status(400).json({ erro: "Paciente não encontrado para a consulta" });
 
-    if (!paciente) {
-        return res.status(400).json({ erro: "Paciente não encontrado para a consulta" });
+    if (!triagem) {
+        triagem = (db.triagens || []).slice().reverse().find(t => String(t.pacienteCpf) === String(paciente.cpf)) || null;
     }
-
-    const triagem = (db.triagens || []).slice().reverse().find(t => String(t.pacienteCpf) === String(paciente.cpf)) || null;
     if (triagem && String(triagem.status || "").toLowerCase() === "atendida") {
         return res.status(409).json({ erro: "Esta triagem já foi vinculada a uma consulta.", codigo: "TRIAGE_ALREADY_ATTENDED" });
     }
@@ -1124,7 +1170,9 @@ app.get("/dashboard", requirePermission("dashboard.read"), async (req, res) => {
     const leitosLivres = leitos.filter(l => l.status === "livre").length;
     const ocupacao = leitos.length ? Math.round(((leitos.length - leitosLivres) / leitos.length) * 100) : 0;
     const examesPendentes = (db.exames || []).filter(e => e.status === "pendente").length;
-    const fila = (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt }));
+    const fila = permissionsFor(role).includes("triage.read")
+        ? (db.triagens || []).slice(-5).reverse().map(t => ({ nome: t.pacienteNome, cpf: t.pacienteCpf, risco: t.risco, quando: t.createdAt }))
+        : [];
     const atividade = (db.auditoria || []).slice(-6).reverse();
     const porCondicao = {};
     (db.pacientes || []).forEach(paciente => {

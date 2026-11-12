@@ -11,6 +11,12 @@ type Triage = {
   pas?: number | null; pad?: number | null; fc?: number | null; spo2?: number | null;
   createdAt?: string;
 };
+type ConsultationQueueItem = {
+  triageId: number | string; pacienteId?: number; pacienteNome?: string;
+  sintomas?: string; risco?: string; temperatura?: number | string;
+  pas?: number | null; pad?: number | null; fc?: number | null; spo2?: number | null;
+  fr?: number | null; createdAt?: string | null;
+};
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -150,7 +156,7 @@ export function TriageWorkspace() {
 }
 
 export function ConsultationWorkspace() {
-  const [rows,setRows] = useState<Triage[]>([]);
+  const [rows,setRows] = useState<ConsultationQueueItem[]>([]);
   const [selected,setSelected] = useState('');
   const [diagnosis,setDiagnosis] = useState('');
   const [medication,setMedication] = useState('');
@@ -162,10 +168,9 @@ export function ConsultationWorkspace() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const list = await api<Triage[]>('/triagem');
-      const pending = list.filter(item => !['atendida','encerrada'].includes(String(item.status || '').toLowerCase()));
+      const pending = await api<ConsultationQueueItem[]>('/consultas/fila');
       setRows(pending);
-      if (!selected && pending[0]?.pacienteCpf) setSelected(String(pending[0].pacienteCpf));
+      if (!selected && pending[0]?.triageId != null) setSelected(String(pending[0].triageId));
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível carregar os pacientes aguardando avaliação.'); }
     finally { setLoading(false); }
   }, [selected]);
@@ -174,7 +179,7 @@ export function ConsultationWorkspace() {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       const result = await api<{alertasGerados?:Array<{nivel?:string;mensagem?:string}>}>('/consulta',{method:'POST',body:JSON.stringify({
-        pacienteCpf:selected, diagnostico:diagnosis.trim(), medicacao:medication.trim(), obs:notes.trim()
+        triageId:selected, diagnostico:diagnosis.trim(), medicacao:medication.trim(), obs:notes.trim()
       })});
       setNotice(result.alertasGerados?.length ? 'Consulta registrada. O Safety Engine retornou pontos de atenção para revisão.' : 'Consulta registrada e persistida pelo servidor.');
       setDiagnosis(''); setMedication(''); setNotes('');
@@ -189,14 +194,14 @@ export function ConsultationWorkspace() {
       <Card>
         <div className="border-b p-4" style={{borderColor:'var(--border)'}}><div className="flex items-center gap-2"><ClipboardList size={18}/><h2 className="text-sm font-bold">Aguardando atendimento</h2></div><p className="mt-1 text-xs muted">{rows.length} pacientes na fila</p></div>
         <div className="divide-y" style={{borderColor:'var(--border)'}}>
-          {rows.map((row,i)=><button type="button" key={String(row.id ?? i)} onClick={()=>setSelected(String(row.pacienteCpf || ''))} className={`flex w-full items-center justify-between gap-3 p-4 text-left text-sm hover:bg-black/5 ${selected===row.pacienteCpf?'bg-black/5':''}`}><span><strong className="block">{row.pacienteNome || 'Paciente'}</strong><small className="muted">{row.sintomas || 'Sem relato informado'}</small></span><Badge tone={row.risco==='vermelho'?'danger':row.risco==='amarelo'?'warning':'success'}>{row.risco || '—'}</Badge></button>)}
+          {rows.map((row,i)=><button type="button" key={String(row.triageId ?? i)} onClick={()=>setSelected(String(row.triageId))} className={`flex w-full items-center justify-between gap-3 p-4 text-left text-sm hover:bg-black/5 ${selected===String(row.triageId)?'bg-black/5':''}`}><span><strong className="block">{row.pacienteNome || 'Paciente'}</strong><small className="muted">{row.sintomas || 'Sem relato informado'}</small></span><Badge tone={row.risco==='vermelho'?'danger':row.risco==='amarelo'?'warning':'success'}>{row.risco || '—'}</Badge></button>)}
           {!loading && rows.length===0 && <p className="p-6 text-center text-sm muted">Nenhum paciente aguardando atendimento.</p>}
         </div>
       </Card>
       <Card className="p-4">
         <div className="mb-4 flex items-center gap-2"><Stethoscope size={18}/><h2 className="text-sm font-bold">Registro da consulta</h2></div>
         <form className="grid gap-3" onSubmit={submit}>
-          <label className={labelClass}>Paciente<select className={fieldClass} required value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Selecione</option>{rows.map((row,i)=><option key={String(row.id ?? i)} value={row.pacienteCpf}>{row.pacienteNome || 'Paciente'}</option>)}</select></label>
+          <label className={labelClass}>Paciente<select className={fieldClass} required value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Selecione</option>{rows.map((row,i)=><option key={String(row.triageId ?? i)} value={String(row.triageId)}>{row.pacienteNome || 'Paciente'}</option>)}</select></label>
           <label className={labelClass}>Diagnóstico / hipótese registrada<Input required maxLength={500} value={diagnosis} onChange={e=>setDiagnosis(e.target.value)}/></label>
           <label className={labelClass}>Medicação / prescrição a revisar<Input maxLength={500} value={medication} onChange={e=>setMedication(e.target.value)}/></label>
           <label className={labelClass}>Observações<textarea className={fieldClass} rows={4} maxLength={3000} value={notes} onChange={e=>setNotes(e.target.value)}/></label>

@@ -102,13 +102,19 @@ export function AppShell() {
   const [query, setQuery] = useState('');
   const [permissionRevision, setPermissionRevision] = useState(0);
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
   useEffect(() => {
     let active = true;
     fetch('/me', { credentials: 'include', headers: { Accept: 'application/json' } })
       .then(async response => {
-        if (!response.ok) throw new Error('Sessão indisponível');
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          const error = new Error(String(payload.erro || 'Não foi possível validar a sessão.'));
+          (error as Error & { status?: number }).status = response.status;
+          throw error;
+        }
         return response.json();
       })
       .then(me => {
@@ -119,11 +125,15 @@ export function AppShell() {
         setPermissionRevision(value => value + 1);
         setAuthReady(true);
       })
-      .catch(() => {
+      .catch(error => {
         if (!active) return;
         sessionStorage.removeItem('sentinelaPermissions');
         sessionStorage.removeItem('sentinelaRole');
         sessionStorage.removeItem('sentinelaNome');
+        const status = (error as Error & { status?: number })?.status;
+        setAuthError(status === 503
+          ? 'O serviço de autenticação ou permissões está indisponível. Tente novamente em instantes.'
+          : '');
         setPermissionRevision(value => value + 1);
         setAuthReady(true);
       });
@@ -197,7 +207,9 @@ export function AppShell() {
           <div className="sent-user-chip"><span className="sent-user-avatar">{(sessionStorage.getItem('sentinelaNome') || 'P').trim().charAt(0).toUpperCase()}</span><div><strong>{sessionStorage.getItem('sentinelaNome') || 'Profissional'}</strong><small>{(sessionStorage.getItem('sentinelaRole') || '').toLowerCase() === 'admin' ? 'Administrador' : 'Acesso profissional'}</small></div></div>
         </div>
       </header>
-      <main className="sent-content"><div className="sent-breadcrumb"><span>Sentinela</span><ChevronRight size={13}/><span>Área clínica</span><ChevronRight size={13}/><strong>{activeLabel}</strong></div>{authReady ? <Outlet/> : <div className="rounded-lg border p-8 text-center text-sm muted" style={{borderColor:'var(--border)'}}>Validando sessão e permissões…</div>}</main>
+      <main className="sent-content"><div className="sent-breadcrumb"><span>Sentinela</span><ChevronRight size={13}/><span>Área clínica</span><ChevronRight size={13}/><strong>{activeLabel}</strong></div>{authError
+          ? <div role="alert" className="rounded-lg border p-8 text-center text-sm" style={{borderColor:'var(--border)'}}>{authError}</div>
+          : authReady ? <Outlet/> : <div className="rounded-lg border p-8 text-center text-sm muted" style={{borderColor:'var(--border)'}}>Validando sessão e permissões…</div>}</main>
       <footer className="sent-footer"><span>Sentinela · Plataforma assistencial</span><span>Ambiente de trabalho</span></footer>
     </div>
   </div>;

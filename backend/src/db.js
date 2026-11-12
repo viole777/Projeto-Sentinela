@@ -24,7 +24,7 @@ const ROLE_PERMISSIONS = {
   ],
   cardiologist: [
     "dashboard.read", "patients.read", "patients.write", "records.read",
-    "appointments.read", "triage.read", "triage.close",
+    "appointments.read", "consultations.queue.read",
     "consultations.read", "consultations.write", "consultations.finalize",
     "exams.read", "exams.write", "exams.results.write",
     "prescriptions.read", "prescriptions.write", "prescriptions.validate",
@@ -34,7 +34,7 @@ const ROLE_PERMISSIONS = {
   ],
   medico: [
     "dashboard.read", "patients.read", "patients.write", "records.read",
-    "appointments.read", "triage.read", "triage.close",
+    "appointments.read", "consultations.queue.read",
     "consultations.read", "consultations.write", "consultations.finalize",
     "exams.read", "exams.write", "exams.results.write",
     "prescriptions.read", "prescriptions.write", "prescriptions.validate",
@@ -44,13 +44,13 @@ const ROLE_PERMISSIONS = {
   ],
   enfermagem: [
     "dashboard.read", "patients.read", "appointments.read",
-    "triage.read", "triage.write", "internacoes.read", "internacoes.write",
+    "triage.read", "triage.write", "triage.close", "internacoes.read", "internacoes.write",
     "hospitalizations.read", "hospitalizations.write",
     "exams.read", "alerts.read", "beds.read", "files.read", "queue.call"
   ],
   triagem: [
     "dashboard.read", "patients.read", "appointments.read",
-    "triage.read", "triage.write", "alerts.read", "files.read", "queue.call"
+    "triage.read", "triage.write", "triage.close", "alerts.read", "files.read", "queue.call"
   ],
   farmacia: [
     "dashboard.read", "patients.read", "prescriptions.read",

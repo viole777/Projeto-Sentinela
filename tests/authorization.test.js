@@ -40,6 +40,19 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.admin.includes('patients.read'), 'technical admin must not inherit clinical access');
   assert.ok(ROLE_PERMISSIONS.admin.includes('users.write'));
   assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.write'));
+  assert.ok(ROLE_PERMISSIONS.medico.includes('consultations.queue.read'), 'medical role must use the dedicated consultation queue');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.read'), 'medical role must not read the triage workspace');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.write'), 'medical role must not create triage assessments');
+  assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.close'), 'medical role must not close triage records');
+  assert.ok(!ROLE_PERMISSIONS.cardiologist.includes('triage.read'), 'cardiology role must not read the triage workspace');
+  assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.close'), 'triage role must be able to close its own workflow');
+  const serverSource = fs.readFileSync(path.join(__dirname, '../backend/server.js'), 'utf8');
+  assert.match(serverSource, /app\.get\("\/consultas\/fila", requirePermission\("consultations\.queue\.read"\)/, 'medical queue must have its own backend permission');
+  assert.match(serverSource, /app\.get\("\/triagem", requirePermission\("triage\.read"\)/, 'triage workspace must remain protected by triage.read');
+  assert.match(serverSource, /requestedTriageId/, 'consultations must bind to the selected triage record');
+  assert.match(serverSource, /permissionsFor\(role\)\.includes\("triage\.read"\)/, 'dashboard must not expose triage queue to roles without triage.read');
+
+
   assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.write'));
   assert.ok(!ROLE_PERMISSIONS.triagem.includes('consultations.write'), 'triage role must not access medical consultation writes');
   assert.ok(ROLE_PERMISSIONS.recepcao.includes('appointments.write'));
@@ -81,6 +94,18 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
     const { middleware } = makeHarness({ role: 'admin', effective: ROLE_PERMISSIONS.admin, sessionPermissions: ['*'] });
     const result = await invoke(middleware.requireAuth(['medico']));
     assert.equal(result.res.statusCode, 403, 'wildcard permissions must not bypass an explicit role restriction');
+  }
+
+  {
+    const { middleware } = makeHarness({ role: 'medico', effective: ROLE_PERMISSIONS.medico });
+    const result = await invoke(middleware.requirePermission('triage.read'));
+    assert.equal(result.res.statusCode, 403, 'medical role must be denied direct access to the triage API');
+  }
+
+  {
+    const { middleware } = makeHarness({ role: 'medico', effective: ROLE_PERMISSIONS.medico });
+    const result = await invoke(middleware.requirePermission('consultations.queue.read'));
+    assert.equal(result.nextCalled, true, 'medical role must access its dedicated consultation queue');
   }
 
   {

@@ -15,6 +15,7 @@ for (const route of menuPaths) {
 }
 assert.match(access, /if\s*\(!permission\)\s*return false/, 'missing permissions must fail closed');
 assert.match(shell, /authReady\s*\?\s*<Outlet\/>/, 'protected pages must wait for server session permissions');
+assert.match(shell, /setAuthError\(status === 503/, 'authorization infrastructure failures must not be presented as an ordinary login failure');
 assert.match(app, /function Protected\(/, 'frontend routes must use a permission guard');
 assert.match(app, /<Protected path=\{routePath\}>/, 'advanced routes must be guarded too');
 console.log('frontend access tests passed');

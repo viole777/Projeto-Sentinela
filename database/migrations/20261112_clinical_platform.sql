@@ -3,6 +3,11 @@
 -- Reference data and external services remain unavailable until their official datasets/contracts are loaded.
 
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS cns VARCHAR(15);
+ALTER TABLE beds ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE wards ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE hospitalizations ADD COLUMN IF NOT EXISTS unit_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_beds_unit_status ON beds(unit_id,status);
+CREATE INDEX IF NOT EXISTS idx_hospitalizations_unit ON hospitalizations(unit_id,admitted_at DESC);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS unit_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_patients_unit_id ON patients(unit_id);
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS birth_date DATE;
@@ -39,7 +44,7 @@ CREATE TABLE IF NOT EXISTS clinical_records (
     'soap','vitals','diagnosis','prescription','exam_order','document',
     'hospitalization','discharge','maternal_child','chronic_care','immunization',
     'referral','notification','dispensation','billing','patient_identity',
-    'signature_request','nursing_evolution','care_plan','prescription_validation'
+    'signature_request','nursing_evolution','care_plan','prescription_validation','exam_result'
   )),
   patient_cpf VARCHAR(11),
   unit_id TEXT NOT NULL,
@@ -130,6 +135,7 @@ INSERT INTO external_integration_registry(provider) VALUES
 ON CONFLICT(provider) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS patient_consents (
+
   id BIGSERIAL PRIMARY KEY,
   patient_cpf VARCHAR(11) NOT NULL,
   unit_id TEXT NOT NULL,
@@ -142,6 +148,15 @@ CREATE TABLE IF NOT EXISTS patient_consents (
   evidence_ref TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_patient_consents_patient ON patient_consents(patient_cpf, recorded_at DESC);
+CREATE OR REPLACE FUNCTION sentinela_reject_consent_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  RAISE EXCEPTION 'consent history is append-only; record a new consent event';
+END;
+$;
+DROP TRIGGER IF EXISTS patient_consents_immutable ON patient_consents;
+CREATE TRIGGER patient_consents_immutable BEFORE UPDATE OR DELETE ON patient_consents
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_consent_mutation();
 
 CREATE TABLE IF NOT EXISTS medication_lots (
   id BIGSERIAL PRIMARY KEY,
@@ -156,6 +171,19 @@ CREATE TABLE IF NOT EXISTS medication_lots (
   UNIQUE(medication_name, batch_number, unit_id)
 );
 CREATE INDEX IF NOT EXISTS idx_medication_lots_fefo ON medication_lots(unit_id, expires_on, medication_name);
+
+CREATE TABLE IF NOT EXISTS medication_interaction_catalog (
+  id BIGSERIAL PRIMARY KEY,
+  medication_code_a TEXT NOT NULL,
+  medication_code_b TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  description TEXT NOT NULL,
+  source_version TEXT NOT NULL,
+  imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(medication_code_a, medication_code_b, source_version)
+);
+CREATE INDEX IF NOT EXISTS idx_medication_interaction_codes
+  ON medication_interaction_catalog(medication_code_a, medication_code_b);
 
 CREATE TABLE IF NOT EXISTS medication_dispensing_events (
   id BIGSERIAL PRIMARY KEY,
@@ -210,7 +238,7 @@ INSERT INTO permissions(name) VALUES
  ('referrals.read'),('referrals.write'),('notifications.write'),
  ('billing.read'),('billing.write'),('integration.manage'),
  ('professionals.registry.write'),('clinical.catalogs.read'),
- ('clinical.audit.read'),('nursing.write'),('careplans.write')
+ ('clinical.audit.read'),('nursing.write'),('careplans.write'),('beds.manage')
 ON CONFLICT(name) DO NOTHING;
 
 -- Reconcile only built-in roles. This is the source of truth and revokes stale grants.
@@ -233,7 +261,7 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
   'consultations.write','consultations.finalize','exams.read','exams.write','exams.results.write',
   'prescriptions.read','prescriptions.write','prescriptions.validate','alerts.read','alerts.resolve',
   'ai.read','audit.read','clinical.audit.read','reports.read','medications.read','inventory.read',
-  'beds.read','hospitalizations.read','hospitalizations.write','homecare.read','homecare.write',
+  'beds.read','hospitalizations.read','hospitalizations.write','beds.manage','homecare.read','homecare.write',
   'homecare.complete','files.read','queue.call','maternal.read','maternal.write','chronic.read',
   'chronic.write','immunizations.read','immunizations.write','referrals.read','referrals.write',
   'notifications.write','clinical.catalogs.read','nursing.write','careplans.write'
@@ -260,7 +288,7 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
   'homecare.complete','files.read','queue.call'
  )) OR
  (r.name='direcao' AND p.name IN (
-  'dashboard.read','reports.read','audit.read','clinical.audit.read','billing.read','alerts.read',
+  'dashboard.read','reports.read','audit.read','clinical.audit.read','billing.read','beds.manage','alerts.read',
   'alerts.resolve','inventory.read','users.read','professionals.read','roles.read','units.read'
  ))
 ON CONFLICT DO NOTHING;

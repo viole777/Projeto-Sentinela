@@ -1,10 +1,18 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf } = require('../backend/src/routes/clinicalPlatform');
+const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges } = require('../backend/src/routes/clinicalPlatform');
 const { ROLE_PERMISSIONS } = require('../backend/src/db');
 
 assert.ok(Object.keys(RESOURCE_DEFS).length >= 15, 'all clinical domains must have explicit resource definitions');
 assert.equal(normalizeCpf('123.456.789-00'),'12345678900');
+assert.deepEqual(classifyIdentityChanges(
+ {name:'Paciente Atualizado',birthDate:'2000-01-01'},
+ {cpf:'12345678900',cns:'123456789012345'}
+),{basicFields:['name','birthDate'],sensitiveFields:[]},'basic identity edits must not require elevated authorization');
+assert.deepEqual(classifyIdentityChanges(
+ {name:'Paciente Atualizado',cns:'987654321098765',newCpf:'98765432100'},
+ {cpf:'12345678900',cns:'123456789012345'}
+),{basicFields:['name'],sensitiveFields:['cns','cpf']},'CPF and CNS changes must be classified as sensitive');
 
 const soap=validateResourcePayload('soap-notes',{
  patientCpf:'123.456.789-00',subjective:'Queixa relatada',objective:'Dados observados',
@@ -46,6 +54,10 @@ assert.ok(ROLE_PERMISSIONS.medico.includes('records.write'));
 assert.ok(ROLE_PERMISSIONS.medico.includes('referrals.write'));
 assert.ok(ROLE_PERMISSIONS.medico.includes('records.sign'));
 assert.ok(ROLE_PERMISSIONS.recepcao.includes('appointments.manage'));
+assert.ok(ROLE_PERMISSIONS.recepcao.includes('patients.identity.read'));
+assert.ok(ROLE_PERMISSIONS.recepcao.includes('patients.identity.write'));
+assert.ok(!ROLE_PERMISSIONS.recepcao.includes('patients.identity.sensitive.write'));
+assert.ok(ROLE_PERMISSIONS.supervisor_cadastro.includes('patients.identity.sensitive.write'));
 assert.ok(ROLE_PERMISSIONS.direcao.includes('billing.write'));
 assert.ok(ROLE_PERMISSIONS.enfermagem.includes('beds.manage'));
 

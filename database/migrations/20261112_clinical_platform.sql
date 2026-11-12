@@ -269,7 +269,7 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
  (r.name='enfermagem' AND p.name IN (
   'dashboard.read','patients.read','patients.identity.read','records.read','records.write','appointments.read',
   'triage.read','triage.write','triage.close','internacoes.read','internacoes.write',
-  'hospitalizations.read','hospitalizations.write','exams.read','alerts.read','beds.read','files.read',
+  'hospitalizations.read','hospitalizations.write','exams.read','alerts.read','beds.read','beds.manage','files.read',
   'queue.call','maternal.read','maternal.write','chronic.read','chronic.write','immunizations.read',
   'immunizations.write','nursing.write','careplans.write','clinical.catalogs.read'
  )) OR

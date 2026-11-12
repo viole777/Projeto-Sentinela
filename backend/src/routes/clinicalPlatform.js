@@ -153,8 +153,8 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
    const original=await client.query("SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 FOR SHARE",[id,unitOf(req)]);
    if(!original.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição não encontrada.'});}
    if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
-   const a=actorOf(req),r=await client.query("INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES('prescription_validation",$1,$2,$3,$4,$5,$6,$7) RETURNING id,status,data,created_at',
-    [original.rows[0].patient_cpf,unitOf(req),decision,JSON.stringify({prescriptionRecordId:id,decision,reason:String(req.body.reason||'').slice(0,1000)}),a.username,a.role,id]);
+   const a=actorOf(req),r=await client.query("INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,status,data,created_at',
+    ['prescription_validation',original.rows[0].patient_cpf,unitOf(req),decision,JSON.stringify({prescriptionRecordId:id,decision,reason:String(req.body.reason||'').slice(0,1000)}),a.username,a.role,id]);
    await audit(req,client,'create','prescription_validation',r.rows[0].id,original.rows[0].patient_cpf,{prescriptionRecordId:id,decision});await client.query('COMMIT');return res.status(201).json({validation:r.rows[0]});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
@@ -186,7 +186,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
     await client.query('INSERT INTO medication_dispensing_events(prescription_record_id,lot_id,quantity,dispensed_by,unit_id) VALUES($1,$2,$3,$4,$5)',[id,lot.id,qty,actorOf(req).username,unitOf(req)]);
     allocations.push({lotId:lot.id,batch:lot.batch_number,quantity:qty,expiresOn:lot.expires_on});remaining-=qty;
    }
-   const a=actorOf(req),event=await client.query("INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES('dispensation",$1,$2,'dispensed',$3,$4,$5,$6) RETURNING id,created_at',[p.rows[0].patient_cpf,unitOf(req),JSON.stringify({prescriptionRecordId:id,quantity,allocations}),a.username,a.role,id]);
+   const a=actorOf(req),event=await client.query("INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',['dispensation',p.rows[0].patient_cpf,unitOf(req),'dispensed',JSON.stringify({prescriptionRecordId:id,quantity,allocations}),a.username,a.role,id]);
    await audit(req,client,'create','dispensation',event.rows[0].id,p.rows[0].patient_cpf,{prescriptionRecordId:id,quantity,lotCount:allocations.length});
    await client.query('COMMIT');return res.status(201).json({dispensation:event.rows[0],allocations,fefo:true});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Activity, AlertCircle, CheckCircle2, ClipboardList, RefreshCw, Stethoscope, Users } from 'lucide-react';
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
 
@@ -47,7 +48,7 @@ export function ReceptionWorkspace() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       await api<Patient>('/atendimento', { method: 'POST', body: JSON.stringify({ nome: name.trim(), cpf: cpf.replace(/\D/g, ''), tipo }) });
@@ -124,7 +125,7 @@ export function TriageWorkspace() {
       <Card className="p-4">
         <div className="mb-4 flex items-center gap-2"><Activity size={18}/><h2 className="text-sm font-bold">Registrar avaliação</h2></div>
         <form className="grid gap-3" onSubmit={submit}>
-          <label className={labelClass}>Paciente<select required className={fieldClass} value={patientCpf} onChange={e=>setPatientCpf(e.target.value)}><option value="">Selecione</option>{patients.map((p,i)=><option key={String(p.id ?? i)} value={p.cpf}>{p.nome || 'Paciente'} · {p.cpf}</option>)}</select></label>
+          <label className={labelClass}>Paciente<select required className={fieldClass} value={patientCpf} onChange={e=>setPatientCpf(e.target.value)}><option value="">Selecione</option>{patients.map((p,i)=><option key={String(p.id ?? i)} value={p.cpf}>{p.nome || 'Paciente'}</option>)}</select></label>
           <label className={labelClass}>Sintomas relatados<textarea className={fieldClass} rows={3} maxLength={1000} value={symptoms} onChange={e=>setSymptoms(e.target.value)} placeholder="Registre o relato de forma objetiva"/></label>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <label className={labelClass}>Temperatura (°C)<Input type="number" step="0.1" value={temperature} onChange={e=>setTemperature(e.target.value)}/></label>
@@ -164,7 +165,7 @@ export function ConsultationWorkspace() {
     setLoading(true); setError('');
     try {
       const list = await api<Triage[]>('/triagem');
-      const pending = list.filter(item => String(item.status || '').toLowerCase() !== 'encerrada');
+      const pending = list.filter(item => !['atendida','encerrada'].includes(String(item.status || '').toLowerCase()));
       setRows(pending);
       if (!selected && pending[0]?.pacienteCpf) setSelected(String(pending[0].pacienteCpf));
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível carregar os pacientes aguardando avaliação.'); }

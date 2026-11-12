@@ -24,6 +24,14 @@ const RESOURCE_DEFS = Object.freeze({
 const CPF_RE=/^\d{11}$/, CNS_RE=/^\d{15}$/, CBO_RE=/^\d{6}$/;
 const DATE_RE=/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 function normalizeCpf(value){return String(value||'').replace(/\D/g,'');}
+const IDENTITY_BASIC_FIELDS=Object.freeze(['name','birthDate','sexAtBirth','genderIdentity','raceColor','motherName','municipalityCode','cnesOrigin']);
+function classifyIdentityChanges(body={},current={}){
+ const basicFields=IDENTITY_BASIC_FIELDS.filter(key=>Object.prototype.hasOwnProperty.call(body,key));
+ const sensitiveFields=[];
+ if(Object.prototype.hasOwnProperty.call(body,'cns')&&String(String(body.cns||'').replace(/\D/g,''))!==String(current.cns||''))sensitiveFields.push('cns');
+ if(Object.prototype.hasOwnProperty.call(body,'newCpf')&&normalizeCpf(body.newCpf)!==normalizeCpf(current.cpf))sensitiveFields.push('cpf');
+ return{basicFields,sensitiveFields};
+}
 function validCpf(value){
  const cpf=normalizeCpf(value);if(!/^\d{11}$/.test(cpf)||/^([0-9])\1{10}$/.test(cpf))return false;
  const digit=(base)=>{let sum=0;for(let i=0;i<base.length;i++)sum+=Number(base[i])*(base.length+1-i);const mod=(sum*10)%11;return mod===10?0:mod;};
@@ -132,10 +140,9 @@ router.post('/api/v1/patient-identities',requirePermission('patients.identity.wr
    const current=await client.query('SELECT id,name,cpf,cns FROM patients WHERE cpf=$1 AND unit_id=$2 FOR UPDATE',[cpf,unitOf(req)]);
    if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
    const patient=current.rows[0];
-   const sensitiveFields=[];
-   if(hasCns&&String(cns||'')!==String(patient.cns||''))sensitiveFields.push('cns');
-   if(hasNewCpf&&newCpf!==patient.cpf)sensitiveFields.push('cpf');
-   const changedBasicFields=basicFields.filter(k=>Object.prototype.hasOwnProperty.call(b,k));
+   const changePlan=classifyIdentityChanges(b,patient);
+   const sensitiveFields=changePlan.sensitiveFields;
+   const changedBasicFields=changePlan.basicFields;
    if(!sensitiveFields.length&&!changedBasicFields.length){await client.query('ROLLBACK');return res.status(400).json({erro:'Nenhum dado cadastral foi informado para atualização.'});}
    const permissions=Array.isArray(req.user?.permissions)?req.user.permissions:[];
    const hasSensitiveAuthorization=permissions.includes('patients.identity.sensitive.write');
@@ -545,7 +552,7 @@ router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),asy
  });
  return router;
 }
-module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf};
+module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf,classifyIdentityChanges};
 +(values.length+1));
     values.push(key==='name'?String(value).trim():value);
    }

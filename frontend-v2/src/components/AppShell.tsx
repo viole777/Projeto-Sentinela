@@ -125,7 +125,7 @@ export function AppShell() {
         setPermissionRevision(value => value + 1);
         setAuthReady(true);
       })
-      .catch(() => {
+      .catch(error => {
         if (!active) return;
         sessionStorage.removeItem('sentinelaPermissions');
         sessionStorage.removeItem('sentinelaRole');

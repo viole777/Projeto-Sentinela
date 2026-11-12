@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Activity, AlertTriangle, RefreshCw, Search, ShieldCheck, PlusCircle } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Search, ShieldCheck, PlusCircle } from 'lucide-react';
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
 import { ClinicalPlatformAdmin } from './ClinicalPlatformAdmin';
 

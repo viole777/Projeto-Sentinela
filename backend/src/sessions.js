@@ -12,7 +12,7 @@
 //   • Sem DATABASE_URL (dev local): persiste em backend/sessions.json com
 //     gravação atômica (escreve no .tmp e renomeia — nunca sobra JSON pela metade).
 //
-// A API é a de um Map (get/set/delete/size), então nenhuma rota precisou mudar.
+// Store de sessões: persistência JSON em desenvolvimento e PostgreSQL em produção.
 // get() e delete() são async porque podem falar com o banco.
 
 const fs = require("fs");
@@ -20,7 +20,7 @@ const path = require("path");
 const { getPool, usingPostgres } = require("./config/database");
 
 const FILE = path.join(__dirname, "..", "sessions.json");
-const FLUSH_INTERVAL_MS = 30 * 1000;   // limpa vencidas + grava pendências
+const FLUSH_INTERVAL_MS = 30 * 1000;   // limpeza periódica + flush do JSON local
 const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao desligar
 
 // Mesma consulta do requireAuth antigo: token → usuário → cargo.
@@ -89,7 +89,7 @@ class SessionStore {
         }
     }
 
-    // ── escrita (mesma assinatura do Map) ──────────────────────
+    // ── escrita ─────────────────────────────────────────────────
     // Cria a sessão no PostgreSQL antes de devolver o cookie ao cliente.
     // A leitura revalida no banco a cada requisição; portanto, uma sessão
     // recém-criada não pode depender do flush assíncrono da fila.
@@ -125,7 +125,7 @@ class SessionStore {
     async delete(token) {
         const removed = this.map.delete(token);
         if (usingPostgres()) {
-            this.pgDelete(token); // logout vale em todas as instâncias
+            await this.pgDelete(token); // logout só confirma após revogar no banco
             return removed;
         }
         if (removed) this.dirty = true;
@@ -199,14 +199,14 @@ class SessionStore {
     // Mesma resolução de usuário do antigo persistSession (username OU e-mail).
     async upsert(token, session) {
         const identifier = String(session.usuario || session.email || "").trim();
-        if (!identifier) return;
+        if (!identifier) throw new Error('Identificador do usuário da sessão ausente');
         const pool = getPool();
         const u = await pool.query(
             `SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
             [identifier]
         );
         const userId = u.rows[0] && u.rows[0].id;
-        if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL')
+        if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL');
         await pool.query(
             `INSERT INTO sessions (token, user_id, expires_at)
              VALUES ($1, $2, $3)
@@ -223,7 +223,9 @@ class SessionStore {
     }
 
     pgDelete(token) {
-        this.track(this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]));
+        const operation = this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]);
+        this.track(operation);
+        return operation;
     }
 
     // Registra operações PostgreSQL para o shutdown aguardar. O chamador de

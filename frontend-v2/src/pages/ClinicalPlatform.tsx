@@ -6,7 +6,7 @@ import { ClinicalPlatformAdmin } from './ClinicalPlatformAdmin';
 
 type Field = { key:string; label:string; type?:string; required?:boolean; options?:string[]; multiline?:boolean };
 type ModuleDef = { key:string; title:string; description:string; read:string; write:string; fields:Field[] };
-type Row = { id:number; status:string; patient_cpf?:string; created_at:string; data:Record<string,unknown> };
+type Row = { id:number; status:string; patient_cpf?:string; created_at:string; created_by?:string; data:Record<string,unknown> };
 const field=(key:string,label:string,required=true,type='text'):Field=>({key,label,required,type});
 const area=(key:string,label:string,required=true):Field=>({key,label,required,multiline:true});
 const choice=(key:string,label:string,options:string[],required=true):Field=>({key,label,required,options});

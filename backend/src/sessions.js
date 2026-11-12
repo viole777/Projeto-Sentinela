@@ -21,7 +21,6 @@ const { getPool, usingPostgres } = require("./config/database");
 
 const FILE = path.join(__dirname, "..", "sessions.json");
 const FLUSH_INTERVAL_MS = 30 * 1000;   // limpa vencidas + grava pendências
-const REVALIDATE_MS = 60 * 1000;       // reconfere o cache contra o banco (logout em outra instância)
 const UPSERT_MAX_ATTEMPTS = 5;         // desiste de gravar um token no banco após N falhas
 const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao desligar
 
@@ -30,7 +29,7 @@ const SELECT_SESSION = `
     SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, r.name AS role
     FROM sessions s JOIN users u ON u.id = s.user_id
     LEFT JOIN roles r ON r.id = u.role_id
-    WHERE s.token = $1 LIMIT 1`;
+    WHERE s.token = $1 AND u.active = TRUE LIMIT 1`;
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -60,21 +59,18 @@ class SessionStore {
     // ── leitura ────────────────────────────────────────────────
     async get(token) {
         if (!token) return undefined;
-        const cached = this.map.get(token);
-        if (cached) {
-            if (this.isExpired(cached)) { this.delete(token); return undefined; }
-            // Multi-instância: outra instância pode ter apagado o token (logout).
-            // Reconfere no banco a cada 60s SEM bloquear a resposta atual — mas
-            // só para sessões que já existem no PostgreSQL (pg=true após o upsert),
-            // senão uma sessão recém-criada levaria "delete" antes de persistir.
-            if (usingPostgres() && cached.pg && Date.now() - (cached.checkedAt || 0) > REVALIDATE_MS) {
-                cached.checkedAt = Date.now();
-                this.revalidate(token).catch(() => {});
-            }
-            return cached;
+        if (usingPostgres()) {
+            // Em produção, revalida sessão, usuário ativo e papel no banco em
+            // toda requisição protegida. Logout, bloqueio e troca de papel
+            // passam a valer imediatamente entre instâncias.
+            return this.rehydrate(token);
         }
-        if (!usingPostgres()) return undefined;
-        return this.rehydrate(token);
+        const cached = this.map.get(token);
+        if (!cached || this.isExpired(cached)) {
+            this.map.delete(token);
+            return undefined;
+        }
+        return cached;
     }
 
     // Cache frio → PostgreSQL. É o que mantém o login vivo após um restart.
@@ -82,7 +78,10 @@ class SessionStore {
         try {
             const r = await getPool().query(SELECT_SESSION, [token]);
             const row = r.rows[0];
-            if (!row) return undefined;
+            if (!row) {
+                this.map.delete(token);
+                return undefined;
+            }
             const expiresAt = new Date(row.expires_at).getTime();
             if (!(expiresAt > Date.now())) { this.pgDelete(token); return undefined; }
             let permissions;
@@ -99,15 +98,6 @@ class SessionStore {
         } catch (_) {
             return undefined; // banco fora do ar → 401 (mesmo comportamento de antes)
         }
-    }
-
-    // Logout na instância A precisa matar a sessão na instância B.
-    async revalidate(token) {
-        try {
-            const r = await getPool().query(`SELECT expires_at FROM sessions WHERE token = $1`, [token]);
-            const row = r.rows[0];
-            if (!row || new Date(row.expires_at).getTime() <= Date.now()) this.map.delete(token);
-        } catch (_) { /* banco fora do ar: mantém o cache, não derruba ninguém */ }
     }
 
     // ── escrita (mesma assinatura do Map) ──────────────────────

@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS clinical_records (
     'soap','vitals','diagnosis','prescription','exam_order','document',
     'hospitalization','discharge','maternal_child','chronic_care','immunization',
     'referral','notification','dispensation','billing','patient_identity',
-    'signature_request','nursing_evolution','care_plan'
+    'signature_request','nursing_evolution','care_plan','prescription_validation'
   )),
   patient_cpf VARCHAR(11),
   unit_id TEXT NOT NULL,
@@ -55,6 +55,17 @@ CREATE INDEX IF NOT EXISTS idx_clinical_records_patient_type_created
 CREATE INDEX IF NOT EXISTS idx_clinical_records_unit_type_created
   ON clinical_records(unit_id, resource_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clinical_records_status ON clinical_records(status);
+
+
+CREATE OR REPLACE FUNCTION sentinela_reject_clinical_record_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  RAISE EXCEPTION 'clinical records are immutable; append a correction record';
+END;
+$;
+DROP TRIGGER IF EXISTS clinical_records_immutable ON clinical_records;
+CREATE TRIGGER clinical_records_immutable BEFORE UPDATE OR DELETE ON clinical_records
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_clinical_record_mutation();
 
 CREATE TABLE IF NOT EXISTS clinical_audit_events (
   id BIGSERIAL PRIMARY KEY,

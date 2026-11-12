@@ -45,7 +45,7 @@ export function ClinicalPlatformPage(){
  const [catalog,setCatalog]=useState('CID10');
  const [catalogResult,setCatalogResult]=useState('');
  const [patientLookup,setPatientLookup]=useState('');
- const [patientResult,setPatientResult]=useState('');
+ const [patientResult,setPatientResult]=useState(''),[summaryResult,setSummaryResult]=useState('');
  const current=visible.find(m=>m.key===selected)||visible[0];
  const canWrite=!!current&&permissions.has(current.write);
  const load=useCallback(async()=>{
@@ -69,7 +69,14 @@ export function ClinicalPlatformPage(){
   finally{setSaving(false);}
  }
  async function searchPatient(e:FormEvent){
-  e.preventDefault();setPatientResult('');try{const r=await fetch('/api/v1/patient-identities?identifier='+encodeURIComponent(patientLookup),{credentials:'include',headers:{Accept:'application/json'}});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.erro||'Busca indisponível.');setPatientResult(JSON.stringify(b.patients||[],null,2));}catch(e){setPatientResult(e instanceof Error?e.message:'Falha na busca.');}
+  e.preventDefault();setPatientResult('');setSummaryResult('');
+  try{
+   const r=await fetch('/api/v1/patient-identities?identifier='+encodeURIComponent(patientLookup),{credentials:'include',headers:{Accept:'application/json'}});
+   const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.erro||'Busca indisponível.');
+   setPatientResult(JSON.stringify(b.patients||[],null,2));
+   const found=Array.isArray(b.patients)?b.patients[0]:null;
+   if(found?.cpf){const sr=await fetch('/api/v1/patient-summary/'+encodeURIComponent(found.cpf),{credentials:'include',headers:{Accept:'application/json'}});const sb=await sr.json().catch(()=>({}));if(!sr.ok)throw new Error(sb.erro||'Resumo clínico indisponível.');setSummaryResult(JSON.stringify(sb,null,2));}
+  }catch(e){setPatientResult(e instanceof Error?e.message:'Falha na busca.');}
  }
  async function loadCatalog(){setCatalogResult('');try{const r=await fetch('/api/v1/catalogs/'+catalog,{credentials:'include',headers:{Accept:'application/json'}});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.erro||'Catálogo indisponível.');setCatalogResult(JSON.stringify(b.items||[],null,2));}catch(e){setCatalogResult(e instanceof Error?e.message:'Catálogo indisponível.');}}
  if(!visible.length)return <div className="space-y-4"><Card className="p-6"><p className="text-sm">Seu perfil possui acesso apenas aos recursos de identificação e administração autorizados.</p></Card><ClinicalPlatformAdmin permissions={permissions}/></div>;
@@ -93,7 +100,7 @@ export function ClinicalPlatformPage(){
    </div>
   </div>
   <div className="grid gap-4 lg:grid-cols-2">
-   {permissions.has('patients.identity.read')&&<Card className="p-4"><h2 className="mb-2 text-sm font-bold">Identificação do paciente · CPF</h2><form onSubmit={searchPatient} className="flex gap-2"><Input value={patientLookup} onChange={e=>setPatientLookup(e.target.value)} placeholder="CPF do paciente"/><Button type="submit"><Search size={15}/> Buscar</Button></form>{patientResult&&<pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{patientResult}</pre>}<p className="mt-2 text-xs muted">Busca em cadastro local. CADSUS não está conectado.</p></Card>}
+   {permissions.has('patients.identity.read')&&<Card className="p-4"><h2 className="mb-2 text-sm font-bold">Identificação do paciente · CPF</h2><form onSubmit={searchPatient} className="flex gap-2"><Input value={patientLookup} onChange={e=>setPatientLookup(e.target.value)} placeholder="CPF do paciente"/><Button type="submit"><Search size={15}/> Buscar</Button></form>{patientResult&&<pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{patientResult}</pre>}{summaryResult&&<><h3 className="mt-3 text-xs font-bold">Folha de rosto / resumo clínico</h3><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{summaryResult}</pre></>}<p className="mt-2 text-xs muted">Busca em cadastro local. CADSUS não está conectado.</p></Card>}
    {permissions.has('clinical.catalogs.read')&&<Card className="p-4"><h2 className="mb-2 text-sm font-bold">Catálogos oficiais</h2><div className="flex gap-2"><select className="field" value={catalog} onChange={e=>setCatalog(e.target.value)}><option value="CID10">CID-10</option><option value="CIAP2">CIAP-2</option><option value="SIGTAP">SIGTAP</option><option value="RENAME">RENAME</option><option value="CBO">CBO</option><option value="CNES">CNES</option></select><Button onClick={()=>void loadCatalog()}>Consultar</Button></div>{catalogResult&&<pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{catalogResult}</pre>}<p className="mt-2 text-xs muted">A API informa indisponibilidade até a importação da fonte oficial versionada.</p></Card>}
   </div>
   <ClinicalPlatformAdmin permissions={permissions}/>

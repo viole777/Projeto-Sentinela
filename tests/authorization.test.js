@@ -46,6 +46,9 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.close'), 'medical role must not close triage records');
   assert.ok(!ROLE_PERMISSIONS.cardiologist.includes('triage.read'), 'cardiology role must not read the triage workspace');
   assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.close'), 'triage role must be able to close its own workflow');
+  assert.ok(ROLE_PERMISSIONS.recepcao.includes('patients.identity.write'), 'reception must edit basic patient identity fields');
+  assert.ok(!ROLE_PERMISSIONS.recepcao.includes('patients.identity.sensitive.write'), 'reception must not alter CPF/CNS');
+  assert.ok(ROLE_PERMISSIONS.supervisor_cadastro.includes('patients.identity.sensitive.write'), 'sensitive identifier changes require the dedicated supervisor role');
   const serverSource = fs.readFileSync(path.join(__dirname, '../backend/server.js'), 'utf8');
   assert.match(serverSource, /app\.get\("\/consultas\/fila", requirePermission\("consultations\.queue\.read"\)/, 'medical queue must have its own backend permission');
   assert.match(serverSource, /app\.get\("\/triagem", requirePermission\("triage\.read"\)/, 'triage workspace must remain protected by triage.read');

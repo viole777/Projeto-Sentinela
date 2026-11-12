@@ -54,9 +54,9 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  function ensureUnit(req,res){if(!unitOf(req)){res.status(403).json({erro:'Conta sem unidade vinculada. Vincule a conta a uma unidade antes de acessar dados clínicos.',codigo:'UNIT_SCOPE_REQUIRED'});return false;}return true;}
  function unavailable(res){return res.status(503).json({erro:'A plataforma clínica exige PostgreSQL e a migração 20261112_clinical_platform.sql.',codigo:'CLINICAL_PLATFORM_SCHEMA_UNAVAILABLE'});}
  async function audit(req,client,action,type,id,cpf,metadata={}){
-  const a=actorOf(req), hash=cpf?crypto.createHash('sha256').update(String(cpf)).digest('hex'):null;
+  const a=actorOf(req), auditUnit=a.unit||'platform', hash=cpf?crypto.createHash('sha256').update(String(cpf)).digest('hex'):null;
   await client.query('INSERT INTO clinical_audit_events(actor_username,actor_role,unit_id,action,resource_type,resource_id,patient_ref_hash,request_id,ip_address,user_agent,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-   [a.username,a.role,a.unit,action,type,id||null,hash,req.get('x-request-id')||null,req.ip||null,String(req.get('user-agent')||'').slice(0,300),JSON.stringify(metadata)]);
+   [a.username,a.role,auditUnit,action,type,id||null,hash,req.get('x-request-id')||null,req.ip||null,String(req.get('user-agent')||'').slice(0,300),JSON.stringify(metadata)]);
  }
  async function requireProfessional(req,client){
   const a=actorOf(req),r=await client.query('SELECT pr.id,pr.cns,pr.cbo,pr.unit_id FROM users u JOIN professional_registry pr ON pr.user_id=u.id WHERE u.username=$1 AND pr.active=TRUE AND pr.unit_id=$2',[a.username,a.unit]);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -128,8 +128,31 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [permissionRevision, setPermissionRevision] = useState(0);
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    let active = true;
+    fetch('/me', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then(async response => {
+        if (!response.ok) throw new Error('Sessão indisponível');
+        return response.json();
+      })
+      .then(me => {
+        if (!active) return;
+        sessionStorage.setItem('sentinelaRole', String(me.role || me.tipo || ''));
+        sessionStorage.setItem('sentinelaPermissions', JSON.stringify(Array.isArray(me.permissions) ? me.permissions : []));
+        sessionStorage.setItem('sentinelaNome', String(me.nome || me.usuario || ''));
+        setPermissionRevision(value => value + 1);
+      })
+      .catch(() => {
+        if (!active) return;
+        sessionStorage.removeItem('sentinelaPermissions');
+        setPermissionRevision(value => value + 1);
+      });
+    return () => { active = false; };
+  }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
   const canUseAi = canAccessAiSummary();
@@ -140,7 +163,7 @@ export function AppShell() {
       (path !== '/app/sentinela-ai' || canUseAi) &&
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
-  })).filter(group => group.items.length), [query]);
+  })).filter(group => group.items.length), [query, permissionRevision]);
 
   function toggleDark() {
     const next = !dark;

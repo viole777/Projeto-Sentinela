@@ -335,7 +335,8 @@ FROM roles r JOIN permissions p ON
     'triage.read','triage.close','consultations.read','consultations.write','consultations.finalize',
     'exams.read','exams.write','exams.results.write','prescriptions.read','prescriptions.write',
     'prescriptions.validate','alerts.read','alerts.resolve','ai.read','audit.read','reports.read',
-    'medications.read','beds.read','hospitalizations.read','hospitalizations.write','files.read','queue.call')) OR
+    'medications.read','inventory.read','beds.read','hospitalizations.read','hospitalizations.write',
+    'homecare.read','homecare.write','homecare.complete','files.read','queue.call')) OR
   (r.name = 'enfermagem' AND p.name IN (
     'dashboard.read','patients.read','appointments.read','triage.read','triage.write',
     'internacoes.read','internacoes.write','exams.read','alerts.read','beds.read','files.read','queue.call')) OR
@@ -344,7 +345,7 @@ FROM roles r JOIN permissions p ON
     'alerts.read','files.read','queue.call')) OR
   (r.name = 'farmacia' AND p.name IN (
     'dashboard.read','patients.read','prescriptions.read','prescriptions.dispense',
-    'inventory.read','inventory.write','alerts.read','medications.read','purchasing.read','files.read')) OR
+    'inventory.read','inventory.write','alerts.read','medications.read','purchasing.read','reports.read','files.read')) OR
   (r.name IN ('atendimento','recepcao') AND p.name IN (
     'dashboard.read','patients.read','patients.write','appointments.read','appointments.write',
     'homecare.read','homecare.write','homecare.complete','files.read','queue.call')) OR

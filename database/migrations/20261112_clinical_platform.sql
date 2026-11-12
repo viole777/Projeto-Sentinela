@@ -261,10 +261,10 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
   'consultations.write','consultations.finalize','exams.read','exams.write','exams.results.write',
   'prescriptions.read','prescriptions.write','prescriptions.validate','alerts.read','alerts.resolve',
   'ai.read','audit.read','clinical.audit.read','reports.read','medications.read','inventory.read',
-  'beds.read','hospitalizations.read','hospitalizations.write','beds.manage','homecare.read','homecare.write',
+  'beds.read','hospitalizations.read','hospitalizations.write','homecare.read','homecare.write',
   'homecare.complete','files.read','queue.call','maternal.read','maternal.write','chronic.read',
   'chronic.write','immunizations.read','immunizations.write','referrals.read','referrals.write',
-  'notifications.write','clinical.catalogs.read','nursing.write','careplans.write'
+  'notifications.write','clinical.catalogs.read','careplans.write'
  )) OR
  (r.name='enfermagem' AND p.name IN (
   'dashboard.read','patients.read','patients.identity.read','records.read','records.write','appointments.read',
@@ -288,7 +288,7 @@ SELECT r.id,p.id FROM roles r JOIN permissions p ON
   'homecare.complete','files.read','queue.call'
  )) OR
  (r.name='direcao' AND p.name IN (
-  'dashboard.read','reports.read','audit.read','clinical.audit.read','billing.read','beds.manage','alerts.read',
+  'dashboard.read','reports.read','audit.read','clinical.audit.read','billing.read','billing.write','beds.manage','alerts.read',
   'alerts.resolve','inventory.read','users.read','professionals.read','roles.read','units.read'
  ))
 ON CONFLICT DO NOTHING;

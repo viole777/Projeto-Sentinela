@@ -46,6 +46,12 @@ async function invoke(handler, cookie = 'sentinela_session=valid-token') {
   assert.ok(!ROLE_PERMISSIONS.medico.includes('triage.close'), 'medical role must not close triage records');
   assert.ok(!ROLE_PERMISSIONS.cardiologist.includes('triage.read'), 'cardiology role must not read the triage workspace');
   assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.close'), 'triage role must be able to close its own workflow');
+  const serverSource = fs.readFileSync(path.join(__dirname, '../backend/server.js'), 'utf8');
+  assert.match(serverSource, /app\.get\("\/consultas\/fila", requirePermission\("consultations\.queue\.read"\)/, 'medical queue must have its own backend permission');
+  assert.match(serverSource, /app\.get\("\/triagem", requirePermission\("triage\.read"\)/, 'triage workspace must remain protected by triage.read');
+  assert.match(serverSource, /requestedTriageId/, 'consultations must bind to the selected triage record');
+  assert.match(serverSource, /permissionsFor\(role\)\.includes\("triage\.read"\)/, 'dashboard must not expose triage queue to roles without triage.read');
+
 
   assert.ok(ROLE_PERMISSIONS.triagem.includes('triage.write'));
   assert.ok(!ROLE_PERMISSIONS.triagem.includes('consultations.write'), 'triage role must not access medical consultation writes');

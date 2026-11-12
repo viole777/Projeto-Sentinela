@@ -569,23 +569,36 @@ const store = {
 // estão no array em memória: a leitura é limitada (LIMIT 200/500), então um
 // DELETE guiado pela memória apagaria histórico real do banco.
 // ═══════════════════════════════════════════════════════════════════════
-async function syncToPostgres(db) {
-  const pool = getPool();
-  if (!pool) return;
-  await syncUsers(pool, db.usuarios || []);
-  await syncPatients(pool, db.pacientes || []);
-  await syncBeds(pool, db.leitos || []);
-  await syncAppointments(pool, db.atendimentos || []);
-  await syncTriage(pool, db.triagens || []);
-  await syncConsultas(pool, db.consultas || []);
-  await syncExams(pool, db.exames || []);
-  await syncInventory(pool, db.estoque || [], db.movimentacoes || []);
-  await syncAlerts(pool, db.alertas || []);
-  await syncHospitalizations(pool, db.internacoes || []);
-  await syncAudit(pool, db.auditoria || []);
-  await syncAtendimentosCasa(pool, db.atendimentosCasa || []);
-  await syncTVCalls(pool, db.tvChamada || null, db.tvHistorico || []);
-  await syncSafetyRules(pool, db.safetyRules || null);
+async function syncToPostgres(db, poolOverride = getPool()) {
+  const pool = poolOverride;
+  if (!pool) throw new Error('PostgreSQL indisponível para persistência.');
+  const client = typeof pool.connect === 'function' ? await pool.connect() : pool;
+  const ownsClient = client !== pool;
+  try {
+    await client.query('BEGIN');
+    await syncUsers(client, db.usuarios || []);
+    await syncPatients(client, db.pacientes || []);
+    await syncBeds(client, db.leitos || []);
+    await syncAppointments(client, db.atendimentos || []);
+    await syncTriage(client, db.triagens || []);
+    await syncConsultas(client, db.consultas || []);
+    await syncExams(client, db.exames || []);
+    await syncInventory(client, db.estoque || [], db.movimentacoes || []);
+    await syncAlerts(client, db.alertas || []);
+    await syncHospitalizations(client, db.internacoes || []);
+    await syncAudit(client, db.auditoria || []);
+    await syncAtendimentosCasa(client, db.atendimentosCasa || []);
+    await syncTVCalls(client, db.tvChamada || null, db.tvHistorico || []);
+    await syncSafetyRules(client, db.safetyRules || null);
+    await client.query('COMMIT');
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+    }
+    throw error;
+  } finally {
+    if (ownsClient && typeof client.release === 'function') client.release();
+  }
 }
 
 async function syncUsers(pool, list) {

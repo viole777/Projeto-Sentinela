@@ -280,7 +280,18 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   return requirePermission(def.write)(req,res,async error=>{
    if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
    const v=validateResourcePayload(req.params.resource,req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
-   const data=v.data,actor=actorOf(req),client=await getPool().connect();
+   const data=v.data;
+   if(def.type==='vitals' && data.weightKg!==undefined && data.heightCm!==undefined && Number(data.heightCm)>0){
+    const heightMeters=Number(data.heightCm)/100;data.bmi=Number((Number(data.weightKg)/(heightMeters*heightMeters)).toFixed(1));
+   }
+   if(def.type==='maternal_child' && data.kind==='prenatal' && data.lastMenstrualPeriod){
+    const lmp=new Date(String(data.lastMenstrualPeriod)+'T00:00:00Z'),today=new Date();
+    const days=Math.floor((Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate())-lmp.getTime())/86400000);
+    if(!Number.isFinite(days)||days<0||days>300)return res.status(400).json({erro:'Data da última menstruação fora do intervalo aceito para cálculo gestacional.'});
+    const due=new Date(lmp.getTime());due.setUTCDate(due.getUTCDate()+280);
+    data.gestationalAgeDays=days;data.gestationalAgeWeeks=Math.floor(days/7);data.estimatedDueDate=due.toISOString().slice(0,10);
+   }
+   const actor=actorOf(req),client=await getPool().connect();
    try{await client.query('BEGIN');
     if(data.patientCpf){const p=await client.query('SELECT cpf FROM patients WHERE cpf=$1 AND unit_id=$2',[data.patientCpf,unitOf(req)]);if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado.'});}}
     if(def.professional&&!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Profissional sem vínculo CNS/CBO ativo na unidade. Cadastre o vínculo profissional antes de registrar este evento.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}

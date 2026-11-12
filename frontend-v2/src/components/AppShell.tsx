@@ -25,7 +25,7 @@ const nav: NavGroup[] = [
   { label: 'Fluxo do paciente', items: [
     ['Triagem','/app/triagem',Activity],
     ['Fila e chamada','/app/fila-chamada',BellRing],
-    ['Consultas médicas','/app/consultas',Stethoscope],
+    ['Atendimento médico','/app/consultas',Stethoscope],
     ['Transferências','/app/transferencias',Building2],
     ['Mapa de leitos','/app/mapa-leitos',BedDouble],
     ['Internações','/app/internacoes',Building2],

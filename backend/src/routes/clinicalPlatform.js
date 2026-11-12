@@ -567,4 +567,4 @@ router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),asy
  });
  return router;
 }
-module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf};
+module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf,classifyIdentityChanges};

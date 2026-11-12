@@ -320,6 +320,9 @@ ON CONFLICT (name) DO NOTHING;
 
 -- RBAC de menor privilégio: o administrador técnico não recebe permissões
 -- clínicas por herdar um curinga. Ações clínicas exigem um papel assistencial.
+-- Reaplica a matriz completa para revogar privilégios antigos.
+DELETE FROM role_permissions;
+
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r JOIN permissions p ON

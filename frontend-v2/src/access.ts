@@ -77,5 +77,7 @@ export function canAccessPermission(permission?: string): boolean {
   // Unknown routes and missing mappings must fail closed.
   if (!permission) return false;
   const permissions = readPermissions();
-  return permissions.includes('*') || permissions.includes(permission);
+  // A sessão do navegador é estado não confiável: wildcard nunca concede acesso.
+  // A autorização real continua sendo revalidada pelo backend em cada endpoint.
+  return permission !== '*' && permissions.includes(permission);
 }

@@ -300,6 +300,15 @@ async function hydrate() {
 
 // Mesma assinatura de sempre — as rotas não mudam, mas a origem sim.
 function readDB() {
+  if (process.env.NODE_ENV === 'production') {
+    if (!usingPostgres()) {
+      throw new Error('DATABASE_URL é obrigatório em produção; armazenamento JSON foi bloqueado.');
+    }
+    if (!hydrated) {
+      throw new Error('PostgreSQL ainda não foi hidratado; leitura bloqueada para evitar fallback JSON em produção.');
+    }
+    return current;
+  }
   if (usingPostgres() && hydrated) return current;
   current = readJSON();
   return current;
@@ -309,6 +318,9 @@ function readDB() {
 // definido. A sincronização é serializada para evitar duplicar registros novos.
 // Se o PostgreSQL falhar, a gravação não é confirmada; o health check expõe a falha.
 function writeDB(data) {
+  if (process.env.NODE_ENV === 'production' && (!usingPostgres() || !hydrated)) {
+    throw new Error('PostgreSQL obrigatório e hidratado antes de qualquer gravação em produção; armazenamento JSON bloqueado.');
+  }
   if (!usingPostgres()) {
     writeJSON(data);
     current = data;
@@ -557,23 +569,36 @@ const store = {
 // estão no array em memória: a leitura é limitada (LIMIT 200/500), então um
 // DELETE guiado pela memória apagaria histórico real do banco.
 // ═══════════════════════════════════════════════════════════════════════
-async function syncToPostgres(db) {
-  const pool = getPool();
-  if (!pool) return;
-  await syncUsers(pool, db.usuarios || []);
-  await syncPatients(pool, db.pacientes || []);
-  await syncBeds(pool, db.leitos || []);
-  await syncAppointments(pool, db.atendimentos || []);
-  await syncTriage(pool, db.triagens || []);
-  await syncConsultas(pool, db.consultas || []);
-  await syncExams(pool, db.exames || []);
-  await syncInventory(pool, db.estoque || [], db.movimentacoes || []);
-  await syncAlerts(pool, db.alertas || []);
-  await syncHospitalizations(pool, db.internacoes || []);
-  await syncAudit(pool, db.auditoria || []);
-  await syncAtendimentosCasa(pool, db.atendimentosCasa || []);
-  await syncTVCalls(pool, db.tvChamada || null, db.tvHistorico || []);
-  await syncSafetyRules(pool, db.safetyRules || null);
+async function syncToPostgres(db, poolOverride = getPool()) {
+  const pool = poolOverride;
+  if (!pool) throw new Error('PostgreSQL indisponível para persistência.');
+  const client = typeof pool.connect === 'function' ? await pool.connect() : pool;
+  const ownsClient = client !== pool;
+  try {
+    await client.query('BEGIN');
+    await syncUsers(client, db.usuarios || []);
+    await syncPatients(client, db.pacientes || []);
+    await syncBeds(client, db.leitos || []);
+    await syncAppointments(client, db.atendimentos || []);
+    await syncTriage(client, db.triagens || []);
+    await syncConsultas(client, db.consultas || []);
+    await syncExams(client, db.exames || []);
+    await syncInventory(client, db.estoque || [], db.movimentacoes || []);
+    await syncAlerts(client, db.alertas || []);
+    await syncHospitalizations(client, db.internacoes || []);
+    await syncAudit(client, db.auditoria || []);
+    await syncAtendimentosCasa(client, db.atendimentosCasa || []);
+    await syncTVCalls(client, db.tvChamada || null, db.tvHistorico || []);
+    await syncSafetyRules(client, db.safetyRules || null);
+    await client.query('COMMIT');
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+    }
+    throw error;
+  } finally {
+    if (ownsClient && typeof client.release === 'function') client.release();
+  }
 }
 
 async function syncUsers(pool, list) {
@@ -879,9 +904,7 @@ async function syncAudit(pool, list) {
       await pool.query(
         `INSERT INTO audit_logs (id, username, role, action, details, happened_at)
          VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (id) DO UPDATE SET
-           username = EXCLUDED.username, role = EXCLUDED.role,
-           action = EXCLUDED.action, details = EXCLUDED.details`,
+         ON CONFLICT (id) DO NOTHING`,
         [id, ...base]
       );
     } else {

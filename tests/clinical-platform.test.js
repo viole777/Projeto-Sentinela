@@ -65,6 +65,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const routerSource=fs.readFileSync(path.join(__dirname,'../backend/src/routes/clinicalPlatform.js'),'utf8');
 const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261112_clinical_platform.sql'),'utf8');
+const baseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf8');
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
@@ -81,6 +82,7 @@ assert.match(routerSource,/UPDATE beds SET status=\$1,patient_cpf=\$2,patient_na
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');
 assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not pretend a digital signature is implemented');
 assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catalogs must fail explicitly');
+assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id TEXT[\s\S]*?\);[\s\S]*?idx_patients_cpf_blind_unit/, 'patient unit scope must exist before the blind-index schema index is created');
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');

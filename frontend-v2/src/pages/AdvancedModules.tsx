@@ -106,16 +106,23 @@ export function AdvancedModulePage({page}:{page:string}){
   '/notificacoes':'notifications.write',
   '/comunicados':'settings.manage',
   '/compras':'inventory.write',
-  '/faturamento/glosas':'billing.write'
+  '/faturamento/glosas':'billing.write',
+  '/api/v1/appointments':'appointments.manage',
+  '/api/v1/nursing-evolutions':'nursing.write',
+  '/api/v1/prescriptions':'prescriptions.write',
+  '/api/v1/hospitalizations':'hospitalizations.write',
+  '/api/v1/discharges':'hospitalizations.write',
+  '/api/v1/vital-signs':'records.write',
+  '/api/v1/exam-orders':'exams.write',
+  '/api/v1/soap-notes':'records.write',
+  '/api/v1/care-plans':'careplans.write'
  };
  const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
  // Modules listed in blockedModuleEndpoints still require a dedicated
  // clinical workflow, official catalog, or external validation. Operational
  // modules with explicit server-side contracts are enabled below.
  const blockedModuleEndpoints=new Set([
-  '/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/faturamento',
-  '/perfis','/unidades','/sinais-vitais','/exames/imagem','/cardiologia',
-  '/evolucoes-medicas','/enfermagem/plano-cuidados','/medicamentos/administracao',
+  '/faturamento','/perfis','/unidades','/medicamentos/administracao',
   '/protocolos','/alergias','/farmacia/avaliacoes','/farmacia/controlados',
   '/estoque/movimentacoes','/estoque/validade','/relatorios/gerencial',
   '/lgpd/consentimentos','/encaminhamentos','/portal-paciente','/configuracoes/protocolos',

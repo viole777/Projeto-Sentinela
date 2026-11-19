@@ -1400,6 +1400,12 @@ app.get("/usuarios", requirePermission("users.read"), (req, res) => {
     res.json((db.usuarios || []).map(mapUserRecord));
 });
 
+app.get("/profissionais", (req, res, next) => {
+    if (req.accepts("html") && !req.accepts("json")) {
+        return res.redirect(302, "/app/profissionais");
+    }
+    return next();
+});
 app.get("/profissionais", requirePermission("professionals.read"), (req, res) => {
     const db = readDB();
     res.json((db.usuarios || []).map(mapUserRecord));

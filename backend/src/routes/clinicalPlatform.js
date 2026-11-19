@@ -92,11 +92,24 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   const cpf=normalizeCpf(b.cpf),cns=String(b.cns||'').replace(/\D/g,'');
   if(!String(b.name||'').trim()||!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'Nome, CPF válido e CNS com 15 dígitos (quando disponível) são obrigatórios.'});
   if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
-  try{const keyProvider=createKeyProvider();const cpfEncrypted=await encryptField(cpf,keyProvider);const cnsEncrypted=await encryptField(cns||null,keyProvider);const pepper=process.env.BLIND_INDEX_PEPPER;if(!pepper)return res.status(503).json({erro:'Pepper do índice cego não configurado.',codigo:'BLIND_INDEX_PEPPER_UNAVAILABLE'});const cpfBlind=blindIndex(cpf,pepper);const r=await getPool().query('INSERT INTO patients(name,cpf,cpf_encrypted,cpf_blind_index,cns,cns_encrypted,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,name,cpf,cns,birth_date,status,created_at',
+  let client;
+  try{
+   const keyProvider=createKeyProvider(),cpfEncrypted=await encryptField(cpf,keyProvider),cnsEncrypted=await encryptField(cns||null,keyProvider);
+   const pepper=process.env.BLIND_INDEX_PEPPER;
+   if(!pepper)return res.status(503).json({erro:'Pepper do índice cego não configurado.',codigo:'BLIND_INDEX_PEPPER_UNAVAILABLE'});
+   const cpfBlind=blindIndex(cpf,pepper);
+   client=await getPool().connect();
+   await client.query('BEGIN');
+   const r=await client.query('INSERT INTO patients(name,cpf,cpf_encrypted,cpf_blind_index,cns,cns_encrypted,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,name,cpf,cns,birth_date,status,created_at',
     [String(b.name).trim(),cpf,cpfEncrypted,cpfBlind,cns||null,cnsEncrypted,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req),'triagem']);
-   const client=await getPool().connect();try{await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});}finally{client.release();}
+   await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});
+   await client.query('COMMIT');
    return res.status(201).json({patient:r.rows[0]});
-  }catch(e){if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});return next(e);}
+  }catch(e){
+   if(client)await client.query('ROLLBACK').catch(()=>{});
+   if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});
+   return next(e);
+  }finally{if(client)client.release();}
  });
  router.get('/api/v1/catalogs/:catalog',requirePermission('clinical.catalogs.read'),async(req,res,next)=>{
   const catalog=String(req.params.catalog||'').toUpperCase();if(!['CID10','CIAP2','SIGTAP','RENAME','CBO','CNES'].includes(catalog))return res.status(400).json({erro:'Catálogo inválido.'});
@@ -513,12 +526,23 @@ router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const b=req.body||{};
  if(!String(b.medicationCode||'').trim()||!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Código RENAME, medicamento, lote, validade e quantidade positiva são obrigatórios.'});
- try{const state=await officialCodeState(getPool(),'RENAME',String(b.medicationCode));if(!state.loaded)return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});if(!state.valid)return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});
-  const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
+ let client;
+ try{
+  client=await getPool().connect();
+  await client.query('BEGIN');
+  const state=await officialCodeState(client,'RENAME',String(b.medicationCode));
+  if(!state.loaded){await client.query('ROLLBACK');return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});}
+  if(!state.valid){await client.query('ROLLBACK');return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});}
+  const r=await client.query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
    [String(b.medicationCode),state.label,String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);
-  const client=await getPool().connect();try{await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});}finally{client.release();}
+  await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});
+  await client.query('COMMIT');
   return res.status(201).json({lot:r.rows[0]});
- }catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
+ }catch(e){
+  if(client)await client.query('ROLLBACK').catch(()=>{});
+  if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});
+  return next(e);
+ }finally{if(client)client.release();}
 });
 router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescriptions.dispense'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

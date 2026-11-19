@@ -583,15 +583,19 @@ router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async
 });
 router.get('/api/v1/inventory-movements',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
  try{
-  const result=await getPool().query('SELECT m.id,m.inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM inventory_movements m JOIN inventory i ON i.id=m.inventory_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
+  await client.query('BEGIN');
+  const result=await client.query('SELECT m.id,m.inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM inventory_movements m JOIN inventory i ON i.id=m.inventory_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','inventory_movement',row.id,null,{});
+  await client.query('COMMIT');
   return res.json({items:result.rows});
- }catch(e){return next(e);}
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/inventory-movements',requirePermission('inventory.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const b=req.body||{},inventoryId=Number(b.inventoryId),qty=Number(b.qty),kind=String(b.kind||''),reason=String(b.reason||'').trim();
- if(!Number.isSafeInteger(inventoryId)||inventoryId<1||!Number.isSafeInteger(qty)||qty<=0||!['entry','exit','transfer','return'].includes(kind)||reason.length<5||reason.length>1000)return res.status(400).json({erro:'Item, quantidade inteira positiva, tipo de movimento e justificativa de 5 a 1000 caracteres são obrigatórios.'});
+ if(!Number.isSafeInteger(inventoryId)||inventoryId<1||!Number.isSafeInteger(qty)||qty<=0||!['entry','exit','return'].includes(kind)||reason.length<5||reason.length>1000)return res.status(400).json({erro:'Item, quantidade inteira positiva, tipo de movimento e justificativa de 5 a 1000 caracteres são obrigatórios.'});
  const delta=['entry','return'].includes(kind)?qty:-qty,client=await getPool().connect();
  try{
   await client.query('BEGIN');

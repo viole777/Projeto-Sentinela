@@ -5,7 +5,7 @@ const { MODULES, validateModulePayload } = require('../backend/src/routes/advanc
 assert.ok(Object.keys(MODULES).length >= 10, 'dedicated operational APIs must be registered');
 let result = validateModulePayload('/incidentes', {
   data: '2026-11-19T09:30',
-  categoria: 'Operacional',
+  categoria: 'Queda',
   setor: 'Recepção',
   gravidade: 'Leve',
   descricao: 'Registro sintético para teste',
@@ -27,5 +27,17 @@ assert.equal(validateModulePayload('/faturamento/glosas', {
 assert.equal(validateModulePayload('/configuracoes/modulos', {
   modulo: 'triagem', unidade: 'U1', ativo: 'Ativo'
 }).ok, true);
+assert.equal(validateModulePayload('/configuracoes/modulos', {
+  modulo: 'triagem', unidade: 'U1', ativo: 'talvez'
+}).ok, false, 'module activation must use an explicit state');
+assert.equal(validateModulePayload('/incidentes', {
+  data: '2026-11-19T09:30', categoria: 'Inventado', setor: 'Recepção',
+  gravidade: 'Leve', descricao: 'Registro sintético'
+}).ok, false, 'incident categories must be allowlisted');
+const competence = validateModulePayload('/faturamento/glosas', {
+  competencia: '2026-11', documento: 'BPA', motivo: 'Motivo sintético'
+});
+assert.equal(competence.ok, true);
+assert.equal(competence.data.competencia, '202611', 'HTML month values must normalize to AAAAMM');
 assert.equal(validateModulePayload('/endpoint-inexistente', {}).ok, false);
 console.log('advanced operational module API contract tests passed');

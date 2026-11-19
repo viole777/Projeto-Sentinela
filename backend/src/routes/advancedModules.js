@@ -97,7 +97,7 @@ const DATE_FIELDS = new Set(['data','validade','prazo','periodo']);
 const TIME_FIELDS = new Set(['hora','entrada','saida','inicio','fim']);
 const NUMERIC_FIELDS = new Set(['quantidade','valor','meta']);
 const FIELD_OPTIONS = Object.freeze({
-  '/incidentes': { categoria:['Medicamento','Queda','Identificação','Infecção','Equipamento','Processo','Outro'], gravidade:['Sem dano','Leve','Moderada','Grave'] },
+  '/incidentes': { categoria:['Medicamento','Queda','Identificação','Infecção','Equipamento','Processo','Outro'], gravidade:['Sem dano','Leve','Moderada','Grave','Óbito'] },
   '/escalas': { turno:['Manhã','Tarde','Noite','12x36','Outro'], status:['Planejada','Confirmada','Cobertura necessária','Concluída'] },
   '/escalas/trocas': { status:['Solicitada','Aprovada','Rejeitada','Cancelada'] },
   '/frequencia': { status:['Pendente','Conferida','Justificada'] },

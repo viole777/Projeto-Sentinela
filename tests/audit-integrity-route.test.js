@@ -10,6 +10,7 @@ const { createClinicalPlatformRouter } = require('../backend/src/routes/clinical
   let failVerification = false;
   let auditWrites = 0;
   let released = 0;
+  let connectFails = false;
   const client = {
     async query(sql) {
       if (sql.startsWith('BEGIN') || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
@@ -25,7 +26,10 @@ const { createClinicalPlatformRouter } = require('../backend/src/routes/clinical
     },
     release() { released += 1; }
   };
-  const pool = { connect: async () => client };
+  const pool = { connect: async () => {
+    if (connectFails) throw new Error('synthetic connection failure');
+    return client;
+  } };
   const app = express();
   app.use(createClinicalPlatformRouter({
     requirePermission: permission => (req, res, next) => {
@@ -61,6 +65,14 @@ const { createClinicalPlatformRouter } = require('../backend/src/routes/clinical
     assert.equal(response.status, 503);
     assert.equal(body.code, 'AUDIT_INTEGRITY_UNAVAILABLE');
 
+    failVerification = false;
+    connectFails = true;
+    response = await fetch(baseUrl + '/api/v1/audit/integrity');
+    body = await response.json();
+    assert.equal(response.status, 503);
+    assert.equal(body.code, 'AUDIT_INTEGRITY_UNAVAILABLE');
+
+    connectFails = false;
     postgres = false;
     response = await fetch(baseUrl + '/api/v1/audit/integrity');
     body = await response.json();

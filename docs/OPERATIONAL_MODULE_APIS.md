@@ -26,7 +26,7 @@ A tabela `operational_module_records` é um registro versionado e append-only. N
 
 ### Rotas e fluxos que continuam bloqueados
 
-Rotas clínicas e administrativas que exigem modelo de domínio próprio, vínculo profissional, catálogo oficial, autorização legal ou homologação externa continuam retornando `501 WORKFLOW_REQUIRES_VALIDATION`. Isso inclui, entre outras, prescrição avançada, alta hospitalar, administração de medicamentos, alergias, exames de imagem, protocolos clínicos, LGPD/consentimentos, portal do paciente, integração SUS e transmissão de faturamento.
+Rotas clínicas e administrativas que ainda exigem modelo de domínio próprio, validação adicional, autorização legal ou homologação externa continuam retornando `501 WORKFLOW_REQUIRES_VALIDATION`. Isso inclui, entre outras, administração de medicamentos/MAR, protocolos clínicos institucionais, LGPD/consentimentos formais, portal do paciente, integrações nacionais e transmissão oficial SUS/TISS. Prescrições, altas, exames e alergias possuem endpoints versionados conectados à interface, mas continuam sujeitos às exigências de vínculo profissional, catálogos e validação descritas em cada fluxo.
 
 Esse bloqueio é intencional: não é seguro transformar esses fluxos em registros JSON genéricos e apresentá-los como prontuário, prescrição, assinatura, integração ou processo hospitalar completo.
 

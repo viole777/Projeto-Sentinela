@@ -70,7 +70,7 @@ export function Dashboard() {
     <PageHeader title="Resumo da unidade" description="Indicadores carregados diretamente do Sentinela." actions={<Button variant="secondary" onClick={() => void load()} loading={loading}><RefreshCw size={15}/> Atualizar</Button>}/>
     {error && <div role="alert" className="dashboard-error"><ServerCrash size={18}/><div><strong>Não foi possível carregar os dados reais</strong><p>{error}</p><small>Os indicadores foram ocultados para não apresentar dados fictícios.</small></div></div>}
     <div className="dashboard-metrics">
-      {(loading && !data ? [0,1,2,3].map(i=>({label:'Carregando indicador',value:undefined,detail:'Consultando servidor',Icon:Activity,tone:'blue'})) : metrics).map(({label,value,detail,Icon,tone},i)=>
+      {(loading && !data ? [0,1,2,3].map(()=>({label:'Carregando indicador',value:undefined,detail:'Consultando servidor',Icon:Activity,tone:'blue'})) : metrics).map(({label,value,detail,Icon,tone},i)=>
         <Card key={label+i} className="dashboard-metric-card">
           <div className="dashboard-metric-top"><span>{label}</span><i className={`metric-icon ${tone}`}><Icon size={19}/></i></div>
           <strong className="dashboard-metric-value">{number(value)}</strong>

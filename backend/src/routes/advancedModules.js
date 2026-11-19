@@ -185,28 +185,28 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
     );
   }
 
-  async function checkOperationalConflict(client, endpoint, data, unitId) {
+  async function checkOperationalConflict(client, endpoint, data, unitId, excludeId = null) {
     if (!['/escalas','/agenda/disponibilidade','/frequencia'].includes(endpoint)) return null;
     const professional = String(data.profissional || '');
     const date = String(data.data || '');
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`${unitId}:${endpoint}:${professional}:${date}`]);
     if (endpoint === '/escalas') {
       const conflict = await client.query(
-        "SELECT id FROM operational_module_records WHERE module_key='staff_schedules' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND status NOT IN ('Cancelada','Concluída') LIMIT 1",
-        [unitId, date, professional]
+        "SELECT id FROM operational_module_records WHERE module_key='staff_schedules' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND status NOT IN ('Cancelada','Concluída') AND ($4::bigint IS NULL OR id<>$4) LIMIT 1",
+        [unitId, date, professional, excludeId]
       );
       return conflict.rowCount ? 'Já existe uma escala ativa para este profissional nesta data.' : null;
     }
     if (endpoint === '/agenda/disponibilidade') {
       const conflict = await client.query(
-        "SELECT id FROM operational_module_records WHERE module_key='staff_availability' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND data->>'inicio' < $4 AND data->>'fim' > $5 LIMIT 1",
-        [unitId, date, professional, String(data.fim), String(data.inicio)]
+        "SELECT id FROM operational_module_records WHERE module_key='staff_availability' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND data->>'inicio' < $4 AND data->>'fim' > $5 AND ($6::bigint IS NULL OR id<>$6) LIMIT 1",
+        [unitId, date, professional, String(data.fim), String(data.inicio), excludeId]
       );
       return conflict.rowCount ? 'Este profissional já possui disponibilidade cadastrada em horário sobreposto.' : null;
     }
     const conflict = await client.query(
-      "SELECT id FROM operational_module_records WHERE module_key='attendance_events' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 LIMIT 1",
-      [unitId, date, professional]
+      "SELECT id FROM operational_module_records WHERE module_key='attendance_events' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND ($4::bigint IS NULL OR id<>$4) LIMIT 1",
+      [unitId, date, professional, excludeId]
     );
     return conflict.rowCount ? 'Já existe um registro de frequência para este profissional nesta data.' : null;
   }
@@ -292,6 +292,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
       const validation = validateModulePayload(endpoint, req.body);
       if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ erro: 'Identificador inválido.' });
       if (!validation.ok) return res.status(400).json({ erro: validation.error, campos: validation.missing || [] });
+      if (validation.data.unidade && validation.data.unidade !== unitOf(req)) return res.status(403).json({ erro: 'O registro só pode ser corrigido na unidade vinculada à sessão.', codigo: 'UNIT_SCOPE_MISMATCH' });
       const client = await getPool().connect();
       try {
         await client.query('BEGIN');
@@ -300,7 +301,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
           [id, def.key, unitOf(req)]
         );
         if (!original.rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Registro original não encontrado nesta unidade.' }); }
-        const conflict = await checkOperationalConflict(client, endpoint, validation.data, unitOf(req));
+        const conflict = await checkOperationalConflict(client, endpoint, validation.data, unitOf(req), id);
         if (conflict) { await client.query('ROLLBACK'); return res.status(409).json({ erro: conflict, codigo: 'OPERATIONAL_SCHEDULE_CONFLICT' }); }
         const actor = actorOf(req);
         const inserted = await client.query(

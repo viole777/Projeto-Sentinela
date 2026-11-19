@@ -61,6 +61,13 @@ Esses endpoints pertencem ao contrato clínico versionado, com validação de pa
 
 O resumo do paciente aplica o escopo da unidade às alergias, condições e alertas. A migração operacional adiciona `unit_id` a `patient_conditions` e `alerts`, preenche os registros existentes a partir do paciente e instala gatilhos para herdar a unidade em novas gravações legadas. Registros sem paciente/unidade vinculável permanecem sem escopo e não são retornados pelo resumo clínico.
 
+## Auditoria e verificação de integridade
+
+- `GET /api/v1/audit/integrity` exige `audit.read` e verifica a cadeia SHA-256 de `audit_logs` em um snapshot `REPEATABLE READ`.
+- Novos eventos usam hash v2 com JSON canônico, estável diante da ordenação de chaves de `JSONB`. A verificação mantém compatibilidade de leitura com hash v1 já gravado.
+- O resultado informa `valid`, quantidade verificada ou primeiro identificador divergente. Falhas de banco retornam `503 AUDIT_INTEGRITY_UNAVAILABLE`.
+- **Limite:** a rota verifica `audit_logs` somente. `clinical_audit_events` também é append-only, mas ainda não faz parte dessa cadeia criptográfica; a resposta deixa isso explícito.
+
 ## Persistência e implantação
 
 1. Aplicar `database/migrations/20261112_clinical_platform.sql`.

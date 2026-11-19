@@ -69,6 +69,7 @@ const baseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf8');
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
+assert.match(routerSource,/api\\/v1\\/patient-allergies/, 'allergy history must have a dedicated clinical API');
 assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');
 assert.match(routerSource,/CPF_CHANGE_REQUIRES_RELATIONAL_REKEY/, 'CPF changes must remain blocked until references can be rekeyed safely');
 assert.match(routerSource,/audit\(req,client,'access_denied','patient_identity'/, 'denied sensitive identity changes must be audited');
@@ -84,6 +85,7 @@ assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not
 assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catalogs must fail explicitly');
 assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id TEXT[\s\S]*?\);[\s\S]*?idx_patients_cpf_blind_unit/, 'patient unit scope must exist before the blind-index schema index is created');
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
+assert.match(migration,/patient_allergies_immutable/, 'allergy history must be append-only');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');
 assert.match(migration,/patients\.identity\.sensitive\.write/, 'migration must seed the elevated identifier permission');

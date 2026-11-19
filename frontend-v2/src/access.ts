@@ -35,7 +35,7 @@ export const PERMISSION_BY_PATH: Record<string, string> = {
   '/app/validade-perdas': 'inventory.write',
   '/app/solicitacao-compras': 'inventory.read',
   '/app/faturamento-sus': 'billing.read',
-  '/app/producao-sus': 'reports.read',
+  '/app/producao-sus': 'billing.read',
   '/app/faturamento-dashboard': 'billing.read',
   '/app/glosas': 'billing.read',
   '/app/relatorios-producao': 'reports.read',

@@ -122,8 +122,8 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 
 ## Entregas de frontend e APIs nesta PR
 
-- A interface React recebeu novo sistema visual em grafite/teal, cards, navegação, login e dashboard responsivo.
-- O backend deixou de usar o bloqueio genérico para 11 grupos de rotas operacionais e passou a expor contratos individuais, validação por allowlist, RBAC, escopo de unidade, paginação por cursor, correções append-only e auditoria na mesma transação.
+- A interface React recebeu novo sistema visual em grafite/teal, cards, navegação, login e dashboard responsivo. Onze telas clínicas foram conectadas aos endpoints versionados existentes; o histórico de alergias ganhou API dedicada append-only.
+- O backend deixou de usar o bloqueio genérico para 13 rotas operacionais e passou a expor contratos individuais, validação por allowlist, RBAC, escopo de unidade, paginação por cursor, correções append-only e auditoria na mesma transação.
 - A migração `20261119_operational_modules.sql` cria o armazenamento versionado append-only; o runner de migrações foi atualizado para aplicá-la junto da migração clínica.
 - Foram adicionados testes de contrato e integração HTTP com banco simulado. A aprovação final depende do CI PostgreSQL e do build TypeScript/Vite.
 - As rotas clínicas, assinatura digital, integrações externas e módulos que exigem catálogos oficiais permanecem bloqueados até terem implementação e validação próprias. Consulte `docs/OPERATIONAL_MODULE_APIS.md`.

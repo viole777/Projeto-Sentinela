@@ -128,6 +128,13 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 - Foram adicionados testes de contrato e integração HTTP com banco simulado. A aprovação final depende do CI PostgreSQL e do build TypeScript/Vite.
 - As rotas clínicas, assinatura digital, integrações externas e módulos que exigem catálogos oficiais permanecem bloqueados até terem implementação e validação próprias. Consulte `docs/OPERATIONAL_MODULE_APIS.md`.
 
+## Correções de isolamento e consistência adicionadas
+
+- O resumo do paciente filtra alergias, condições e alertas por unidade; a migração adiciona `unit_id` aos registros legados de condições e alertas, faz backfill a partir do paciente e instala gatilhos para novas gravações legadas.
+- A leitura do resumo ocorre em `REPEATABLE READ`, e o evento de auditoria é confirmado na mesma transação.
+- A dispensação filtra por unidade as decisões de validação farmacêutica e a soma de quantidades previamente dispensadas.
+- Testes regressivos cobrem isolamento por unidade e consistência transacional do resumo.
+
 ## Alterações já iniciadas nesta PR
 
 1. A cadeia de auditoria agora adquire um advisory lock transacional antes de ler o hash anterior. Isso serializa os escritores concorrentes e evita que dois eventos confirmados apontem para o mesmo hash anterior. O chamador deve manter a operação dentro de uma transação PostgreSQL.
@@ -137,7 +144,7 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 5. O CI revelou uma declaração duplicada de `sessions.token_hash` em `database.sql`; a coluna duplicada foi removida e um teste de regressão foi adicionado.
 6. Testes estáticos/regressivos verificam a ordem do lock, pseudonimização, atomicidade das operações e transição de ocupação do leito.
 
-**Validação pendente nesta branch:** executar `npm run lint`, `npm run typecheck`, `npm run test:unit`, integração com PostgreSQL real, build frontend, secret scan e workflows completos. A integração GitHub utilizada para esta edição não executa o ambiente local do projeto.
+**Validação comprovada no head `eb54818`:** Sentinela CI, Frontend v2 build, Dependency Audit e Secret history scan passaram. O Sentinela CI executou verificação de sintaxe do backend, testes unitários, criação do schema e importação de fixtures sintéticas, aplicação/verificação das migrações clínica e operacional, build de navegação, inicialização do servidor e smoke tests contra PostgreSQL real. Isso comprova os gates automatizados existentes, não substitui `npm run typecheck` independente, E2E por papel, SAST/SBOM/DAST, validação clínica ou homologação externa.
 
 ## Gate final
 

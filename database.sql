@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   reason TEXT,
   previous_hash TEXT,
   record_hash TEXT NOT NULL DEFAULT '',
-  hash_version INTEGER NOT NULL DEFAULT 1 CHECK (hash_version IN (1,2)),
+  hash_version INTEGER NOT NULL DEFAULT 0 CHECK (hash_version IN (0,1,2)),
   happened_at TIMESTAMPTZ DEFAULT NOW()
 );
 

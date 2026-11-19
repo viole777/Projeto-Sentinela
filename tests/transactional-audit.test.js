@@ -6,7 +6,8 @@ const {
   appendAudit,
   verifyAuditChain,
   patientHash,
-  redact
+  redact,
+  canonicalJson
 } = require('../backend/src/services/transactionalAudit');
 
 (async () => {
@@ -37,8 +38,14 @@ const {
           reason: values[12],
           previous_hash: values[13],
           record_hash: values[14],
+          hash_version: values[15],
           happened_at: new Date()
         });
+        // PostgreSQL JSONB returns object keys in canonical order, not necessarily
+        // the insertion order used by the application before INSERT.
+        const inserted = rows[rows.length - 1];
+        if (inserted.before_data) inserted.before_data = JSON.parse(canonicalJson(inserted.before_data));
+        if (inserted.after_data) inserted.after_data = JSON.parse(canonicalJson(inserted.after_data));
         return { rowCount: 1 };
       }
       if (sql.startsWith('SELECT id,')) return { rows };
@@ -72,6 +79,19 @@ const {
   assert.equal(lockIndexes.length, 2, 'each append must acquire the transaction-scoped chain lock');
   assert.ok(lockIndexes.every((index, i) => index < firstSelectIndexes[i]), 'chain lock must precede reading the previous hash');
   assert.equal(verification.valid, true);
+  assert.equal(rows[0].hash_version, 2, 'new events must use canonical hash version 2');
+  assert.equal(canonicalJson({ z: 1, a: { y: 2, b: 3 } }), '{"a":{"b":3,"y":2},"z":1}');
+  const tamperedClient = {
+    async query(sql) {
+      if (sql.startsWith('SELECT id,')) {
+        return { rows: rows.map((row, index) => index === 1 ? { ...row, after_data: { nome: 'conteúdo alterado' } } : row) };
+      }
+      return { rows: [] };
+    }
+  };
+  const tampered = await verifyAuditChain(tamperedClient);
+  assert.equal(tampered.valid, false, 'altered JSONB content must break the hash chain');
+  assert.equal(tampered.brokenAt, 2);
   assert.equal(patientHash('00000000000').length, 64);
   assert.notEqual(patientHash('00000000000'), crypto.createHash('sha256').update('00000000000').digest('hex'), 'patient identifiers must use a keyed HMAC, not a reversible-by-enumeration plain hash');
   assert.deepEqual(redact({ cpf: '00000000000', nome: 'Sintético' }), {

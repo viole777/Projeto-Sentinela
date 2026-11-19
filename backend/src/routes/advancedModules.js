@@ -110,12 +110,12 @@ function validateModulePayload(endpoint, input) {
   const missing = def.required.filter(field => data[field] === undefined || data[field] === '');
   if (missing.length) return { ok: false, error: 'Campos obrigatórios ausentes: ' + missing.join(', '), missing };
   for (const field of DATE_FIELDS) {
-    if (data[field] !== undefined && !/^\\d{4}-(0[1-9]|1[0-2])(-([0-2]\\d|3[01]))?(?:T([01]\\d|2[0-3]):[0-5]\\d)?$/.test(String(data[field]))) {
+    if (data[field] !== undefined && !/^\d{4}-(0[1-9]|1[0-2])(-([0-2]\d|3[01]))?(?:T([01]\d|2[0-3]):[0-5]\d)?$/.test(String(data[field]))) {
       return { ok: false, error: 'Data ou competência inválida em ' + field + '.' };
     }
   }
   for (const field of TIME_FIELDS) {
-    if (data[field] !== undefined && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(data[field]))) {
+    if (data[field] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(data[field]))) {
       return { ok: false, error: 'Horário inválido em ' + field + '.' };
     }
   }
@@ -125,10 +125,11 @@ function validateModulePayload(endpoint, input) {
     }
     if (data[field] !== undefined) data[field] = Number(data[field]);
   }
-  if (endpoint === '/faturamento/glosas' && !/^\\d{6}$/.test(String(data.competencia))) {
-    return { ok: false, error: 'Competência deve estar no formato AAAAMM.' };
+  if (endpoint === '/faturamento/glosas') {
+    if (!/^\d{4}-?(0[1-9]|1[0-2])$/.test(String(data.competencia))) return { ok: false, error: 'Competência deve estar no formato AAAA-MM.' };
+    data.competencia = String(data.competencia).replace('-', '');
   }
-  if (endpoint === '/agenda/disponibilidade' && data.inicio >= data.fim) {
+    if (endpoint === '/agenda/disponibilidade' && data.inicio >= data.fim) {
     return { ok: false, error: 'O horário final deve ser posterior ao inicial.' };
   }
   if (endpoint === '/escalas/trocas' && data.solicitante === data.substituto) {

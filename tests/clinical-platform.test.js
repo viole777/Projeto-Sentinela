@@ -94,6 +94,12 @@ assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catal
 assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id TEXT[\s\S]*?\);[\s\S]*?idx_patients_cpf_blind_unit/, 'patient unit scope must exist before the blind-index schema index is created');
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(operationalMigration,/patient_allergies_immutable/, 'allergy history must be append-only');
+assert.match(operationalMigration,/ALTER TABLE patient_conditions ADD COLUMN IF NOT EXISTS unit_id/, 'legacy patient conditions must gain unit scope');
+assert.match(operationalMigration,/ALTER TABLE alerts ADD COLUMN IF NOT EXISTS unit_id/, 'legacy patient alerts must gain unit scope');
+assert.match(operationalMigration,/alerts_inherit_unit/, 'legacy alert writes must inherit the patient unit');
+assert.match(routerSource,/patient_allergies WHERE patient_cpf=\\$1 AND unit_id=\\$2/, 'patient summary must scope allergy history to the session unit');
+assert.match(routerSource,/patient_conditions WHERE patient_cpf=\\$1 AND unit_id=\\$2/, 'patient summary must scope conditions to the session unit');
+assert.match(routerSource,/alerts WHERE patient_cpf=\\$1 AND unit_id=\\$2 AND resolved=FALSE/, 'patient summary must scope alerts to the session unit');
 assert.match(operationalMigration,/unit_inventory_movements_immutable/, 'stock movement ledger must be append-only');
 assert.match(operationalMigration,/idx_unit_inventory_items_unit_name/, 'inventory item uniqueness must be scoped by unit');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');

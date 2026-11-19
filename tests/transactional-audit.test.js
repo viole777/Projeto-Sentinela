@@ -18,7 +18,7 @@ const {
       queries.push(sql);
       if (sql.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] };
       if (sql.startsWith('SELECT record_hash')) {
-        return { rows: rows.length ? [{ record_hash: rows.at(-1).record_hash }] : [] };
+        return { rows: rows.length ? [{ record_hash: rows.at(-1).record_hash, hash_version: rows.at(-1).hash_version }] : [] };
       }
       if (sql.startsWith('INSERT INTO audit_logs')) {
         rows.push({

@@ -120,9 +120,11 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 ## Alterações já iniciadas nesta PR
 
 1. A cadeia de auditoria agora adquire um advisory lock transacional antes de ler o hash anterior. Isso serializa os escritores concorrentes e evita que dois eventos confirmados apontem para o mesmo hash anterior. O chamador deve manter a operação dentro de uma transação PostgreSQL.
-2. Criação de paciente agora grava o registro e o evento de auditoria no mesmo cliente/transação; falha de auditoria provoca rollback.
-3. Cadastro de lote de medicamento agora valida o catálogo e grava o lote + auditoria na mesma transação.
-4. Testes estáticos/regressivos foram adicionados para verificar a ordem do lock e a atomicidade das duas operações.
+2. Hashes de identificadores de pacientes nos eventos de auditoria usam HMAC-SHA-256 com `AUDIT_HASH_PEPPER`; a variável é obrigatória em produção e está documentada em `.env.example`.
+3. Criação de paciente, agendamento e cadastro de lote de medicamento gravam o registro e o evento de auditoria no mesmo cliente/transação; falha de auditoria provoca rollback.
+4. O fluxo de internação agora marca o leito selecionado como ocupado e o vincula ao paciente. Foi corrigida uma referência inválida a uma variável inexistente e a transição anterior que deixava o leito livre.
+5. O CI revelou uma declaração duplicada de `sessions.token_hash` em `database.sql`; a coluna duplicada foi removida e um teste de regressão foi adicionado.
+6. Testes estáticos/regressivos verificam a ordem do lock, pseudonimização, atomicidade das operações e transição de ocupação do leito.
 
 **Validação pendente nesta branch:** executar `npm run lint`, `npm run typecheck`, `npm run test:unit`, integração com PostgreSQL real, build frontend, secret scan e workflows completos. A integração GitHub utilizada para esta edição não executa o ambiente local do projeto.
 

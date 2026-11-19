@@ -115,6 +115,7 @@ export function AppShell() {
         sessionStorage.setItem('sentinelaRole', String(me.role || me.tipo || ''));
         sessionStorage.setItem('sentinelaPermissions', JSON.stringify(Array.isArray(me.permissions) ? me.permissions : []));
         sessionStorage.setItem('sentinelaNome', String(me.nome || me.usuario || ''));
+        sessionStorage.setItem('sentinelaUnidade', String(me.unit || me.unidade || ''));
         setPermissionRevision(value => value + 1);
         setAuthReady(true);
       })
@@ -123,6 +124,7 @@ export function AppShell() {
         sessionStorage.removeItem('sentinelaPermissions');
         sessionStorage.removeItem('sentinelaRole');
         sessionStorage.removeItem('sentinelaNome');
+        sessionStorage.removeItem('sentinelaUnidade');
         const status = (error as Error & { status?: number })?.status;
         setAuthError(status === 503
           ? 'O serviço de autenticação ou permissões está indisponível. Tente novamente em instantes.'

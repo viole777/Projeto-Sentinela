@@ -73,8 +73,8 @@ assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a 
 assert.match(routerSource,/api\/v1\/patient-allergies/, 'allergy history must have a dedicated clinical API');
 assert.match(routerSource,/api\/v1\/inventory-items/, 'inventory items must have a unit-scoped API');
 assert.match(routerSource,/api\/v1\/prescription-validations/, 'pharmacy validation must use a dedicated prescription workflow API');
-assert.match(routerSource,/api\/v1\/referrals/, 'referrals must use a patient-scoped clinical API');
-assert.match(routerSource,/api\/v1\/billing/, 'SUS production must use the validated billing API');
+assert.match(routerSource,/referrals:\{type:'referral'/, 'referrals must have a patient-scoped clinical resource definition');
+assert.match(routerSource,/billing:\{type:'billing'/, 'SUS production must have a validated billing resource definition');
 assert.match(routerSource,/api\/v1\/inventory-movements/, 'stock movements must have a dedicated transactional API');
 assert.match(routerSource,/api\/v1\/medication-lots/, 'medication lots must be unit-scoped and ordered by expiry');
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movements must prevent negative inventory');

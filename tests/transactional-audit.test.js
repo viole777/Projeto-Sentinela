@@ -141,7 +141,7 @@ const {
       return { rows: [] };
     }
   };
-  await appendAudit(legacyClient, { username:'new-user', action:'new-chain-segment' });
+  await appendAudit(legacyClient, { username:'new-user', action:'new-chain-segment', after:{note:'synthetic'} });
   const legacyVerification = await verifyAuditChain(legacyClient);
   assert.equal(legacyVerification.hashChainValid, true, 'new v2 segment after legacy unchained rows must verify');
   assert.equal(legacyVerification.valid, false, 'legacy unchained rows must prevent a fully valid status');

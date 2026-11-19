@@ -63,7 +63,7 @@ const modules:Record<string,ModuleDef> = {
 };
 const aliases:Record<string,string>={'agenda-medica':'agenda','prescricao-eletronica-avancada':'prescricao-eletronica','mapa-leitos':'leitos','gestao-usuarios':'usuarios','gestao-perfis':'perfis-permissoes','exames-laboratoriais':'solicitacoes-exames','gestao-glosas':'glosas','ccih-infeccao':'ccih','lgpd':'lgpd-consentimentos','auditoria-avancada':'trilha-auditoria','gestao-modulos':'modulos','parametrizacao-unidade':'parametros-unidade','painel-gerencial':'dashboard-gerencial','relatorios-producao':'producao-sus'};
 type Row=Record<string,unknown>;
-function normalizeRows(data:unknown):Row[]{if(Array.isArray(data))return data.filter((x):x is Row=>Boolean(x)&&typeof x==='object'&&!Array.isArray(x));if(data&&typeof data==='object'){const o=data as Row;for(const k of ['items','data','results','registros','rows'])if(Array.isArray(o[k]))return o[k] as Row[];}return [];}
+function normalizeRows(data:unknown):Row[]{const rows=Array.isArray(data)?data:data&&typeof data==='object'?(['items','data','results','registros','rows'].map(k=>(data as Row)[k]).find(Array.isArray) as unknown[]|undefined)||[]:[];return rows.filter((x):x is Row=>Boolean(x)&&typeof x==='object'&&!Array.isArray(x)).map(row=>({...((row.data&&typeof row.data==='object'&&!Array.isArray(row.data))?row.data as Row:{}),...row}));}
 const human=(s:string)=>s.replace(/([A-Z])/g,' $1').replace(/^./,x=>x.toUpperCase());
 const valueText=(v:unknown)=>v==null||v===''?'—':typeof v==='object'?JSON.stringify(v):String(v);
 export function AdvancedModulePage({page}:{page:string}){

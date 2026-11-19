@@ -31,6 +31,7 @@ export const PERMISSION_BY_PATH: Record<string, string> = {
   '/app/controlados': 'prescriptions.dispense',
   '/app/estoque': 'inventory.read',
   '/app/movimentacao-estoque': 'inventory.write',
+  '/app/itens-estoque': 'inventory.read',
   '/app/validade-perdas': 'inventory.write',
   '/app/solicitacao-compras': 'inventory.read',
   '/app/faturamento-sus': 'billing.read',

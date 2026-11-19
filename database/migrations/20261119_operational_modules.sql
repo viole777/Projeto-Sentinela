@@ -91,3 +91,37 @@ DROP TRIGGER IF EXISTS unit_inventory_movements_immutable ON unit_inventory_move
 CREATE TRIGGER unit_inventory_movements_immutable
 BEFORE UPDATE OR DELETE ON unit_inventory_movements
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_unit_inventory_movement_mutation();
+
+-- Keep legacy patient-linked conditions and alerts attributable to their unit.
+-- Existing rows are backfilled; new legacy writes inherit the patient's unit.
+ALTER TABLE patient_conditions ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS unit_id TEXT;
+UPDATE patient_conditions pc
+SET unit_id = p.unit_id
+FROM patients p
+WHERE pc.patient_cpf = p.cpf AND pc.unit_id IS NULL AND p.unit_id IS NOT NULL;
+UPDATE alerts a
+SET unit_id = p.unit_id
+FROM patients p
+WHERE a.patient_cpf = p.cpf AND a.unit_id IS NULL AND p.unit_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_patient_conditions_unit_patient
+  ON patient_conditions(unit_id,patient_cpf,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_unit_patient_active
+  ON alerts(unit_id,patient_cpf,happened_at DESC) WHERE resolved=FALSE;
+CREATE OR REPLACE FUNCTION sentinela_inherit_patient_unit()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.unit_id IS NULL AND NEW.patient_cpf IS NOT NULL THEN
+    SELECT unit_id INTO NEW.unit_id FROM patients WHERE cpf=NEW.patient_cpf;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS patient_conditions_inherit_unit ON patient_conditions;
+CREATE TRIGGER patient_conditions_inherit_unit
+BEFORE INSERT ON patient_conditions
+FOR EACH ROW EXECUTE FUNCTION sentinela_inherit_patient_unit();
+DROP TRIGGER IF EXISTS alerts_inherit_unit ON alerts;
+CREATE TRIGGER alerts_inherit_unit
+BEFORE INSERT ON alerts
+FOR EACH ROW EXECUTE FUNCTION sentinela_inherit_patient_unit();

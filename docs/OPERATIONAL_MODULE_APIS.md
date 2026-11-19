@@ -57,6 +57,10 @@ Além das APIs operacionais acima, as telas clínicas abaixo foram ligadas aos e
 
 Esses endpoints pertencem ao contrato clínico versionado, com validação de payload e escopo por unidade. As rotas que exigem vínculo CNS/CBO dependem de cadastro profissional ativo. A existência da tela não substitui o cadastro e a validação dos catálogos oficiais.
 
+## Isolamento de dados legados
+
+O resumo do paciente aplica o escopo da unidade às alergias, condições e alertas. A migração operacional adiciona `unit_id` a `patient_conditions` e `alerts`, preenche os registros existentes a partir do paciente e instala gatilhos para herdar a unidade em novas gravações legadas. Registros sem paciente/unidade vinculável permanecem sem escopo e não são retornados pelo resumo clínico.
+
 ## Persistência e implantação
 
 1. Aplicar `database/migrations/20261112_clinical_platform.sql`.

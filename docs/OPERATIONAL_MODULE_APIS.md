@@ -64,9 +64,9 @@ O resumo do paciente aplica o escopo da unidade às alergias, condições e aler
 ## Auditoria e verificação de integridade
 
 - `GET /api/v1/audit/integrity` exige `audit.read` e verifica a cadeia SHA-256 de `audit_logs` em um snapshot `REPEATABLE READ`.
-- Novos eventos usam hash v2 com JSON canônico, estável diante da ordenação de chaves de `JSONB`. A verificação mantém compatibilidade de leitura com hash v1 já gravado.
+- Novos eventos usam hash v2 com JSON canônico, estável diante da ordenação de chaves de `JSONB`. A verificação mantém compatibilidade de leitura com hash v1 já gravado. Registros legados sem hash recebem versão 0, permanecem preservados e são contados como não verificáveis; a cadeia v2 inicia um segmento novo depois deles.
 - O resultado informa `valid`, quantidade verificada ou primeiro identificador divergente. Falhas de banco retornam `503 AUDIT_INTEGRITY_UNAVAILABLE`.
-- **Limite:** a rota verifica `audit_logs` somente. `clinical_audit_events` também é append-only, mas ainda não faz parte dessa cadeia criptográfica; a resposta deixa isso explícito.
+- **Limite:** a rota verifica `audit_logs` somente. `clinical_audit_events` também é append-only, mas ainda não faz parte dessa cadeia criptográfica; a resposta deixa isso explícito. `valid=false` também será retornado quando ainda existirem eventos legados sem hash, mesmo que os segmentos novos estejam íntegros.
 
 ## Persistência e implantação
 

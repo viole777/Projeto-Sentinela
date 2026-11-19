@@ -449,10 +449,10 @@ router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),asyn
   const patient=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
   if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
   const [allergies,conditions,records,alerts]=await Promise.all([
-   client.query('SELECT allergy,created_at FROM patient_allergies WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
-   client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
+   client.query('SELECT allergy,reaction,severity,recorded_by,created_at FROM patient_allergies WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
+   client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
    client.query("SELECT id,resource_type,status,data,created_at FROM clinical_records WHERE patient_cpf=$1 AND unit_id=$2 AND resource_type IN ('soap','vitals','diagnosis','prescription','exam_order','maternal_child','chronic_care','immunization') ORDER BY id DESC LIMIT 30",[cpf,unitOf(req)]),
-   client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf])
+   client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND unit_id=$2 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf,unitOf(req)])
   ]);
   await audit(req,client,'read','patient_summary',patient.rows[0].id,cpf,{recordCount:records.rowCount});
   const latestSoap=records.rows.find(row=>row.resource_type==='soap');

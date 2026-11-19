@@ -184,3 +184,24 @@ Esta branch consolida correções de segurança e documentação que reduzem ris
 - `database.sql`
 - `frontend-v2/src/App.tsx`
 - `.github/workflows/`
+
+
+## Adendo técnico — 19/11/2026: verificação parcial da cadeia de auditoria
+
+**Classificação: IMPLEMENTADO E COMPROVADO PARCIALMENTE.** No head `5fa2440` da PR #67:
+
+- A rota `GET /api/v1/audit/integrity` exige `audit.read`, verifica `audit_logs` em snapshot `REPEATABLE READ` e grava o evento de verificação em `clinical_audit_events` na mesma transação.
+- Novos eventos usam hash SHA-256 versão 2 sobre JSON canônico; a função mantém leitura de eventos hash v1. A migração marca entradas sem hash como versão 0 e não as reescreve.
+- A resposta separa `hashChainValid`, `unverifiedLegacyRecords` e `valid`. Entradas legadas sem hash fazem `valid=false`; falhas de banco retornam `503 AUDIT_INTEGRITY_UNAVAILABLE`.
+- A migração adiciona `REVOKE UPDATE, DELETE` para `PUBLIC` nas duas tabelas de auditoria, mantendo os triggers append-only já existentes.
+- Evidência automatizada: Sentinela CI passou com testes unitários, migrações clínica/operacional/auditoria e smoke tests PostgreSQL; Frontend v2 build, Dependency Audit e Secret history scan também passaram.
+
+**Limites que permanecem abertos:**
+
+- A cadeia criptográfica cobre somente `audit_logs`; `clinical_audit_events` permanece append-only, mas sem hash encadeado e fora do endpoint.
+- Eventos históricos sem hash não podem ser retroativamente comprovados sem evidência externa; ficam preservados e explicitamente não verificáveis.
+- Alguns eventos hash v1 podem não ser reproduzíveis quando a serialização histórica dos campos JSONB não corresponde à ordem atual das chaves; nesses casos a verificação informa divergência, não corrige o histórico.
+- Isso não implementa break-glass, revisão posterior por supervisor, nem garante que todos os handlers legados gravem mutação e auditoria na mesma transação.
+- A migração do backend inteiro para TypeScript strict, camadas routes/services/repositories e cobertura de 80% ainda não está concluída. O script `npm run typecheck` atual verifica o frontend React; não comprova tipagem strict do backend.
+
+**Decisão de liberação permanece: NÃO APROVADO para uso assistencial real ou produção.** A verificação de um ledger não substitui revisão independente, pentest, validação clínica, governança LGPD ou homologações externas.

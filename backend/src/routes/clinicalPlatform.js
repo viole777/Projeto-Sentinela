@@ -555,6 +555,59 @@ router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescripti
   await client.query('COMMIT');return res.status(201).json({validation:r.rows[0]});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
+router.get('/api/v1/inventory-items',requirePermission('inventory.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query('SELECT id,name,category,quantity,min_stock,high_risk,updated_at FROM inventory WHERE unit_id=$1 ORDER BY name LIMIT 500',[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','inventory_item',row.id,null,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},name=String(b.name||'').trim(),category=String(b.category||'Outros').trim();
+ const quantity=Number(b.quantity??0),minStock=Number(b.minStock??0);
+ if(!name||name.length>180||!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(minStock)||minStock<0)return res.status(400).json({erro:'Informe nome, quantidade inteira não negativa e estoque mínimo válido.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query('INSERT INTO inventory(name,category,quantity,min_stock,high_risk,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,category,quantity,min_stock,high_risk,updated_at',
+   [name,category.slice(0,100),quantity,minStock,b.highRisk===true,unitOf(req)]);
+  await audit(req,client,'create','inventory_item',result.rows[0].id,null,{quantity,minStock});
+  await client.query('COMMIT');
+  return res.status(201).json({item:result.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({erro:'Item já cadastrado nesta unidade.'});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/inventory-movements',requirePermission('inventory.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ try{
+  const result=await getPool().query('SELECT m.id,m.inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM inventory_movements m JOIN inventory i ON i.id=m.inventory_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
+  return res.json({items:result.rows});
+ }catch(e){return next(e);}
+});
+router.post('/api/v1/inventory-movements',requirePermission('inventory.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},inventoryId=Number(b.inventoryId),qty=Number(b.qty),kind=String(b.kind||''),reason=String(b.reason||'').trim();
+ if(!Number.isSafeInteger(inventoryId)||inventoryId<1||!Number.isSafeInteger(qty)||qty<=0||!['entry','exit','transfer','return'].includes(kind)||reason.length<5||reason.length>1000)return res.status(400).json({erro:'Item, quantidade inteira positiva, tipo de movimento e justificativa de 5 a 1000 caracteres são obrigatórios.'});
+ const delta=['entry','return'].includes(kind)?qty:-qty,client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const item=await client.query('SELECT id,quantity FROM inventory WHERE id=$1 AND unit_id=$2 FOR UPDATE',[inventoryId,unitOf(req)]);
+  if(!item.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Item não encontrado nesta unidade.'});}
+  const nextQuantity=Number(item.rows[0].quantity)+delta;
+  if(nextQuantity<0){await client.query('ROLLBACK');return res.status(409).json({erro:'Movimento excede o saldo disponível.',codigo:'INSUFFICIENT_STOCK'});}
+  await client.query('UPDATE inventory SET quantity=$1,updated_at=NOW() WHERE id=$2 AND unit_id=$3',[nextQuantity,inventoryId,unitOf(req)]);
+  const result=await client.query('INSERT INTO inventory_movements(inventory_id,kind,qty,reason,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,inventory_id,kind,qty,reason,created_by,created_at',
+   [inventoryId,kind,qty,reason,actorOf(req).username,unitOf(req)]);
+  await audit(req,client,'create','inventory_movement',result.rows[0].id,null,{inventoryId,kind,qty,balanceAfter:nextQuantity});
+  await client.query('COMMIT');
+  return res.status(201).json({movement:result.rows[0],balance:nextQuantity});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.get('/api/v1/medication-lots',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  try{const r=await getPool().query('SELECT id,medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 ORDER BY expires_on ASC,id ASC LIMIT 200',[unitOf(req)]);return res.json({items:r.rows});}

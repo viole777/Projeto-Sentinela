@@ -50,6 +50,7 @@ const nav: NavGroup[] = [
     ['Farmácia clínica','/app/farmacia-clinica',Pill],
     ['Medicamentos controlados','/app/controlados',Pill],
     ['Movimentações','/app/movimentacao-estoque',Boxes],
+    ['Itens de estoque','/app/itens-estoque',Boxes],
     ['Validade e perdas','/app/validade-perdas',PackageSearch],
     ['Solicitações de compra','/app/solicitacao-compras',ClipboardList],
   ]},

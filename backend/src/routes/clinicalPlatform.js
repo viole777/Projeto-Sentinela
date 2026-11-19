@@ -688,10 +688,10 @@ router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescription
   if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição não encontrada.'});}
   const child=await client.query("SELECT id FROM clinical_records WHERE resource_type='prescription' AND supersedes_id=$1 AND unit_id=$2 ORDER BY id DESC LIMIT 1",[id,unitOf(req)]);
   if(child.rowCount){await client.query('ROLLBACK');return res.status(409).json({erro:'Prescrição foi corrigida; utilize a versão mais recente.',codigo:'PRESCRIPTION_SUPERSEDED'});}
-  const approved=await client.query("SELECT id,status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 ORDER BY id DESC LIMIT 1",[id]);
+  const approved=await client.query("SELECT id,status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 AND unit_id=$2 ORDER BY id DESC LIMIT 1",[id,unitOf(req)]);
   if(!approved.rowCount||approved.rows[0].status!=='approved'){await client.query('ROLLBACK');return res.status(409).json({erro:'A última decisão profissional não autoriza a dispensação.',codigo:'PRESCRIPTION_NOT_VALIDATED'});}
   const prescribed=Number(p.rows[0].data.quantity||0);
-  const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1',[id]);
+  const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1 AND unit_id=$2',[id,unitOf(req)]);
   const already=Number(prior.rows[0].dispensed||0);
   if(prescribed>0&&already+quantity>prescribed){await client.query('ROLLBACK');return res.status(409).json({erro:'Quantidade solicitada excede o saldo da prescrição.',codigo:'PRESCRIPTION_QUANTITY_EXCEEDED'});}
   const medCode=String(p.rows[0].data.medicationCode||'').trim();

@@ -52,3 +52,19 @@ DROP TRIGGER IF EXISTS patient_allergies_immutable ON patient_allergies;
 CREATE TRIGGER patient_allergies_immutable
 BEFORE UPDATE OR DELETE ON patient_allergies
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_patient_allergy_mutation();
+
+-- Unit-scoped inventory and append-only stock movement ledger.
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_inventory_unit_name ON inventory(unit_id,name);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_unit_created ON inventory_movements(unit_id,created_at DESC);
+CREATE OR REPLACE FUNCTION sentinela_reject_inventory_movement_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'inventory movements are append-only';
+END;
+$$;
+DROP TRIGGER IF EXISTS inventory_movements_immutable ON inventory_movements;
+CREATE TRIGGER inventory_movements_immutable
+BEFORE UPDATE OR DELETE ON inventory_movements
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_inventory_movement_mutation();

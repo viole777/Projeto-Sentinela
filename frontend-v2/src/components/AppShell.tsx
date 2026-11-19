@@ -97,7 +97,8 @@ export function AppShell() {
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState('');
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
-  const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  const [dark, setDark] = useState(() => localStorage.getItem('sentinela-theme') === 'dark' || document.documentElement.classList.contains('dark'));
+  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
   useEffect(() => {
     let active = true;
     fetch('/me', { credentials: 'include', headers: { Accept: 'application/json' } })
@@ -145,6 +146,15 @@ export function AppShell() {
     )
   })).filter(group => group.items.length), [query, permissionRevision]);
 
+  async function logout() {
+    try {
+      await fetch('/logout', { method: 'POST', credentials: 'include' });
+    } finally {
+      ['sentinelaRole','sentinelaPermissions','sentinelaNome','sentinelaUnidade'].forEach(key => sessionStorage.removeItem(key));
+      navigate('/login', { replace: true });
+    }
+  }
+
   function toggleDark() {
     const next = !dark;
     setDark(next);
@@ -188,7 +198,7 @@ export function AppShell() {
         <button className="sent-footer-action sent-collapse-button" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
           {collapsed ? <ChevronRight size={17}/> : <><ChevronLeft size={17}/> Recolher menu</>}
         </button>
-        <button className="sent-footer-action" onClick={() => navigate('/login')}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
+        <button className="sent-footer-action" onClick={() => void logout()}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
       </div>
     </aside>
 

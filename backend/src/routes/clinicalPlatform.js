@@ -219,12 +219,17 @@ router.post('/api/v1/appointments',requirePermission('appointments.manage'),asyn
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
   if(!CPF_RE.test(cpf)||!String(b.appointmentType||'').trim()||!DATE_RE.test(String(b.scheduledAt||'')))return res.status(400).json({erro:'Paciente, tipo de atendimento e data/hora válidos são obrigatórios.'});
-  try{const patient=await getPool().query('SELECT name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
-   const r=await getPool().query('INSERT INTO appointments(patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_at',
+  const client=await getPool().connect();
+  try{
+   await client.query('BEGIN');
+   const patient=await client.query('SELECT name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
+   if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+   const r=await client.query('INSERT INTO appointments(patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_at',
     [cpf,patient.rows[0].name,String(b.appointmentType).slice(0,120),b.scheduledAt,b.professional||null,b.specialty||null,'scheduled',b.appointmentMode||'in_person',actorOf(req).username,unitOf(req)]);
-   const client=await getPool().connect();try{await audit(req,client,'create','appointment',r.rows[0].id,cpf,{status:'scheduled'});}finally{client.release();}
+   await audit(req,client,'create','appointment',r.rows[0].id,cpf,{status:'scheduled'});
+   await client.query('COMMIT');
    return res.status(201).json({appointment:r.rows[0]});
-  }catch(e){return next(e);}
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/appointments/:id/status',requirePermission('appointments.manage'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

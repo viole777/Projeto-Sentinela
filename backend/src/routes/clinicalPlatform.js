@@ -601,7 +601,7 @@ router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const b=req.body||{},name=String(b.name||'').trim(),category=String(b.category||'Outros').trim();
  const quantity=Number(b.quantity??0),minStock=Number(b.minStock??0);
- if(!name||name.length>180||!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(minStock)||minStock<0)return res.status(400).json({erro:'Informe nome, quantidade inteira não negativa e estoque mínimo válido.'});
+ if(!name||name.length>180||!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(minStock)||minStock<0||(b.highRisk!==undefined&&!['true','false',true,false].includes(b.highRisk)))return res.status(400).json({erro:'Informe nome, quantidade inteira não negativa, estoque mínimo válido e indicador de alto risco booleano.'});
  const client=await getPool().connect();
  try{
   await client.query('BEGIN');

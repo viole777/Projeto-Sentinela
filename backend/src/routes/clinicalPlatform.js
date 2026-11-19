@@ -575,7 +575,7 @@ router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async
  try{
   await client.query('BEGIN');
   const result=await client.query('INSERT INTO inventory(name,category,quantity,min_stock,high_risk,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,category,quantity,min_stock,high_risk,updated_at',
-   [name,category.slice(0,100),quantity,minStock,b.highRisk===true,unitOf(req)]);
+   [name,category.slice(0,100),quantity,minStock,(b.highRisk===true||b.highRisk==='true'),unitOf(req)]);
   await audit(req,client,'create','inventory_item',result.rows[0].id,null,{quantity,minStock});
   await client.query('COMMIT');
   return res.status(201).json({item:result.rows[0]});

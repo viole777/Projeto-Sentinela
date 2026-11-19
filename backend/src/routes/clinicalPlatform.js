@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const { minimizePatientFields } = require('../services/resourceScope');
-const { patientHash } = require('../services/transactionalAudit');
+const { patientHash, verifyAuditChain } = require('../services/transactionalAudit');
 const { createKeyProvider, encryptField, blindIndex } = require('../services/dataEncryption');
 
 const RESOURCE_DEFS = Object.freeze({
@@ -709,6 +709,32 @@ router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescription
   await audit(req,client,'create','dispensation',event.rows[0].id,p.rows[0].patient_cpf,{prescriptionRecordId:id,quantity,lotCount:allocations.length});
   await client.query('COMMIT');return res.status(201).json({dispensation:event.rows[0],allocations,fefo:true});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
+router.get('/api/v1/audit/integrity',requirePermission('audit.read'),async(req,res)=>{
+  if(!usingPostgres())return res.status(503).json({code:'AUDIT_INTEGRITY_UNAVAILABLE',message:'A verificação de integridade exige PostgreSQL.',requestId:req.get('x-request-id')||null});
+  const client=await getPool().connect();
+  try{
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const verification=await verifyAuditChain(client);
+    await audit(req,client,'read','audit_integrity',null,null,{
+      ledger:'audit_logs',
+      valid:verification.valid,
+      count:verification.count??null,
+      brokenAt:verification.brokenAt??null,
+      reason:verification.reason??null
+    });
+    await client.query('COMMIT');
+    return res.json({
+      ledger:'audit_logs',
+      ...verification,
+      verifiedAt:new Date().toISOString(),
+      scopeNote:'Esta verificação cobre somente audit_logs. clinical_audit_events é append-only, mas ainda não integra esta cadeia de hashes.'
+    });
+  }catch(error){
+    await client.query('ROLLBACK').catch(()=>{});
+    return res.status(503).json({code:'AUDIT_INTEGRITY_UNAVAILABLE',message:'Não foi possível verificar a cadeia de auditoria.',requestId:req.get('x-request-id')||null});
+  }finally{client.release();}
 });
 
 router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),async(req,res,next)=>{

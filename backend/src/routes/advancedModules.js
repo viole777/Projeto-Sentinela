@@ -167,7 +167,8 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
     );
   }
 
-  for (const [endpoint, def] of Object.entries(MODULES)) {
+  const orderedModules = Object.entries(MODULES).sort((a, b) => b[0].length - a[0].length);
+  for (const [endpoint, def] of orderedModules) {
     router.get(endpoint, requirePermission(def.read), async (req, res, next) => {
       if (!requireUnit(req, res)) return;
       if (!usingPostgres()) return unavailable(res);

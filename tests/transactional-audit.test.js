@@ -78,6 +78,27 @@ const {
     .filter(index => index >= 0);
   assert.equal(lockIndexes.length, 2, 'each append must acquire the transaction-scoped chain lock');
   assert.ok(lockIndexes.every((index, i) => index < firstSelectIndexes[i]), 'chain lock must precede reading the previous hash');
+  const legacyV1Payload = {
+    username: 'old-auditor', role: null, unit: null, patientHash: null,
+    action: 'legacy-hashed-event', resource: null, ip: null, userAgent: null,
+    requestId: null, reason: null
+  };
+  const legacyV1Hash = crypto.createHash('sha256').update(JSON.stringify(legacyV1Payload)).digest('hex');
+  const version1Client = {
+    async query(sql) {
+      if (sql.startsWith('SELECT id,')) return { rows: [{
+        id: 1, username: 'old-auditor', role: null, unit: null, patient_hash: null,
+        action: 'legacy-hashed-event', resource: null, ip: null, user_agent: null,
+        request_id: null, reason: null, before_data: null, after_data: null,
+        previous_hash: '', record_hash: legacyV1Hash, hash_version: 1
+      }] };
+      return { rows: [] };
+    }
+  };
+  const version1Verification = await verifyAuditChain(version1Client);
+  assert.equal(version1Verification.valid, true, 'existing hash v1 rows must remain verifiable');
+  assert.equal(version1Verification.count, 1);
+
   assert.equal(verification.valid, true);
   assert.equal(verification.hashChainValid, true);
   assert.equal(verification.unverifiedLegacyRecords, 0);

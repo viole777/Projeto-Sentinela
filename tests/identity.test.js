@@ -11,9 +11,9 @@ const {
 const fs = require('node:fs');
 const path = require('node:path');
 const schema = fs.readFileSync(path.join(__dirname, '../database.sql'), 'utf8');
-const sessionsTable = schema.match(/CREATE TABLE IF NOT EXISTS sessions \\(([\\s\\S]*?)\\);/);
+const sessionsTable = schema.match(/CREATE TABLE IF NOT EXISTS sessions \(([\s\S]*?)\);/);
 assert.ok(sessionsTable, 'sessions table must exist in the PostgreSQL schema');
-assert.equal((sessionsTable[1].match(/\\btoken_hash\\b/g) || []).length, 1, 'sessions schema must declare token_hash exactly once');
+assert.equal((sessionsTable[1].match(/\btoken_hash\b/g) || []).length, 1, 'sessions schema must declare token_hash exactly once');
 
 const secret = 'JBSWY3DPEHPK3PXP';
 const timestamp = 1763534400000;

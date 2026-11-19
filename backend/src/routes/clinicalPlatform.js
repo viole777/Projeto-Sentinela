@@ -413,13 +413,15 @@ router.get('/api/v1/patient-allergies',requirePermission('records.read'),async(r
  if(cpf&&!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
  const client=await getPool().connect();
  try{
+  await client.query('BEGIN');
   const result=await client.query(
    'SELECT pa.id,pa.patient_cpf,pa.allergy,pa.reaction,pa.severity,pa.recorded_by,pa.created_at FROM patient_allergies pa JOIN patients p ON p.cpf=pa.patient_cpf WHERE p.unit_id=$1 AND ($2::text IS NULL OR pa.patient_cpf=$2) ORDER BY pa.id DESC LIMIT 100',
    [unitOf(req),cpf]
   );
   for(const row of result.rows)await audit(req,client,'read','patient_allergy',row.id,row.patient_cpf,{});
+  await client.query('COMMIT');
   return res.json({items:result.rows,appendOnly:true});
- }catch(e){return next(e);}finally{client.release();}
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/patient-allergies',requirePermission('records.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

@@ -119,7 +119,7 @@ export function AdvancedModulePage({page}:{page:string}){
   '/api/v1/exam-results':'exams.results.write',
   '/api/v1/patient-allergies':'records.write'
  };
- const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
+ const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&permissions.includes(permission);}catch{return false;}};
  // Modules listed in blockedModuleEndpoints still require a dedicated
  // clinical workflow, official catalog, or external validation. Operational
  // modules with explicit server-side contracts are enabled below.

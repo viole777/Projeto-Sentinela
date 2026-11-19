@@ -18,6 +18,8 @@ A tabela `operational_module_records` é um registro versionado e append-only. N
 | `/notificacoes` | `alerts.read` | `notifications.write` | Registro operacional; não representa entrega push/e-mail |
 | `/comunicados` | `settings.manage` | `settings.manage` | Registro interno por unidade |
 | `/agenda/disponibilidade` | `appointments.read` | `appointments.write` | Rejeita intervalos sobrepostos por profissional/data |
+| `/configuracoes/modulos` | `modules.manage` | `modules.manage` | Histórico de solicitações; não ativa rotas automaticamente |
+| `/configuracoes/unidades` | `settings.manage` | `settings.manage` | Registro versionado de parâmetros; não aplica configuração runtime |
 | `/compras` | `inventory.read` | `inventory.write` | Registro de solicitação; não emite pedido de compra externo |
 | `/ccih` | `settings.manage` | `settings.manage` | Registro operacional de vigilância; não substitui validação epidemiológica |
 | `/faturamento/glosas` | `billing.read` | `billing.write` | Registro de glosa; não transmite recurso ou leiaute oficial |

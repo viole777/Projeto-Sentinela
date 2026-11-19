@@ -22,6 +22,7 @@ export const PERMISSION_BY_PATH: Record<string, string> = {
   '/app/protocolos-clinicos': 'settings.manage',
   '/app/alergias': 'records.read',
   '/app/exames-laboratoriais': 'exams.read',
+  '/app/resultados-laboratoriais': 'exams.read',
   '/app/exames-imagem': 'exams.read',
   '/app/cardiologia': 'exams.read',
   '/app/sentinela-ai': 'ai.read',

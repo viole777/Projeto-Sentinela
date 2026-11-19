@@ -30,3 +30,25 @@ DROP TRIGGER IF EXISTS operational_module_records_immutable ON operational_modul
 CREATE TRIGGER operational_module_records_immutable
 BEFORE UPDATE OR DELETE ON operational_module_records
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_operational_module_mutation();
+
+-- Structured, append-only allergy history scoped to the patient's unit.
+ALTER TABLE patient_allergies ADD COLUMN IF NOT EXISTS unit_id TEXT;
+ALTER TABLE patient_allergies ADD COLUMN IF NOT EXISTS reaction TEXT;
+ALTER TABLE patient_allergies ADD COLUMN IF NOT EXISTS severity TEXT;
+ALTER TABLE patient_allergies ADD COLUMN IF NOT EXISTS recorded_by TEXT;
+UPDATE patient_allergies pa
+SET unit_id = p.unit_id
+FROM patients p
+WHERE pa.patient_cpf = p.cpf AND pa.unit_id IS NULL AND p.unit_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_patient_allergies_unit_patient
+  ON patient_allergies(unit_id,patient_cpf,created_at DESC);
+CREATE OR REPLACE FUNCTION sentinela_reject_patient_allergy_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'allergy history is append-only; record a new allergy event';
+END;
+$$;
+DROP TRIGGER IF EXISTS patient_allergies_immutable ON patient_allergies;
+CREATE TRIGGER patient_allergies_immutable
+BEFORE UPDATE OR DELETE ON patient_allergies
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_patient_allergy_mutation();

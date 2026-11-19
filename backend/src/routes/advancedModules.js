@@ -185,6 +185,32 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
     );
   }
 
+  async function checkOperationalConflict(client, endpoint, data, unitId) {
+    if (!['/escalas','/agenda/disponibilidade','/frequencia'].includes(endpoint)) return null;
+    const professional = String(data.profissional || '');
+    const date = String(data.data || '');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`${unitId}:${endpoint}:${professional}:${date}`]);
+    if (endpoint === '/escalas') {
+      const conflict = await client.query(
+        "SELECT id FROM operational_module_records WHERE module_key='staff_schedules' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND status NOT IN ('Cancelada','Concluída') LIMIT 1",
+        [unitId, date, professional]
+      );
+      return conflict.rowCount ? 'Já existe uma escala ativa para este profissional nesta data.' : null;
+    }
+    if (endpoint === '/agenda/disponibilidade') {
+      const conflict = await client.query(
+        "SELECT id FROM operational_module_records WHERE module_key='staff_availability' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 AND data->>'inicio' < $4 AND data->>'fim' > $5 LIMIT 1",
+        [unitId, date, professional, String(data.fim), String(data.inicio)]
+      );
+      return conflict.rowCount ? 'Este profissional já possui disponibilidade cadastrada em horário sobreposto.' : null;
+    }
+    const conflict = await client.query(
+      "SELECT id FROM operational_module_records WHERE module_key='attendance_events' AND unit_id=$1 AND data->>'data'=$2 AND data->>'profissional'=$3 LIMIT 1",
+      [unitId, date, professional]
+    );
+    return conflict.rowCount ? 'Já existe um registro de frequência para este profissional nesta data.' : null;
+  }
+
   const orderedModules = Object.entries(MODULES).sort((a, b) => b[0].length - a[0].length);
   for (const [endpoint, def] of orderedModules) {
     router.get(endpoint, requirePermission(def.read), async (req, res, next) => {
@@ -243,6 +269,8 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
       const client = await getPool().connect();
       try {
         await client.query('BEGIN');
+        const conflict = await checkOperationalConflict(client, endpoint, data, unitOf(req));
+        if (conflict) { await client.query('ROLLBACK'); return res.status(409).json({ erro: conflict, codigo: 'OPERATIONAL_SCHEDULE_CONFLICT' }); }
         const actor = actorOf(req);
         const inserted = await client.query(
           'INSERT INTO operational_module_records(module_key,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status,created_at',
@@ -272,6 +300,8 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
           [id, def.key, unitOf(req)]
         );
         if (!original.rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Registro original não encontrado nesta unidade.' }); }
+        const conflict = await checkOperationalConflict(client, endpoint, validation.data, unitOf(req));
+        if (conflict) { await client.query('ROLLBACK'); return res.status(409).json({ erro: conflict, codigo: 'OPERATIONAL_SCHEDULE_CONFLICT' }); }
         const actor = actorOf(req);
         const inserted = await client.query(
           'INSERT INTO operational_module_records(module_key,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,status,created_at',

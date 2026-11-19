@@ -591,7 +591,7 @@ router.get('/api/v1/inventory-items',requirePermission('inventory.read'),async(r
  const client=await getPool().connect();
  try{
   await client.query('BEGIN');
-  const result=await client.query('SELECT id,name,category,quantity,min_stock,high_risk,updated_at FROM inventory WHERE unit_id=$1 ORDER BY name LIMIT 500',[unitOf(req)]);
+  const result=await client.query('SELECT id,name,category,quantity,min_stock,high_risk,updated_at FROM unit_inventory_items WHERE unit_id=$1 ORDER BY name LIMIT 500',[unitOf(req)]);
   for(const row of result.rows)await audit(req,client,'read','inventory_item',row.id,null,{});
   await client.query('COMMIT');
   return res.json({items:result.rows});
@@ -605,8 +605,8 @@ router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async
  const client=await getPool().connect();
  try{
   await client.query('BEGIN');
-  const result=await client.query('INSERT INTO inventory(name,category,quantity,min_stock,high_risk,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,category,quantity,min_stock,high_risk,updated_at',
-   [name,category.slice(0,100),quantity,minStock,(b.highRisk===true||b.highRisk==='true'),unitOf(req)]);
+  const result=await client.query('INSERT INTO unit_inventory_items(unit_id,name,category,quantity,min_stock,high_risk,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,name,category,quantity,min_stock,high_risk,updated_at',
+   [unitOf(req),name,category.slice(0,100),quantity,minStock,(b.highRisk===true||b.highRisk==='true'),actorOf(req).username]);
   await audit(req,client,'create','inventory_item',result.rows[0].id,null,{quantity,minStock});
   await client.query('COMMIT');
   return res.status(201).json({item:result.rows[0]});
@@ -617,7 +617,7 @@ router.get('/api/v1/inventory-movements',requirePermission('inventory.read'),asy
  const client=await getPool().connect();
  try{
   await client.query('BEGIN');
-  const result=await client.query('SELECT m.id,m.inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM inventory_movements m JOIN inventory i ON i.id=m.inventory_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
+  const result=await client.query('SELECT m.id,m.inventory_item_id AS inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM unit_inventory_movements m JOIN unit_inventory_items i ON i.id=m.inventory_item_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
   for(const row of result.rows)await audit(req,client,'read','inventory_movement',row.id,null,{});
   await client.query('COMMIT');
   return res.json({items:result.rows});
@@ -630,12 +630,12 @@ router.post('/api/v1/inventory-movements',requirePermission('inventory.write'),a
  const delta=['entry','return'].includes(kind)?qty:-qty,client=await getPool().connect();
  try{
   await client.query('BEGIN');
-  const item=await client.query('SELECT id,quantity FROM inventory WHERE id=$1 AND unit_id=$2 FOR UPDATE',[inventoryId,unitOf(req)]);
+  const item=await client.query('SELECT id,quantity FROM unit_inventory_items WHERE id=$1 AND unit_id=$2 FOR UPDATE',[inventoryId,unitOf(req)]);
   if(!item.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Item não encontrado nesta unidade.'});}
   const nextQuantity=Number(item.rows[0].quantity)+delta;
   if(nextQuantity<0){await client.query('ROLLBACK');return res.status(409).json({erro:'Movimento excede o saldo disponível.',codigo:'INSUFFICIENT_STOCK'});}
-  await client.query('UPDATE inventory SET quantity=$1,updated_at=NOW() WHERE id=$2 AND unit_id=$3',[nextQuantity,inventoryId,unitOf(req)]);
-  const result=await client.query('INSERT INTO inventory_movements(inventory_id,kind,qty,reason,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,inventory_id,kind,qty,reason,created_by,created_at',
+  await client.query('UPDATE unit_inventory_items SET quantity=$1,updated_at=NOW() WHERE id=$2 AND unit_id=$3',[nextQuantity,inventoryId,unitOf(req)]);
+  const result=await client.query('INSERT INTO unit_inventory_movements(inventory_item_id,kind,qty,reason,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,inventory_item_id,kind,qty,reason,created_by,created_at',
    [inventoryId,kind,qty,reason,actorOf(req).username,unitOf(req)]);
   await audit(req,client,'create','inventory_movement',result.rows[0].id,null,{inventoryId,kind,qty,balanceAfter:nextQuantity});
   await client.query('COMMIT');

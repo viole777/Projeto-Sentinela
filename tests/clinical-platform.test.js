@@ -76,6 +76,7 @@ assert.match(routerSource,/api\/v1\/prescription-validations/, 'pharmacy validat
 assert.match(routerSource,/api\/v1\/referrals/, 'referrals must use a patient-scoped clinical API');
 assert.match(routerSource,/api\/v1\/billing/, 'SUS production must use the validated billing API');
 assert.match(routerSource,/api\/v1\/inventory-movements/, 'stock movements must have a dedicated transactional API');
+assert.match(routerSource,/api\/v1\/medication-lots/, 'medication lots must be unit-scoped and ordered by expiry');
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movements must prevent negative inventory');
 assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');
 assert.match(routerSource,/CPF_CHANGE_REQUIRES_RELATIONAL_REKEY/, 'CPF changes must remain blocked until references can be rekeyed safely');

@@ -96,6 +96,18 @@ const EXTERNAL_OR_CLINICAL_ENDPOINTS = Object.freeze([
 const DATE_FIELDS = new Set(['data','validade','prazo','periodo']);
 const TIME_FIELDS = new Set(['hora','entrada','saida','inicio','fim']);
 const NUMERIC_FIELDS = new Set(['quantidade','valor','meta']);
+const FIELD_OPTIONS = Object.freeze({
+  '/incidentes': { categoria:['Medicamento','Queda','Identificação','Infecção','Equipamento','Processo','Outro'], gravidade:['Sem dano','Leve','Moderada','Grave'] },
+  '/escalas': { turno:['Manhã','Tarde','Noite','12x36','Outro'], status:['Planejada','Confirmada','Cobertura necessária','Concluída'] },
+  '/escalas/trocas': { status:['Solicitada','Aprovada','Rejeitada','Cancelada'] },
+  '/frequencia': { status:['Pendente','Conferida','Justificada'] },
+  '/notificacoes': { categoria:['Clínica','Operacional','Sistema','Administrativa'] },
+  '/comunicados': { status:['Rascunho','Publicado','Arquivado'] },
+  '/configuracoes/modulos': { ativo:['Ativo','Inativo'] },
+  '/compras': { prioridade:['Rotina','Urgente','Crítica'] },
+  '/ccih': { status:['Em investigação','Em acompanhamento','Encerrado'] },
+  '/faturamento/glosas': { status:['Recebida','Em análise','Recurso enviado','Deferida','Indeferida'] }
+});
 
 function validateModulePayload(endpoint, input) {
   const def = MODULES[endpoint];
@@ -108,6 +120,11 @@ function validateModulePayload(endpoint, input) {
     if (input[field] !== undefined && input[field] !== null && input[field] !== '') data[field] = input[field];
   }
   const missing = def.required.filter(field => data[field] === undefined || data[field] === '');
+  for (const [field, options] of Object.entries(FIELD_OPTIONS[endpoint] || {})) {
+    if (data[field] !== undefined && !options.includes(String(data[field]))) {
+      return { ok: false, error: 'Valor inválido para ' + field + '.' };
+    }
+  }
   if (missing.length) return { ok: false, error: 'Campos obrigatórios ausentes: ' + missing.join(', '), missing };
   for (const field of DATE_FIELDS) {
     if (data[field] !== undefined && !/^\d{4}-(0[1-9]|1[0-2])(-([0-2]\d|3[01]))?(?:T([01]\d|2[0-3]):[0-5]\d)?$/.test(String(data[field]))) {
@@ -129,7 +146,7 @@ function validateModulePayload(endpoint, input) {
     if (!/^\d{4}-?(0[1-9]|1[0-2])$/.test(String(data.competencia))) return { ok: false, error: 'Competência deve estar no formato AAAA-MM.' };
     data.competencia = String(data.competencia).replace('-', '');
   }
-    if (endpoint === '/agenda/disponibilidade' && data.inicio >= data.fim) {
+  if (endpoint === '/agenda/disponibilidade' && data.inicio >= data.fim) {
     return { ok: false, error: 'O horário final deve ser posterior ao inicial.' };
   }
   if (endpoint === '/escalas/trocas' && data.solicitante === data.substituto) {

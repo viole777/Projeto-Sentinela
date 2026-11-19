@@ -1,0 +1,32 @@
+-- Operational modules with module-specific schemas and append-only records.
+-- Apply after 20261112_clinical_platform.sql.
+CREATE TABLE IF NOT EXISTS operational_module_records (
+  id BIGSERIAL PRIMARY KEY,
+  module_key TEXT NOT NULL CHECK (module_key IN (
+    'incidents','staff_schedules','shift_exchanges','attendance_events',
+    'quality_indicators','internal_notifications','internal_announcements',
+    'unit_module_settings','unit_parameters','staff_availability',
+    'purchasing_requests','infection_surveillance','billing_objections'
+  )),
+  unit_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  data JSONB NOT NULL CHECK (jsonb_typeof(data)='object'),
+  created_by TEXT NOT NULL,
+  created_by_role TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  supersedes_id BIGINT REFERENCES operational_module_records(id)
+);
+CREATE INDEX IF NOT EXISTS idx_operational_module_unit_type
+  ON operational_module_records(unit_id,module_key,id DESC);
+CREATE INDEX IF NOT EXISTS idx_operational_module_status
+  ON operational_module_records(unit_id,module_key,status);
+CREATE OR REPLACE FUNCTION sentinela_reject_operational_module_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'operational module records are append-only; create a correction record';
+END;
+$$;
+DROP TRIGGER IF EXISTS operational_module_records_immutable ON operational_module_records;
+CREATE TRIGGER operational_module_records_immutable
+BEFORE UPDATE OR DELETE ON operational_module_records
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_operational_module_mutation();

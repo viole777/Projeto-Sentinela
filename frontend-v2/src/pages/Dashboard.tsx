@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, ArrowRight, BedDouble, Clock3, Users, RefreshCw, ServerCrash } from 'lucide-react';
+import {
+  Activity, AlertTriangle, ArrowUpRight, BedDouble, CalendarClock,
+  CheckCircle2, Clock3, FileText, Pill, RefreshCw, ServerCrash, ShieldCheck, Users
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card, PageHeader } from '../components/ui';
 
@@ -15,6 +18,8 @@ type DashboardData = {
 };
 const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('pt-BR') : '—';
 const dateLabel = (value?: string) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const riskTone = (risk = '') => /crit|emerg/i.test(risk) ? 'danger' : /alto|urg/i.test(risk) ? 'warning' : 'neutral';
+
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,8 +30,7 @@ export function Dashboard() {
       const response = await fetch('/dashboard', { credentials: 'include', headers: { Accept: 'application/json' } });
       if (response.status === 401) throw new Error('Sua sessão expirou. Entre novamente para consultar os dados da unidade.');
       if (!response.ok) throw new Error('O servidor não conseguiu carregar os indicadores.');
-      const result = await response.json() as DashboardData;
-      setData(result);
+      setData(await response.json() as DashboardData);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao conectar ao servidor.');
       setData(null);
@@ -34,21 +38,65 @@ export function Dashboard() {
   };
   useEffect(() => { void load(); }, []);
   const metrics = data ? [
-    { label: 'Pacientes cadastrados', value: data.cards?.pacientes ?? '—', detail: 'Total disponível ao seu perfil', Icon: Users },
-    { label: 'Triagens abertas', value: data.triagensAbertas ?? data.cards?.espera ?? '—', detail: 'Fila assistencial atual', Icon: Clock3 },
-    { label: 'Alertas em aberto', value: data.alertasAbertos ?? data.cards?.alertas ?? '—', detail: `${number(data.criticos)} críticos · ${number(data.altos)} altos`, Icon: AlertTriangle },
-    { label: 'Leitos livres', value: data.leitosLivres ?? data.cards?.leitos ?? '—', detail: data.ocupacao == null ? 'Disponibilidade atual' : `${number(data.ocupacao)}% de ocupação`, Icon: BedDouble },
+    { label: 'Pacientes cadastrados', value: data.cards?.pacientes, detail: 'Cadastros disponíveis ao seu perfil', Icon: Users, tone: 'blue' },
+    { label: 'Triagens abertas', value: data.triagensAbertas ?? data.cards?.espera, detail: 'Pessoas aguardando atendimento', Icon: Clock3, tone: 'teal' },
+    { label: 'Alertas em aberto', value: data.alertasAbertos ?? data.cards?.alertas, detail: `${number(data.criticos)} críticos · ${number(data.altos)} altos`, Icon: AlertTriangle, tone: 'amber' },
+    { label: 'Leitos livres', value: data.leitosLivres ?? data.cards?.leitos, detail: data.ocupacao == null ? 'Disponibilidade atual' : `${number(data.ocupacao)}% de ocupação`, Icon: BedDouble, tone: 'violet' },
   ] : [];
   const queue = data?.proximos ?? data?.fila ?? [];
-  return <>
-    <PageHeader title="Painel operacional" description={data ? `Indicadores atualizados pelo servidor · ${data.nome || 'profissional'}` : 'Visão operacional da unidade'} actions={<Button variant="secondary" onClick={() => void load()} loading={loading}><RefreshCw size={15}/> Atualizar</Button>}/>
-    {error && <div role="alert" className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"><ServerCrash size={18} className="mt-0.5 shrink-0"/><div><p className="font-semibold">Não foi possível carregar os dados reais</p><p className="mt-1">{error}</p><p className="mt-2 text-xs">Os indicadores foram ocultados para evitar apresentar dados fictícios como se fossem reais.</p></div></div>}
-    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{(loading && !data ? [0,1,2,3].map(()=>({label:'Carregando indicador',value:'…',detail:'Consultando servidor',Icon:Activity})) : metrics).map(({label,value,detail,Icon},i)=><Card key={label+i} className="p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs font-medium muted">{label}</div><div className="rounded-md bg-amber-50 p-2 text-ink-900 dark:bg-slate-800 dark:text-amber-200"><Icon size={18}/></div></div><div className="mt-3 text-3xl font-bold tracking-tight">{number(value)}</div><div className="mt-2 text-xs muted">{detail}</div></Card>)}</div>
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.55fr_1fr]">
-      <Card><div className="flex items-center justify-between border-b px-4 py-3" style={{borderColor:'var(--border)'}}><div><h2 className="text-sm font-bold">Fila assistencial</h2><p className="mt-1 text-xs muted">Registros retornados pelo servidor conforme seu perfil</p></div><Link to="/app/triagem" className="text-xs font-semibold text-copper-700 dark:text-amber-300">Abrir triagem <ArrowRight size={14} className="inline"/></Link></div>
-      <div className="table-wrap"><table className="clinical-table"><thead><tr><th>Paciente</th><th>Prioridade</th><th>Registro</th></tr></thead><tbody>{queue.map((item,i)=>{const name=item.nome||item.pacienteNome||'Paciente sem nome informado';const risk=item.risco||'Não classificado';const tone=/crit|urgente/i.test(risk)?'danger':/alto|prior/i.test(risk)?'warning':'neutral';return <tr key={String(item.quando||item.createdAt||name)+i}><td><div className="font-semibold">{name}</div></td><td><Badge tone={tone}>{risk}</Badge></td><td>{dateLabel(item.quando||item.createdAt)}</td></tr>})}{!loading&&queue.length===0&&<tr><td colSpan={3} className="py-8 text-center muted">Nenhum registro na fila retornado pelo servidor.</td></tr>}</tbody></table></div><div className="border-t px-4 py-3 text-xs muted" style={{borderColor:'var(--border)'}}>A exibição respeita os dados retornados pelo backend e as permissões da sessão.</div></Card>
-      <div className="space-y-4"><Card><div className="flex items-center justify-between border-b px-4 py-3" style={{borderColor:'var(--border)'}}><h2 className="text-sm font-bold">Alertas para acompanhamento</h2><AlertTriangle size={17} className="text-amber-600"/></div><div className="p-4">{(data?.alertas||[]).map((item,i)=><div key={String(item.id??i)} className="flex gap-3 border-b py-3 last:border-0" style={{borderColor:'var(--border)'}}><span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${/crit/i.test(item.nivel||'')?'bg-red-600':/alto/i.test(item.nivel||'')?'bg-amber-500':'bg-slate-400'}`}/><div className="min-w-0"><div className="text-sm font-semibold">{item.regra||item.mensagem||'Alerta sem descrição'}</div><div className="mt-2"><Badge tone={/crit/i.test(item.nivel||'')?'danger':/alto/i.test(item.nivel||'')?'warning':'neutral'}>{item.nivel||'Em aberto'}</Badge></div></div></div>)}{!loading&&(data?.alertas||[]).length===0&&<p className="py-4 text-sm muted">Nenhum alerta em aberto retornado pelo servidor.</p>}</div><Link to="/app/alertas" className="flex items-center justify-between border-t px-4 py-3 text-xs font-semibold text-copper-700 dark:text-amber-300" style={{borderColor:'var(--border)'}}>Abrir central de alertas <ArrowRight size={14}/></Link></Card>
-      <Card className="p-4"><div className="flex items-center gap-2"><Activity size={18} className="text-clinical-600"/><h2 className="text-sm font-bold">Resumo operacional</h2></div><div className="mt-4 space-y-3">{[['Consultas hoje',data?.consultasHoje],['Prescrições pendentes',data?.prescPendentes],['Exames pendentes',data?.examesPendentes],['Itens de estoque críticos',data?.estoqueCritico],['Internações ativas',data?.internados]].map(([label,value])=><div key={String(label)} className="flex items-center justify-between gap-3 text-sm"><span className="muted">{label}</span><span className="font-bold tabular-nums">{number(value)}</span></div>)}</div><div className="mt-4 text-[11px] leading-5 muted">Indicadores fornecidos pela API do Sentinela. A disponibilidade varia conforme as permissões do profissional.</div></Card></div>
+  const greeting = new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite';
+  return <div className="dashboard-page">
+    <div className="dashboard-hero">
+      <div className="dashboard-hero-copy">
+        <div className="dashboard-kicker"><span className="dashboard-live-dot"/> VISÃO OPERACIONAL</div>
+        <h1>{greeting}{data?.nome ? `, ${data.nome.split(' ')[0]}` : ''}.</h1>
+        <p>Uma visão clara do fluxo assistencial, da unidade e dos pontos que precisam de atenção.</p>
+        <div className="dashboard-hero-meta"><span><ShieldCheck size={14}/> Acesso conforme seu perfil</span><span><Activity size={14}/> {data?.backend || 'Dados do servidor'}</span></div>
+      </div>
+      <div className="dashboard-hero-art" aria-hidden="true">
+        <div className="dashboard-orbit dashboard-orbit-one"/><div className="dashboard-orbit dashboard-orbit-two"/>
+        <div className="dashboard-core"><Activity size={34}/></div>
+        <span className="dashboard-orbit-node node-one"/><span className="dashboard-orbit-node node-two"/><span className="dashboard-orbit-node node-three"/>
+      </div>
     </div>
-  </>;
+    <PageHeader title="Resumo da unidade" description="Indicadores carregados diretamente do Sentinela." actions={<Button variant="secondary" onClick={() => void load()} loading={loading}><RefreshCw size={15}/> Atualizar</Button>}/>
+    {error && <div role="alert" className="dashboard-error"><ServerCrash size={18}/><div><strong>Não foi possível carregar os dados reais</strong><p>{error}</p><small>Os indicadores foram ocultados para não apresentar dados fictícios.</small></div></div>}
+    <div className="dashboard-metrics">
+      {(loading && !data ? [0,1,2,3].map(i=>({label:'Carregando indicador',value:undefined,detail:'Consultando servidor',Icon:Activity,tone:'blue'})) : metrics).map(({label,value,detail,Icon,tone},i)=>
+        <Card key={label+i} className="dashboard-metric-card">
+          <div className="dashboard-metric-top"><span>{label}</span><i className={`metric-icon ${tone}`}><Icon size={19}/></i></div>
+          <strong className="dashboard-metric-value">{number(value)}</strong>
+          <small>{detail}</small>
+        </Card>
+      )}
+    </div>
+    <div className="dashboard-grid">
+      <Card className="dashboard-section dashboard-queue">
+        <div className="dashboard-section-head"><div><span className="dashboard-section-kicker">ACOMPANHAMENTO</span><h2>Fila assistencial</h2><p>Registros retornados pelo servidor conforme seu perfil.</p></div><Link to="/app/triagem" className="dashboard-text-link">Abrir triagem <ArrowUpRight size={15}/></Link></div>
+        <div className="table-wrap"><table className="clinical-table"><thead><tr><th>Paciente</th><th>Prioridade</th><th>Registro</th></tr></thead><tbody>
+          {queue.map((item,i)=>{const name=item.nome||item.pacienteNome||'Paciente sem nome informado';const risk=item.risco||'Não classificado';return <tr key={String(item.quando||item.createdAt||name)+i}><td><strong>{name}</strong></td><td><Badge tone={riskTone(risk)}>{risk}</Badge></td><td>{dateLabel(item.quando||item.createdAt)}</td></tr>})}
+          {!loading&&queue.length===0&&<tr><td colSpan={3} className="dashboard-empty">Nenhum registro na fila.</td></tr>}
+        </tbody></table></div>
+      </Card>
+      <div className="dashboard-side">
+        <Card className="dashboard-section">
+          <div className="dashboard-section-head"><div><span className="dashboard-section-kicker">ATENÇÃO</span><h2>Alertas em aberto</h2></div><AlertTriangle size={19} className="dashboard-alert-icon"/></div>
+          <div className="dashboard-alert-list">{(data?.alertas||[]).slice(0,5).map((item,i)=><div key={String(item.id??i)} className="dashboard-alert-row"><span className={`dashboard-alert-dot ${/crit/i.test(item.nivel||'')?'critical':/alto/i.test(item.nivel||'')?'high':''}`}/><div><strong>{item.regra||item.mensagem||'Alerta sem descrição'}</strong><small>{item.nivel||'Em aberto'}</small></div></div>)}
+          {!loading&&(data?.alertas||[]).length===0&&<p className="dashboard-empty">Nenhum alerta em aberto retornado pelo servidor.</p>}</div>
+          <Link to="/app/notificacoes" className="dashboard-section-footer">Acessar notificações <ArrowUpRight size={15}/></Link>
+        </Card>
+        <Card className="dashboard-section dashboard-operations">
+          <div className="dashboard-section-head"><div><span className="dashboard-section-kicker">ROTINA</span><h2>Resumo operacional</h2></div><CalendarClock size={19}/></div>
+          <div className="dashboard-operation-list">{[
+            ['Consultas hoje',data?.consultasHoje,CalendarClock],
+            ['Prescrições pendentes',data?.prescPendentes,Pill],
+            ['Exames pendentes',data?.examesPendentes,FileText],
+            ['Estoque crítico',data?.estoqueCritico,AlertTriangle],
+            ['Internações ativas',data?.internados,Users]
+          ].map(([label,value,Icon])=><div key={String(label)}><span><Icon size={15}/>{String(label)}</span><strong>{number(value)}</strong></div>)}</div>
+          <div className="dashboard-data-note"><CheckCircle2 size={14}/> Indicadores sujeitos às permissões da sessão.</div>
+        </Card>
+      </div>
+    </div>
+  </div>;
 }

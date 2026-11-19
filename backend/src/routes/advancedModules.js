@@ -159,7 +159,6 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
   }
 
   async function audit(client, req, action, moduleKey, id, metadata = {}) {
-    const { patientHash } = require('../services/transactionalAudit');
     await client.query(
       'INSERT INTO clinical_audit_events(actor_username,actor_role,unit_id,action,resource_type,resource_id,patient_ref_hash,request_id,ip_address,user_agent,metadata) VALUES($1,$2,$3,$4,$5,$6,NULL,$7,$8,$9,$10)',
       [actorOf(req).username, actorOf(req).role, unitOf(req), action, 'operational_' + moduleKey, id || null,

@@ -57,6 +57,8 @@ FOR EACH ROW EXECUTE FUNCTION sentinela_reject_patient_allergy_mutation();
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS unit_id TEXT;
 ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_inventory_unit_name ON inventory(unit_id,name);
+ALTER TABLE inventory DROP CONSTRAINT IF EXISTS inventory_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_unit_name_unique ON inventory(unit_id,name) WHERE unit_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_unit_created ON inventory_movements(unit_id,created_at DESC);
 CREATE OR REPLACE FUNCTION sentinela_reject_inventory_movement_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$

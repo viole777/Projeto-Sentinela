@@ -101,24 +101,34 @@ export function AdvancedModulePage({page}:{page:string}){
   '/configuracoes/protocolos':'settings.manage',
   '/configuracoes/unidades':'units.write',
   '/configuracoes/modulos':'modules.manage',
-  '/acessos/unidades':'units.write'
+  '/acessos/unidades':'units.write',
+  '/incidentes':'alerts.resolve',
+  '/escalas':'professionals.write',
+  '/escalas/trocas':'professionals.write',
+  '/frequencia':'professionals.write',
+  '/indicadores/qualidade':'settings.manage',
+  '/notificacoes':'notifications.write',
+  '/comunicados':'settings.manage',
+  '/configuracoes/unidades':'settings.manage',
+  '/configuracoes/modulos':'modules.manage',
+  '/agenda/disponibilidade':'appointments.write',
+  '/compras':'inventory.write',
+  '/ccih':'settings.manage',
+  '/faturamento/glosas':'billing.write'
  };
  const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
- // ENDPOINTS registered in advancedModules.js deliberately return 501 until
- // a dedicated, validated API exists. Only /exames and /internacoes have
- // concrete handlers registered before that fallback router.
+ // Modules listed in blockedModuleEndpoints still require a dedicated
+ // clinical workflow, official catalog, or external validation. Operational
+ // modules with explicit server-side contracts are enabled below.
  const blockedModuleEndpoints=new Set([
   '/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/faturamento',
   '/perfis','/unidades','/sinais-vitais','/exames/imagem','/cardiologia',
   '/evolucoes-medicas','/enfermagem/plano-cuidados','/medicamentos/administracao',
-  '/incidentes','/protocolos','/alergias','/farmacia/avaliacoes','/farmacia/controlados',
-  '/estoque/movimentacoes','/estoque/validade','/compras','/faturamento/glosas',
-  '/escalas','/escalas/trocas','/frequencia','/indicadores/qualidade',
-  '/relatorios/gerencial','/ccih','/lgpd/consentimentos','/notificacoes',
-  '/comunicados','/encaminhamentos','/portal-paciente','/configuracoes/protocolos',
-  '/configuracoes/unidades','/configuracoes/modulos','/fila','/transferencias',
-  '/producao-sus','/faturamento/dashboard','/acessos/unidades',
-  '/agenda/disponibilidade','/exames/resultados'
+  '/protocolos','/alergias','/farmacia/avaliacoes','/farmacia/controlados',
+  '/estoque/movimentacoes','/estoque/validade','/relatorios/gerencial',
+  '/lgpd/consentimentos','/encaminhamentos','/portal-paciente','/configuracoes/protocolos',
+  '/fila','/transferencias','/producao-sus','/faturamento/dashboard','/acessos/unidades',
+  '/exames/resultados'
  ]);
  const canCreate=!unsupported&&!c.readOnly&&!blockedModuleEndpoints.has(c.endpoint)&&!!writePermissionByEndpoint[c.endpoint]&&hasPermission(writePermissionByEndpoint[c.endpoint]);
  const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[notice,setNotice]=useState(''),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState<Record<string,string>>({}),[temporaryPassword,setTemporaryPassword]=useState('');

@@ -65,7 +65,7 @@ console.log('advanced operational module API contract tests passed');
   app.use(createRouter({
     requireAuth: () => (req, res, next) => next(),
     requirePermission: permission => (req, res, next) => {
-      req.user = { username: 'tester', role: 'admin', unit: req.headers['x-test-unit'] || 'U1' };
+      req.user = { username: 'tester', role: 'admin', unit: Object.prototype.hasOwnProperty.call(req.headers, 'x-test-unit') ? req.headers['x-test-unit'] : 'U1' };
       req.permissionUnderTest = permission;
       next();
     },

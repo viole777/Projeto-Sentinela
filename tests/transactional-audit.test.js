@@ -10,8 +10,11 @@ const {
 
 (async () => {
   const rows = [];
+  const queries = [];
   const client = {
     async query(sql, values) {
+      queries.push(sql);
+      if (sql.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] };
       if (sql.startsWith('SELECT record_hash')) {
         return { rows: rows.length ? [{ record_hash: rows.at(-1).record_hash }] : [] };
       }
@@ -59,6 +62,14 @@ const {
   });
 
   const verification = await verifyAuditChain(client);
+  const lockIndexes = queries
+    .map((sql, index) => sql.startsWith('SELECT pg_advisory_xact_lock') ? index : -1)
+    .filter(index => index >= 0);
+  const firstSelectIndexes = queries
+    .map((sql, index) => sql.startsWith('SELECT record_hash') ? index : -1)
+    .filter(index => index >= 0);
+  assert.equal(lockIndexes.length, 2, 'each append must acquire the transaction-scoped chain lock');
+  assert.ok(lockIndexes.every((index, i) => index < firstSelectIndexes[i]), 'chain lock must precede reading the previous hash');
   assert.equal(verification.valid, true);
   assert.equal(patientHash('00000000000').length, 64);
   assert.deepEqual(redact({ cpf: '00000000000', nome: 'Sintético' }), {

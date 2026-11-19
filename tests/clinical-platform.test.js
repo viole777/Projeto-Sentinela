@@ -88,8 +88,8 @@ assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO me
 assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO appointments[\s\S]*?await audit\(req,client,'create','appointment'[\s\S]*?await client\.query\('COMMIT'\)/, 'appointment creation and its audit event must share one transaction');
 assert.match(routerSource,/ORDER BY expires_on ASC,id ASC FOR UPDATE/, 'dispensing must lock FEFO lots');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
-assert.match(routerSource,/prescription_validation' AND supersedes_id=\\$1 AND unit_id=\\$2/, 'prescription approval lookup must be unit-scoped');
-assert.match(routerSource,/medication_dispensing_events WHERE prescription_record_id=\\$1 AND unit_id=\\$2/, 'dispensed quantity totals must be unit-scoped');
+assert.match(routerSource,/prescription_validation' AND supersedes_id=\$1 AND unit_id=\$2/, 'prescription approval lookup must be unit-scoped');
+assert.match(routerSource,/medication_dispensing_events WHERE prescription_record_id=\$1 AND unit_id=\$2/, 'dispensed quantity totals must be unit-scoped');
 assert.match(routerSource,/UPDATE beds SET status=\$1,patient_cpf=\$2,patient_name=\$3,occupied_since=NOW\(\).*?\['occupied',data\.patientCpf,patient\.rows\[0\]\.name,data\.bedCode,unitOf\(req\)\]/, 'admission must occupy the selected bed and associate the patient');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');
 assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not pretend a digital signature is implemented');

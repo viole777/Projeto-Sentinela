@@ -71,6 +71,7 @@ const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8')
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
 assert.match(routerSource,/api\/v1\/patient-allergies/, 'allergy history must have a dedicated clinical API');
+assert.match(routerSource,/api\/v1\/inventory-items/, 'inventory items must have a unit-scoped API');
 assert.match(routerSource,/api\/v1\/inventory-movements/, 'stock movements must have a dedicated transactional API');
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movements must prevent negative inventory');
 assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');
@@ -90,6 +91,7 @@ assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id T
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(operationalMigration,/patient_allergies_immutable/, 'allergy history must be append-only');
 assert.match(operationalMigration,/inventory_movements_immutable/, 'stock movement ledger must be append-only');
+assert.match(operationalMigration,/idx_inventory_unit_name_unique/, 'inventory item uniqueness must be scoped by unit');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');
 assert.match(migration,/patients\.identity\.sensitive\.write/, 'migration must seed the elevated identifier permission');

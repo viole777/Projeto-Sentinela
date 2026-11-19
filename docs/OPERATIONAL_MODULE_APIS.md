@@ -30,6 +30,26 @@ Rotas clínicas e administrativas que exigem modelo de domínio próprio, víncu
 
 Esse bloqueio é intencional: não é seguro transformar esses fluxos em registros JSON genéricos e apresentá-los como prontuário, prescrição, assinatura, integração ou processo hospitalar completo.
 
+## APIs clínicas já conectadas ao frontend React
+
+Além das APIs operacionais acima, as telas clínicas abaixo foram ligadas aos endpoints versionados e seus contratos específicos:
+
+| Endpoint | Tela conectada |
+|---|---|
+| `/api/v1/appointments` | Agenda médica |
+| `/api/v1/hospitalizations` | Internações |
+| `/api/v1/discharges` | Alta hospitalar |
+| `/api/v1/prescriptions` | Prescrição eletrônica estruturada |
+| `/api/v1/vital-signs` | Sinais vitais |
+| `/api/v1/soap-notes` | Evolução médica SOAP |
+| `/api/v1/nursing-evolutions` | Evolução de enfermagem |
+| `/api/v1/care-plans` | Plano de cuidados |
+| `/api/v1/exam-orders` | Solicitação de exames, imagem e cardiologia |
+| `/api/v1/exam-results` | Resultados laboratoriais |
+| `/api/v1/patient-allergies` | Histórico de alergias |
+
+Esses endpoints pertencem ao contrato clínico versionado, com validação de payload e escopo por unidade. As rotas que exigem vínculo CNS/CBO dependem de cadastro profissional ativo. A existência da tela não substitui o cadastro e a validação dos catálogos oficiais.
+
 ## Persistência e implantação
 
 1. Aplicar `database/migrations/20261112_clinical_platform.sql`.

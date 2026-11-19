@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const crypto = require('node:crypto');
+const { minimizePatientFields } = require('../services/resourceScope');
 
 const RESOURCE_DEFS = Object.freeze({
  'soap-notes':{type:'soap',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode'],allowed:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode','diagnosisDescription','familyHistory','medicationsInUse','allergiesReviewed','recordedAt']},
@@ -82,7 +83,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  router.get('/api/v1/patients',requirePermission('patients.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));
-  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,status,created_at FROM patients WHERE unit_id=$1 ORDER BY id DESC LIMIT $2',[unitOf(req),limit]);return res.json({items:r.rows});}
+  try{const r=await getPool().query('SELECT id,name,cpf,cns,birth_date,status,created_at FROM patients WHERE unit_id=$1 ORDER BY id DESC LIMIT $2',[unitOf(req),limit]);const role=String(req.user?.role||req.user?.tipo||'');const items=r.rows.map(patient=>minimizePatientFields(role,patient));return res.json({items});}
   catch(e){return next(e);}
  });
  router.post('/api/v1/patients',requirePermission('patients.write'),async(req,res,next)=>{
@@ -406,10 +407,9 @@ router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),asyn
   return res.json({patient:patient.rows[0],allergies:allergies.rows,activeConditions:conditions.rows,medications,familyHistory:latestSoap?.data?.familyHistory||null,activeAlerts:alerts.rows,recentClinicalRecords:records.rows});
  }catch(e){return next(e);}finally{client.release();}
 });
-router.get('/api/v1/:resource',async(req,res,next)=>{
- const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
- return requirePermission(def.permission)(req,res,async error=>{
-  if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
+ router.get(`/api/v1/${resourceKey}`,requirePermission(def.permission),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||25)),cursor=req.query.cursor?Number(req.query.cursor):null;
   if(cursor!==null&&(!Number.isSafeInteger(cursor)||cursor<1))return res.status(400).json({erro:'Cursor inválido.'});
   const client=await getPool().connect();
@@ -418,11 +418,8 @@ router.get('/api/v1/:resource',async(req,res,next)=>{
    return res.json({items:r.rows,nextCursor:r.rows.length===limit?String(r.rows[r.rows.length-1].id):null});
   }catch(e){return next(e);}finally{client.release();}
  });
-});
-router.get('/api/v1/:resource/:id',async(req,res,next)=>{
- const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
- return requirePermission(def.permission)(req,res,async error=>{
-  if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ router.get(`/api/v1/${resourceKey}/:id`,requirePermission(def.permission),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({erro:'Identificador inválido.'});
   const client=await getPool().connect();
   try{const r=await client.query('SELECT id,resource_type,patient_cpf,status,data,created_by,created_by_role,created_at,supersedes_id FROM clinical_records WHERE id=$1 AND resource_type=$2 AND unit_id=$3',[id,def.type,unitOf(req)]);
@@ -431,12 +428,9 @@ router.get('/api/v1/:resource/:id',async(req,res,next)=>{
    return res.json({item:r.rows[0]});
   }catch(e){return next(e);}finally{client.release();}
  });
-});
-router.post('/api/v1/:resource/:id/corrections',async(req,res,next)=>{
- const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
- return requirePermission(def.write)(req,res,async error=>{
-  if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const id=Number(req.params.id),v=validateResourcePayload(req.params.resource,req.body);
+ router.post(`/api/v1/${resourceKey}/:id/corrections`,requirePermission(def.write),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const id=Number(req.params.id),v=validateResourcePayload(resourceKey,req.body);
   if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({erro:'Identificador original inválido.'});
   if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
   const data=v.data,actor=actorOf(req),client=await getPool().connect();
@@ -451,12 +445,9 @@ router.post('/api/v1/:resource/:id/corrections',async(req,res,next)=>{
    await client.query('COMMIT');return res.status(201).json({item:r.rows[0],immutableOriginal:true});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
-});
-router.post('/api/v1/:resource',async(req,res,next)=>{
- const def=RESOURCE_DEFS[req.params.resource];if(!def)return next();
- return requirePermission(def.write)(req,res,async error=>{
-  if(error)return next(error);if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const v=validateResourcePayload(req.params.resource,req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
+ router.post(`/api/v1/${resourceKey}`,requirePermission(def.write),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const v=validateResourcePayload(resourceKey,req.body);if(!v.ok)return res.status(400).json({erro:v.error,campos:v.missing||[]});
   const data=v.data;
   if(def.type==='vitals'&&data.weightKg!==undefined&&data.heightCm!==undefined&&Number(data.heightCm)>0){const h=Number(data.heightCm)/100;data.bmi=Number((Number(data.weightKg)/(h*h)).toFixed(1));}
   if(def.type==='maternal_child'&&data.kind==='prenatal'&&data.lastMenstrualPeriod){
@@ -495,7 +486,7 @@ router.post('/api/v1/:resource',async(req,res,next)=>{
    await client.query('COMMIT');return res.status(201).json({item:r.rows[0],validation:'schema-validated',externalIntegration:'not-performed'});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
-});
+ }
 router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescriptions.validate'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const id=Number(req.params.id),decision=req.body?.decision;

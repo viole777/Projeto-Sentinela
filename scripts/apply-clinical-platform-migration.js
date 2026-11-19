@@ -11,16 +11,23 @@ async function main() {
     max: 1
   });
   try {
-    const migrationPath = path.join(__dirname, '..', 'database', 'migrations', '20261112_clinical_platform.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    await pool.query(sql);
-    const result = await pool.query(
-      "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events"
-    );
-    if (!result.rows[0]?.clinical_records || !result.rows[0]?.clinical_audit_events) {
-      throw new Error('Clinical platform migration verification failed');
+    const migrationFiles = [
+      '20261112_clinical_platform.sql',
+      '20261119_operational_modules.sql'
+    ];
+    for (const filename of migrationFiles) {
+      const migrationPath = path.join(__dirname, '..', 'database', 'migrations', filename);
+      const sql = fs.readFileSync(migrationPath, 'utf8');
+      await pool.query(sql);
+      process.stdout.write(`Applied ${filename}.\\n`);
     }
-    process.stdout.write('Clinical platform migration applied and verified.\\n');
+    const result = await pool.query(
+      "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events, to_regclass('public.operational_module_records') AS operational_module_records"
+    );
+    if (!result.rows[0]?.clinical_records || !result.rows[0]?.clinical_audit_events || !result.rows[0]?.operational_module_records) {
+      throw new Error('Clinical/operational module migration verification failed');
+    }
+    process.stdout.write('Clinical and operational module migrations applied and verified.\\n');
   } finally {
     await pool.end();
   }

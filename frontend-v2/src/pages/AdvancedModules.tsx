@@ -63,7 +63,20 @@ const modules:Record<string,ModuleDef> = {
 };
 const aliases:Record<string,string>={'agenda-medica':'agenda','prescricao-eletronica-avancada':'prescricao-eletronica','mapa-leitos':'leitos','gestao-usuarios':'usuarios','gestao-perfis':'perfis-permissoes','exames-laboratoriais':'solicitacoes-exames','gestao-glosas':'glosas','ccih-infeccao':'ccih','lgpd':'lgpd-consentimentos','auditoria-avancada':'trilha-auditoria','gestao-modulos':'modulos','parametrizacao-unidade':'parametros-unidade','painel-gerencial':'dashboard-gerencial','relatorios-producao':'producao-sus'};
 type Row=Record<string,unknown>;
-function normalizeRows(data:unknown):Row[]{const rows=Array.isArray(data)?data:data&&typeof data==='object'?(['items','data','results','registros','rows'].map(k=>(data as Row)[k]).find(Array.isArray) as unknown[]|undefined)||[]:[];return rows.filter((x):x is Row=>Boolean(x)&&typeof x==='object'&&!Array.isArray(x)).map(row=>({...((row.data&&typeof row.data==='object'&&!Array.isArray(row.data))?row.data as Row:{}),...row}));}
+function normalizeRows(data:unknown):Row[]{
+ let rows:unknown[]=[];
+ if(Array.isArray(data))rows=data;
+ else if(data&&typeof data==='object'){
+  const object=data as Row;
+  const key=['items','data','results','registros','rows'].find(name=>Array.isArray(object[name]));
+  if(key)rows=object[key] as unknown[];
+ }
+ return rows.filter((item):item is Row=>Boolean(item)&&typeof item==='object'&&!Array.isArray(item)).map(row=>{
+  const nested=row.data;
+  const recordData=nested&&typeof nested==='object'&&!Array.isArray(nested)?nested as Row:{};
+  return {...recordData,...row};
+ });
+}
 const human=(s:string)=>s.replace(/([A-Z])/g,' $1').replace(/^./,x=>x.toUpperCase());
 const valueText=(v:unknown)=>v==null||v===''?'—':typeof v==='object'?JSON.stringify(v):String(v);
 export function AdvancedModulePage({page}:{page:string}){

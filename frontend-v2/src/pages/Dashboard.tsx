@@ -4,6 +4,7 @@ import {
   CheckCircle2, Clock3, FileText, Pill, RefreshCw, ServerCrash, ShieldCheck, Users
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import { Badge, Button, Card, PageHeader } from '../components/ui';
 
 type DashboardData = {
@@ -44,6 +45,13 @@ export function Dashboard() {
     { label: 'Leitos livres', value: data.leitosLivres ?? data.cards?.leitos, detail: data.ocupacao == null ? 'Disponibilidade atual' : `${number(data.ocupacao)}% de ocupação`, Icon: BedDouble, tone: 'violet' },
   ] : [];
   const queue = data?.proximos ?? data?.fila ?? [];
+  const operations: Array<{label:string;value:unknown;Icon:LucideIcon}> = [
+    {label:'Consultas hoje',value:data?.consultasHoje,Icon:CalendarClock},
+    {label:'Prescrições pendentes',value:data?.prescPendentes,Icon:Pill},
+    {label:'Exames pendentes',value:data?.examesPendentes,Icon:FileText},
+    {label:'Estoque crítico',value:data?.estoqueCritico,Icon:AlertTriangle},
+    {label:'Internações ativas',value:data?.internados,Icon:Users}
+  ];
   const greeting = new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite';
   return <div className="dashboard-page">
     <div className="dashboard-hero">
@@ -87,13 +95,7 @@ export function Dashboard() {
         </Card>
         <Card className="dashboard-section dashboard-operations">
           <div className="dashboard-section-head"><div><span className="dashboard-section-kicker">ROTINA</span><h2>Resumo operacional</h2></div><CalendarClock size={19}/></div>
-          <div className="dashboard-operation-list">{[
-            ['Consultas hoje',data?.consultasHoje,CalendarClock],
-            ['Prescrições pendentes',data?.prescPendentes,Pill],
-            ['Exames pendentes',data?.examesPendentes,FileText],
-            ['Estoque crítico',data?.estoqueCritico,AlertTriangle],
-            ['Internações ativas',data?.internados,Users]
-          ].map(([label,value,Icon])=><div key={String(label)}><span><Icon size={15}/>{String(label)}</span><strong>{number(value)}</strong></div>)}</div>
+          <div className="dashboard-operation-list">{operations.map(({label,value,Icon})=><div key={label}><span><Icon size={15}/>{label}</span><strong>{number(value)}</strong></div>)}</div>
           <div className="dashboard-data-note"><CheckCircle2 size={14}/> Indicadores sujeitos às permissões da sessão.</div>
         </Card>
       </div>

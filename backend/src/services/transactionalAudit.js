@@ -32,6 +32,10 @@ async function appendAudit(client, {
   reason
 }) {
   if (!username || !action) throw new Error('Evento de auditoria incompleto.');
+  // Serialize chain appends inside the caller's transaction. Without this lock,
+  // concurrent writers can read the same tail hash and fork the audit chain.
+  // The lock is transaction-scoped and is released automatically on COMMIT/ROLLBACK.
+  await client.query('SELECT pg_advisory_xact_lock($1, $2)', [1398035017, 1]);
   const previous = await client.query(
     'SELECT record_hash FROM audit_logs ORDER BY id DESC LIMIT 1'
   );

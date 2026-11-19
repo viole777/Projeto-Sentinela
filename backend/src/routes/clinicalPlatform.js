@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
-const crypto = require('node:crypto');
 const { minimizePatientFields } = require('../services/resourceScope');
+const { patientHash, verifyAuditChain } = require('../services/transactionalAudit');
 const { createKeyProvider, encryptField, blindIndex } = require('../services/dataEncryption');
 
 const RESOURCE_DEFS = Object.freeze({
@@ -18,7 +18,7 @@ const RESOURCE_DEFS = Object.freeze({
  immunizations:{type:'immunization',permission:'immunizations.read',write:'immunizations.write',professional:true,required:['patientCpf','vaccine','dose','lot','manufacturer','administeredAt'],allowed:['patientCpf','vaccine','dose','lot','manufacturer','administeredAt','site','vaccinator','nextDoseAt']},
  referrals:{type:'referral',permission:'referrals.read',write:'referrals.write',professional:true,required:['patientCpf','destination','specialty','reason','priority'],allowed:['patientCpf','destination','destinationCnes','specialty','reason','priority','requestedAt','clinicalSummary']},
  notifications:{type:'notification',permission:'records.read',write:'notifications.write',professional:true,required:['patientCpf','diseaseCode','caseDate'],allowed:['patientCpf','diseaseCode','caseDate','notificationType','epidemiologicalNotes','status']},
- billing:{type:'billing',permission:'billing.read',write:'billing.write',professional:false,required:['instrument','competence','sigtapCode','cboCode','cidCode'],allowed:['patientCpf','instrument','competence','sigtapCode','cboCode','cidCode','quantity','professionalCns','cnes','authorizationNumber']},
+ billing:{type:'billing',permission:'billing.read',write:'billing.write',professional:false,required:['patientCpf','instrument','competence','sigtapCode','cboCode','cidCode','quantity'],allowed:['patientCpf','instrument','competence','sigtapCode','cboCode','cidCode','quantity','professionalCns','cnes','authorizationNumber']},
  'nursing-evolutions':{type:'nursing_evolution',permission:'records.read',write:'nursing.write',professional:true,required:['patientCpf','assessment','interventions','recordedAt'],allowed:['patientCpf','assessment','interventions','response','carePlan','recordedAt']},
  'exam-results':{type:'exam_result',permission:'exams.read',write:'exams.results.write',professional:true,required:['patientCpf','examRecordId','result','releasedAt'],allowed:['patientCpf','examRecordId','result','releasedAt','reportingProfessional']},
  'care-plans':{type:'care_plan',permission:'records.read',write:'careplans.write',professional:true,required:['patientCpf','goals','interventions','reviewAt'],allowed:['patientCpf','goals','interventions','reviewAt','responsibleTeam']}
@@ -54,6 +54,7 @@ function validateResourcePayload(key,input){
  for(const k of ['systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm','gestationalAgeWeeks','fetalHeartRate','childAgeMonths','headCircumferenceCm','quantity'])if(data[k]!==undefined&&(!Number.isFinite(Number(data[k]))||Number(data[k])<0))return{ok:false,error:'Valor numérico inválido em '+k+'.'};
  if(data.oxygenSaturation!==undefined&&Number(data.oxygenSaturation)>100)return{ok:false,error:'Saturação deve estar entre 0 e 100.'};
  if(key==='prescriptions'&&Number(data.quantity)<=0)return{ok:false,error:'Quantidade prescrita deve ser maior que zero.'};
+ if(key==='billing'&&Number(data.quantity)<=0)return{ok:false,error:'Quantidade de produção deve ser maior que zero.'};
  if(key==='vital-signs'&&!['systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm'].some(k=>data[k]!==undefined))return{ok:false,error:'Informe ao menos uma medida observada.'};
  if(data.kind&&!['prenatal','puericulture'].includes(data.kind))return{ok:false,error:'Tipo deve ser prenatal ou puericulture.'};
  for(const k of ['diagnosisSystem','system'])if(data[k])data[k]=String(data[k]).toUpperCase();
@@ -66,7 +67,7 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
  function ensureUnit(req,res){if(!unitOf(req)){res.status(403).json({erro:'Conta sem unidade vinculada. Vincule a conta a uma unidade antes de acessar dados clínicos.',codigo:'UNIT_SCOPE_REQUIRED'});return false;}return true;}
  function unavailable(res){return res.status(503).json({erro:'A plataforma clínica exige PostgreSQL e a migração 20261112_clinical_platform.sql.',codigo:'CLINICAL_PLATFORM_SCHEMA_UNAVAILABLE'});}
  async function audit(req,client,action,type,id,cpf,metadata={}){
-  const a=actorOf(req), auditUnit=a.unit||'platform', hash=cpf?crypto.createHash('sha256').update(String(cpf)).digest('hex'):null;
+  const a=actorOf(req), auditUnit=a.unit||'platform', hash=patientHash(cpf);
   await client.query('INSERT INTO clinical_audit_events(actor_username,actor_role,unit_id,action,resource_type,resource_id,patient_ref_hash,request_id,ip_address,user_agent,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
    [a.username,a.role,auditUnit,action,type,id||null,hash,req.get('x-request-id')||null,req.ip||null,String(req.get('user-agent')||'').slice(0,300),JSON.stringify(metadata)]);
  }
@@ -92,11 +93,24 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   const cpf=normalizeCpf(b.cpf),cns=String(b.cns||'').replace(/\D/g,'');
   if(!String(b.name||'').trim()||!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'Nome, CPF válido e CNS com 15 dígitos (quando disponível) são obrigatórios.'});
   if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
-  try{const keyProvider=createKeyProvider();const cpfEncrypted=await encryptField(cpf,keyProvider);const cnsEncrypted=await encryptField(cns||null,keyProvider);const pepper=process.env.BLIND_INDEX_PEPPER;if(!pepper)return res.status(503).json({erro:'Pepper do índice cego não configurado.',codigo:'BLIND_INDEX_PEPPER_UNAVAILABLE'});const cpfBlind=blindIndex(cpf,pepper);const r=await getPool().query('INSERT INTO patients(name,cpf,cpf_encrypted,cpf_blind_index,cns,cns_encrypted,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,name,cpf,cns,birth_date,status,created_at',
+  let client;
+  try{
+   const keyProvider=createKeyProvider(),cpfEncrypted=await encryptField(cpf,keyProvider),cnsEncrypted=await encryptField(cns||null,keyProvider);
+   const pepper=process.env.BLIND_INDEX_PEPPER;
+   if(!pepper)return res.status(503).json({erro:'Pepper do índice cego não configurado.',codigo:'BLIND_INDEX_PEPPER_UNAVAILABLE'});
+   const cpfBlind=blindIndex(cpf,pepper);
+   client=await getPool().connect();
+   await client.query('BEGIN');
+   const r=await client.query('INSERT INTO patients(name,cpf,cpf_encrypted,cpf_blind_index,cns,cns_encrypted,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,name,cpf,cns,birth_date,status,created_at',
     [String(b.name).trim(),cpf,cpfEncrypted,cpfBlind,cns||null,cnsEncrypted,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req),'triagem']);
-   const client=await getPool().connect();try{await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});}finally{client.release();}
+   await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});
+   await client.query('COMMIT');
    return res.status(201).json({patient:r.rows[0]});
-  }catch(e){if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});return next(e);}
+  }catch(e){
+   if(client)await client.query('ROLLBACK').catch(()=>{});
+   if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});
+   return next(e);
+  }finally{if(client)client.release();}
  });
  router.get('/api/v1/catalogs/:catalog',requirePermission('clinical.catalogs.read'),async(req,res,next)=>{
   const catalog=String(req.params.catalog||'').toUpperCase();if(!['CID10','CIAP2','SIGTAP','RENAME','CBO','CNES'].includes(catalog))return res.status(400).json({erro:'Catálogo inválido.'});
@@ -206,12 +220,17 @@ router.post('/api/v1/appointments',requirePermission('appointments.manage'),asyn
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const b=req.body||{},cpf=normalizeCpf(b.patientCpf);
   if(!CPF_RE.test(cpf)||!String(b.appointmentType||'').trim()||!DATE_RE.test(String(b.scheduledAt||'')))return res.status(400).json({erro:'Paciente, tipo de atendimento e data/hora válidos são obrigatórios.'});
-  try{const patient=await getPool().query('SELECT name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
-   const r=await getPool().query('INSERT INTO appointments(patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_at',
+  const client=await getPool().connect();
+  try{
+   await client.query('BEGIN');
+   const patient=await client.query('SELECT name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
+   if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+   const r=await client.query('INSERT INTO appointments(patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,patient_cpf,patient_name,appointment_type,scheduled_at,professional,specialty,status,appointment_mode,created_at',
     [cpf,patient.rows[0].name,String(b.appointmentType).slice(0,120),b.scheduledAt,b.professional||null,b.specialty||null,'scheduled',b.appointmentMode||'in_person',actorOf(req).username,unitOf(req)]);
-   const client=await getPool().connect();try{await audit(req,client,'create','appointment',r.rows[0].id,cpf,{status:'scheduled'});}finally{client.release();}
+   await audit(req,client,'create','appointment',r.rows[0].id,cpf,{status:'scheduled'});
+   await client.query('COMMIT');
    return res.status(201).json({appointment:r.rows[0]});
-  }catch(e){return next(e);}
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/appointments/:id/status',requirePermission('appointments.manage'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
@@ -269,7 +288,7 @@ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write
    if(!bed.rowCount||!['free','livre'].includes(String(bed.rows[0].status).toLowerCase())){await client.query('ROLLBACK');return res.status(409).json({erro:'Leito inexistente ou indisponível nesta unidade.',codigo:'BED_NOT_AVAILABLE'});}
    const admission=await client.query('INSERT INTO hospitalizations(patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,unit_id) VALUES($1,$2,$3,$4,$5,COALESCE($6::timestamptz,NOW()),$7) RETURNING id,patient_cpf,patient_name,bed_code,reason,admitted_at',
     [data.patientCpf,patient.rows[0].name,data.bedCode,data.admissionReason,data.attendingProfessional||actor.username,data.admittedAt||null,unitOf(req)]);
-    await client.query('UPDATE beds SET status=$1,patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$2 AND unit_id=$3',['free',h.rows[0].bed_code,unitOf(req)]);
+    await client.query('UPDATE beds SET status=$1,patient_cpf=$2,patient_name=$3,occupied_since=NOW() WHERE code=$4 AND unit_id=$5',['occupied',data.patientCpf,patient.rows[0].name,data.bedCode,unitOf(req)]);
    const record=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',
     ['hospitalization',data.patientCpf,unitOf(req),'admitted',JSON.stringify({...data,hospitalizationId:admission.rows[0].id}),actor.username,actor.role]);
    await audit(req,client,'create','hospitalization',record.rows[0].id,data.patientCpf,{hospitalizationId:admission.rows[0].id,bedCode:data.bedCode});
@@ -389,24 +408,59 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
   }catch(e){return next(e);}finally{client.release();}
 });
 
+router.get('/api/v1/patient-allergies',requirePermission('records.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const cpf=req.query.patientCpf?normalizeCpf(req.query.patientCpf):null;
+ if(cpf&&!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query(
+   'SELECT pa.id,pa.patient_cpf,pa.allergy,pa.reaction,pa.severity,pa.recorded_by,pa.created_at FROM patient_allergies pa JOIN patients p ON p.cpf=pa.patient_cpf WHERE p.unit_id=$1 AND ($2::text IS NULL OR pa.patient_cpf=$2) ORDER BY pa.id DESC LIMIT 100',
+   [unitOf(req),cpf]
+  );
+  for(const row of result.rows)await audit(req,client,'read','patient_allergy',row.id,row.patient_cpf,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows,appendOnly:true});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/patient-allergies',requirePermission('records.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},cpf=normalizeCpf(b.patientCpf),allergy=String(b.allergy||'').trim(),reaction=String(b.reaction||'').trim(),severity=String(b.severity||'').toLowerCase();
+ if(!validCpf(cpf)||!allergy||allergy.length>500||reaction.length>1000||!['mild','moderate','severe','unknown'].includes(severity))return res.status(400).json({erro:'Informe CPF válido, substância, reação de até 1000 caracteres e gravidade permitida.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const patient=await client.query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2 FOR SHARE',[cpf,unitOf(req)]);
+  if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+  const result=await client.query('INSERT INTO patient_allergies(patient_cpf,allergy,unit_id,reaction,severity,recorded_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,patient_cpf,allergy,reaction,severity,recorded_by,created_at',
+   [cpf,allergy,unitOf(req),reaction||null,severity,actorOf(req).username]);
+  await audit(req,client,'create','patient_allergy',result.rows[0].id,cpf,{severity});
+  await client.query('COMMIT');
+  return res.status(201).json({item:result.rows[0],appendOnly:true});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const cpf=normalizeCpf(req.params.cpf);if(!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
  const client=await getPool().connect();
  try{
+  await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
   const patient=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
-  if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
+  if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
   const [allergies,conditions,records,alerts]=await Promise.all([
-   client.query('SELECT allergy,created_at FROM patient_allergies WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
-   client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 ORDER BY created_at DESC',[cpf]),
+   client.query('SELECT allergy,reaction,severity,recorded_by,created_at FROM patient_allergies WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
+   client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
    client.query("SELECT id,resource_type,status,data,created_at FROM clinical_records WHERE patient_cpf=$1 AND unit_id=$2 AND resource_type IN ('soap','vitals','diagnosis','prescription','exam_order','maternal_child','chronic_care','immunization') ORDER BY id DESC LIMIT 30",[cpf,unitOf(req)]),
-   client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf])
+   client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND unit_id=$2 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf,unitOf(req)])
   ]);
   await audit(req,client,'read','patient_summary',patient.rows[0].id,cpf,{recordCount:records.rowCount});
+  await client.query('COMMIT');
   const latestSoap=records.rows.find(row=>row.resource_type==='soap');
   const medications=records.rows.filter(row=>row.resource_type==='prescription');
   return res.json({patient:patient.rows[0],allergies:allergies.rows,activeConditions:conditions.rows,medications,familyHistory:latestSoap?.data?.familyHistory||null,activeAlerts:alerts.rows,recentClinicalRecords:records.rows});
- }catch(e){return next(e);}finally{client.release();}
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
  router.get(`/api/v1/${resourceKey}`,requirePermission(def.permission),async(req,res,next)=>{
@@ -488,6 +542,36 @@ for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
  }
+router.get('/api/v1/prescription-validations',requirePermission('prescriptions.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query("SELECT id,patient_cpf,status,data,created_by,created_at,supersedes_id FROM clinical_records WHERE resource_type='prescription_validation' AND unit_id=$1 ORDER BY id DESC LIMIT 100",[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','prescription_validation',row.id,row.patient_cpf,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/prescription-validations',requirePermission('prescriptions.validate'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.body?.prescriptionRecordId),decision=req.body?.decision,reason=String(req.body?.reason||'').trim();
+ if(!Number.isSafeInteger(id)||id<1||!['approved','rejected'].includes(decision))return res.status(400).json({erro:'Informe uma prescrição e decisão approved/rejected.'});
+ if(decision==='rejected'&&!reason)return res.status(400).json({erro:'Justificativa obrigatória para rejeitar a prescrição.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const original=await client.query("SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 AND NOT EXISTS (SELECT 1 FROM clinical_records child WHERE child.supersedes_id=clinical_records.id AND child.resource_type='prescription') FOR SHARE",[id,unitOf(req)]);
+  if(!original.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição vigente não encontrada nesta unidade.'});}
+  if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
+  const actor=actorOf(req),result=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,patient_cpf,status,data,created_by,created_at,supersedes_id',
+   ['prescription_validation',original.rows[0].patient_cpf,unitOf(req),decision,JSON.stringify({prescriptionRecordId:id,decision,reason:reason.slice(0,1000)}),actor.username,actor.role,id]);
+  await audit(req,client,'create','prescription_validation',result.rows[0].id,original.rows[0].patient_cpf,{prescriptionRecordId:id,decision});
+  await client.query('COMMIT');
+  return res.status(201).json({validation:result.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescriptions.validate'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const id=Number(req.params.id),decision=req.body?.decision;
@@ -504,21 +588,95 @@ router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescripti
   await client.query('COMMIT');return res.status(201).json({validation:r.rows[0]});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
+router.get('/api/v1/inventory-items',requirePermission('inventory.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query('SELECT id,name,category,quantity,min_stock,high_risk,updated_at FROM unit_inventory_items WHERE unit_id=$1 ORDER BY name LIMIT 500',[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','inventory_item',row.id,null,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/inventory-items',requirePermission('inventory.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},name=String(b.name||'').trim(),category=String(b.category||'Outros').trim();
+ const quantity=Number(b.quantity??0),minStock=Number(b.minStock??0);
+ if(!name||name.length>180||!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(minStock)||minStock<0||(b.highRisk!==undefined&&!['true','false',true,false].includes(b.highRisk)))return res.status(400).json({erro:'Informe nome, quantidade inteira não negativa, estoque mínimo válido e indicador de alto risco booleano.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query('INSERT INTO unit_inventory_items(unit_id,name,category,quantity,min_stock,high_risk,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,name,category,quantity,min_stock,high_risk,updated_at',
+   [unitOf(req),name,category.slice(0,100),quantity,minStock,(b.highRisk===true||b.highRisk==='true'),actorOf(req).username]);
+  await audit(req,client,'create','inventory_item',result.rows[0].id,null,{quantity,minStock});
+  await client.query('COMMIT');
+  return res.status(201).json({item:result.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({erro:'Item já cadastrado nesta unidade.'});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/inventory-movements',requirePermission('inventory.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query('SELECT m.id,m.inventory_item_id AS inventory_id,i.name AS item_name,m.kind,m.qty,m.reason,m.created_by,m.created_at FROM unit_inventory_movements m JOIN unit_inventory_items i ON i.id=m.inventory_item_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT 100',[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','inventory_movement',row.id,null,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/inventory-movements',requirePermission('inventory.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},inventoryId=Number(b.inventoryId),qty=Number(b.qty),kind=String(b.kind||''),reason=String(b.reason||'').trim();
+ if(!Number.isSafeInteger(inventoryId)||inventoryId<1||!Number.isSafeInteger(qty)||qty<=0||!['entry','exit','return'].includes(kind)||reason.length<5||reason.length>1000)return res.status(400).json({erro:'Item, quantidade inteira positiva, tipo de movimento e justificativa de 5 a 1000 caracteres são obrigatórios.'});
+ const delta=['entry','return'].includes(kind)?qty:-qty,client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const item=await client.query('SELECT id,quantity FROM unit_inventory_items WHERE id=$1 AND unit_id=$2 FOR UPDATE',[inventoryId,unitOf(req)]);
+  if(!item.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Item não encontrado nesta unidade.'});}
+  const nextQuantity=Number(item.rows[0].quantity)+delta;
+  if(nextQuantity<0){await client.query('ROLLBACK');return res.status(409).json({erro:'Movimento excede o saldo disponível.',codigo:'INSUFFICIENT_STOCK'});}
+  await client.query('UPDATE unit_inventory_items SET quantity=$1,updated_at=NOW() WHERE id=$2 AND unit_id=$3',[nextQuantity,inventoryId,unitOf(req)]);
+  const result=await client.query('INSERT INTO unit_inventory_movements(inventory_item_id,kind,qty,reason,created_by,unit_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,inventory_item_id,kind,qty,reason,created_by,created_at',
+   [inventoryId,kind,qty,reason,actorOf(req).username,unitOf(req)]);
+  await audit(req,client,'create','inventory_movement',result.rows[0].id,null,{inventoryId,kind,qty,balanceAfter:nextQuantity});
+  await client.query('COMMIT');
+  return res.status(201).json({movement:result.rows[0],balance:nextQuantity});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.get('/api/v1/medication-lots',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
- try{const r=await getPool().query('SELECT id,medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 ORDER BY expires_on ASC,id ASC LIMIT 200',[unitOf(req)]);return res.json({items:r.rows});}
- catch(e){return next(e);}
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const r=await client.query('SELECT id,medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 ORDER BY expires_on ASC,id ASC LIMIT 200',[unitOf(req)]);
+  for(const row of r.rows)await audit(req,client,'read','medication_lot',row.id,null,{expiresOn:row.expires_on});
+  await client.query('COMMIT');
+  return res.json({items:r.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const b=req.body||{};
  if(!String(b.medicationCode||'').trim()||!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Código RENAME, medicamento, lote, validade e quantidade positiva são obrigatórios.'});
- try{const state=await officialCodeState(getPool(),'RENAME',String(b.medicationCode));if(!state.loaded)return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});if(!state.valid)return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});
-  const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
+ let client;
+ try{
+  client=await getPool().connect();
+  await client.query('BEGIN');
+  const state=await officialCodeState(client,'RENAME',String(b.medicationCode));
+  if(!state.loaded){await client.query('ROLLBACK');return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});}
+  if(!state.valid){await client.query('ROLLBACK');return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});}
+  const r=await client.query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
    [String(b.medicationCode),state.label,String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);
-  const client=await getPool().connect();try{await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});}finally{client.release();}
+  await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});
+  await client.query('COMMIT');
   return res.status(201).json({lot:r.rows[0]});
- }catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
+ }catch(e){
+  if(client)await client.query('ROLLBACK').catch(()=>{});
+  if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});
+  return next(e);
+ }finally{if(client)client.release();}
 });
 router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescriptions.dispense'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
@@ -530,10 +688,10 @@ router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescription
   if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição não encontrada.'});}
   const child=await client.query("SELECT id FROM clinical_records WHERE resource_type='prescription' AND supersedes_id=$1 AND unit_id=$2 ORDER BY id DESC LIMIT 1",[id,unitOf(req)]);
   if(child.rowCount){await client.query('ROLLBACK');return res.status(409).json({erro:'Prescrição foi corrigida; utilize a versão mais recente.',codigo:'PRESCRIPTION_SUPERSEDED'});}
-  const approved=await client.query("SELECT id,status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 ORDER BY id DESC LIMIT 1",[id]);
+  const approved=await client.query("SELECT id,status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 AND unit_id=$2 ORDER BY id DESC LIMIT 1",[id,unitOf(req)]);
   if(!approved.rowCount||approved.rows[0].status!=='approved'){await client.query('ROLLBACK');return res.status(409).json({erro:'A última decisão profissional não autoriza a dispensação.',codigo:'PRESCRIPTION_NOT_VALIDATED'});}
   const prescribed=Number(p.rows[0].data.quantity||0);
-  const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1',[id]);
+  const prior=await client.query('SELECT COALESCE(SUM(quantity),0) AS dispensed FROM medication_dispensing_events WHERE prescription_record_id=$1 AND unit_id=$2',[id,unitOf(req)]);
   const already=Number(prior.rows[0].dispensed||0);
   if(prescribed>0&&already+quantity>prescribed){await client.query('ROLLBACK');return res.status(409).json({erro:'Quantidade solicitada excede o saldo da prescrição.',codigo:'PRESCRIPTION_QUANTITY_EXCEEDED'});}
   const medCode=String(p.rows[0].data.medicationCode||'').trim();
@@ -551,6 +709,35 @@ router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescription
   await audit(req,client,'create','dispensation',event.rows[0].id,p.rows[0].patient_cpf,{prescriptionRecordId:id,quantity,lotCount:allocations.length});
   await client.query('COMMIT');return res.status(201).json({dispensation:event.rows[0],allocations,fefo:true});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
+router.get('/api/v1/audit/integrity',requirePermission('audit.read'),async(req,res)=>{
+  if(!usingPostgres())return res.status(503).json({code:'AUDIT_INTEGRITY_UNAVAILABLE',message:'A verificação de integridade exige PostgreSQL.',requestId:req.get('x-request-id')||null});
+  let client;
+  try{
+    client=await getPool().connect();
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const verification=await verifyAuditChain(client);
+    await audit(req,client,'read','audit_integrity',null,null,{
+      ledger:'audit_logs',
+      valid:verification.valid,
+      count:verification.count??null,
+      hashChainValid:verification.hashChainValid,
+      unverifiedLegacyRecords:verification.unverifiedLegacyRecords??0,
+      brokenAt:verification.brokenAt??null,
+      reason:verification.reason??null
+    });
+    await client.query('COMMIT');
+    return res.json({
+      ledger:'audit_logs',
+      ...verification,
+      verifiedAt:new Date().toISOString(),
+      scopeNote:'Esta verificação cobre somente audit_logs. Eventos legados sem hash ficam como não verificáveis; clinical_audit_events é append-only, mas ainda não integra esta cadeia de hashes.'
+    });
+  }catch(error){
+    if(client)await client.query('ROLLBACK').catch(()=>{});
+    return res.status(503).json({code:'AUDIT_INTEGRITY_UNAVAILABLE',message:'Não foi possível verificar a cadeia de auditoria.',requestId:req.get('x-request-id')||null});
+  }finally{client?.release();}
 });
 
 router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),async(req,res,next)=>{

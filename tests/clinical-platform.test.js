@@ -35,7 +35,7 @@ assert.equal(validateResourcePayload('prescriptions',{
  patientCpf:'12345678900',medicationCode:'123',medicationName:'Medicamento',dose:'1 unidade',route:'oral',frequency:'conforme prescrição',quantity:30
 }).ok,true);
 assert.equal(validateResourcePayload('billing',{
- instrument:'AIH',competence:'202611',sigtapCode:'0000000000',cboCode:'225125',cidCode:'I10'
+ patientCpf:'12345678900',instrument:'AIH',competence:'202611',sigtapCode:'0000000000',cboCode:'225125',cidCode:'I10',quantity:1
 }).ok,true);
 assert.equal(validateResourcePayload('billing',{
  instrument:'FAKE',competence:'2026-11',sigtapCode:'x',cboCode:'x',cidCode:'x'
@@ -65,19 +65,48 @@ const fs=require('node:fs');
 const path=require('node:path');
 const routerSource=fs.readFileSync(path.join(__dirname,'../backend/src/routes/clinicalPlatform.js'),'utf8');
 const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261112_clinical_platform.sql'),'utf8');
+const baseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf8');
+const operationalMigration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261119_operational_modules.sql'),'utf8');
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
+assert.match(routerSource,/api\/v1\/audit\/integrity/, 'audit hash chain must have an integrity verification endpoint');
+assert.match(routerSource,/verifyAuditChain\(client\)/, 'integrity endpoint must call the chain verifier');
+assert.match(routerSource,/BEGIN ISOLATION LEVEL REPEATABLE READ/, 'patient summary must read a consistent snapshot');
+assert.match(routerSource,/api\/v1\/patient-allergies/, 'allergy history must have a dedicated clinical API');
+assert.match(routerSource,/api\/v1\/inventory-items/, 'inventory items must have a unit-scoped API');
+assert.match(routerSource,/api\/v1\/prescription-validations/, 'pharmacy validation must use a dedicated prescription workflow API');
+assert.match(routerSource,/referrals:\{type:'referral'/, 'referrals must have a patient-scoped clinical resource definition');
+assert.match(routerSource,/billing:\{type:'billing'/, 'SUS production must have a validated billing resource definition');
+assert.match(routerSource,/api\/v1\/inventory-movements/, 'stock movements must have a dedicated transactional API');
+assert.match(routerSource,/api\/v1\/medication-lots/, 'medication lots must be unit-scoped and ordered by expiry');
+assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movements must prevent negative inventory');
 assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');
 assert.match(routerSource,/CPF_CHANGE_REQUIRES_RELATIONAL_REKEY/, 'CPF changes must remain blocked until references can be rekeyed safely');
 assert.match(routerSource,/audit\(req,client,'access_denied','patient_identity'/, 'denied sensitive identity changes must be audited');
 assert.match(routerSource,/audit\(req,client,'update','patient_identity'/, 'successful identity changes must be audited as updates');
+assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO patients[\s\S]*?await audit\(req,client,'create','patient_identity'[\s\S]*?await client\.query\('COMMIT'\)/, 'patient creation and its audit event must share one transaction');
+assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO medication_lots[\s\S]*?await audit\(req,client,'create','medication_lot'[\s\S]*?await client\.query\('COMMIT'\)/, 'medication lot creation and its audit event must share one transaction');
+assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO appointments[\s\S]*?await audit\(req,client,'create','appointment'[\s\S]*?await client\.query\('COMMIT'\)/, 'appointment creation and its audit event must share one transaction');
 assert.match(routerSource,/ORDER BY expires_on ASC,id ASC FOR UPDATE/, 'dispensing must lock FEFO lots');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
+assert.match(routerSource,/prescription_validation' AND supersedes_id=\$1 AND unit_id=\$2/, 'prescription approval lookup must be unit-scoped');
+assert.match(routerSource,/medication_dispensing_events WHERE prescription_record_id=\$1 AND unit_id=\$2/, 'dispensed quantity totals must be unit-scoped');
+assert.match(routerSource,/UPDATE beds SET status=\$1,patient_cpf=\$2,patient_name=\$3,occupied_since=NOW\(\).*?\['occupied',data\.patientCpf,patient\.rows\[0\]\.name,data\.bedCode,unitOf\(req\)\]/, 'admission must occupy the selected bed and associate the patient');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');
 assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not pretend a digital signature is implemented');
 assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catalogs must fail explicitly');
+assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id TEXT[\s\S]*?\);[\s\S]*?idx_patients_cpf_blind_unit/, 'patient unit scope must exist before the blind-index schema index is created');
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
+assert.match(operationalMigration,/patient_allergies_immutable/, 'allergy history must be append-only');
+assert.match(operationalMigration,/ALTER TABLE patient_conditions ADD COLUMN IF NOT EXISTS unit_id/, 'legacy patient conditions must gain unit scope');
+assert.match(operationalMigration,/ALTER TABLE alerts ADD COLUMN IF NOT EXISTS unit_id/, 'legacy patient alerts must gain unit scope');
+assert.match(operationalMigration,/alerts_inherit_unit/, 'legacy alert writes must inherit the patient unit');
+assert.match(routerSource,/patient_allergies WHERE patient_cpf=\$1 AND unit_id=\$2/, 'patient summary must scope allergy history to the session unit');
+assert.match(routerSource,/patient_conditions WHERE patient_cpf=\$1 AND unit_id=\$2/, 'patient summary must scope conditions to the session unit');
+assert.match(routerSource,/alerts WHERE patient_cpf=\$1 AND unit_id=\$2 AND resolved=FALSE/, 'patient summary must scope alerts to the session unit');
+assert.match(operationalMigration,/unit_inventory_movements_immutable/, 'stock movement ledger must be append-only');
+assert.match(operationalMigration,/idx_unit_inventory_items_unit_name/, 'inventory item uniqueness must be scoped by unit');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');
 assert.match(migration,/patients\.identity\.sensitive\.write/, 'migration must seed the elevated identifier permission');

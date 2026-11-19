@@ -12,9 +12,30 @@ function redact(value) {
   );
 }
 
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    if (value instanceof Date) return value.toISOString();
+    return Object.keys(value).sort().reduce((result, key) => {
+      result[key] = canonicalize(value[key]);
+      return result;
+    }, {});
+  }
+  return value;
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
 function patientHash(patientIdentifier) {
   if (!patientIdentifier) return null;
-  return crypto.createHash('sha256').update(String(patientIdentifier)).digest('hex');
+  const pepper = process.env.AUDIT_HASH_PEPPER;
+  if (!pepper && process.env.NODE_ENV === 'production') {
+    throw new Error('AUDIT_HASH_PEPPER é obrigatório em produção para pseudonimizar identificadores de pacientes.');
+  }
+  const key = pepper || 'sentinela-development-only-audit-pepper';
+  return crypto.createHmac('sha256', key).update(String(patientIdentifier)).digest('hex');
 }
 
 async function appendAudit(client, {
@@ -32,10 +53,20 @@ async function appendAudit(client, {
   reason
 }) {
   if (!username || !action) throw new Error('Evento de auditoria incompleto.');
+  // Serialize chain appends inside the caller's transaction. Without this lock,
+  // concurrent writers can read the same tail hash and fork the audit chain.
+  // The lock is transaction-scoped and is released automatically on COMMIT/ROLLBACK.
+  await client.query('SELECT pg_advisory_xact_lock($1, $2)', [1398035017, 1]);
   const previous = await client.query(
-    'SELECT record_hash FROM audit_logs ORDER BY id DESC LIMIT 1'
+    'SELECT record_hash,hash_version FROM audit_logs ORDER BY id DESC LIMIT 1'
   );
-  const previousHash = previous.rows[0]?.record_hash || '';
+  // Legacy events marked version 0 are retained but were never cryptographically
+  // chained. Start a new verifiable segment after them instead of pretending
+  // their empty hash is a trustworthy predecessor.
+  const latest = previous.rows[0];
+  const previousHash = latest && Number(latest.hash_version || 0) > 0 && latest.record_hash
+    ? latest.record_hash
+    : '';
   const payload = {
     username,
     role: role || null,
@@ -50,16 +81,19 @@ async function appendAudit(client, {
     ...(before === undefined ? {} : { before: redact(before) }),
     ...(after === undefined ? {} : { after: redact(after) })
   };
+  // Version 2 hashes canonical JSON so PostgreSQL JSONB key ordering cannot
+  // create false integrity failures during later verification.
+  const hashVersion = 2;
   const recordHash = crypto
     .createHash('sha256')
-    .update(previousHash + JSON.stringify(payload))
+    .update(previousHash + canonicalJson(payload))
     .digest('hex');
 
   await client.query(
     `INSERT INTO audit_logs
       (username, role, unit, patient_hash, action, details, resource, before_data, after_data,
-       ip, user_agent, request_id, reason, previous_hash, record_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+       ip, user_agent, request_id, reason, previous_hash, record_hash, hash_version)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
     [
       username,
       role || null,
@@ -75,7 +109,8 @@ async function appendAudit(client, {
       requestId || null,
       reason || null,
       previousHash,
-      recordHash
+      recordHash,
+      hashVersion
     ]
   );
   return recordHash;
@@ -83,12 +118,22 @@ async function appendAudit(client, {
 
 async function verifyAuditChain(client) {
   const result = await client.query(
-    'SELECT id, username, role, unit, patient_hash, action, details, resource, before_data, after_data, ip, user_agent, request_id, reason, previous_hash, record_hash, happened_at FROM audit_logs ORDER BY id ASC'
+    'SELECT id, username, role, unit, patient_hash, action, details, resource, before_data, after_data, ip, user_agent, request_id, reason, previous_hash, record_hash, hash_version, happened_at FROM audit_logs ORDER BY id ASC'
   );
   let previousHash = '';
+  let count = 0;
+  let unverifiedLegacyRecords = 0;
   for (const row of result.rows) {
+    const hashVersion = Number(row.hash_version || 0);
+    if (hashVersion === 0) {
+      // Historical legacy events without a stored hash remain visible but are
+      // explicitly excluded from the cryptographically verified count.
+      unverifiedLegacyRecords += 1;
+      previousHash = '';
+      continue;
+    }
     if (row.previous_hash !== previousHash) {
-      return { valid: false, brokenAt: row.id };
+      return { valid: false, hashChainValid: false, count, unverifiedLegacyRecords, brokenAt: row.id };
     }
     const payload = {
       username: row.username,
@@ -104,16 +149,27 @@ async function verifyAuditChain(client) {
       ...(row.before_data == null ? {} : { before: row.before_data }),
       ...(row.after_data == null ? {} : { after: row.after_data })
     };
+    if (hashVersion !== 1 && hashVersion !== 2) {
+      return { valid: false, hashChainValid: false, count, unverifiedLegacyRecords, brokenAt: row.id, reason: 'unsupported_hash_version' };
+    }
+    const serializedPayload = hashVersion === 2 ? canonicalJson(payload) : JSON.stringify(payload);
     const expected = crypto
       .createHash('sha256')
-      .update(previousHash + JSON.stringify(payload))
+      .update(previousHash + serializedPayload)
       .digest('hex');
     if (row.record_hash !== expected) {
-      return { valid: false, brokenAt: row.id };
+      return { valid: false, hashChainValid: false, count, unverifiedLegacyRecords, brokenAt: row.id };
     }
     previousHash = row.record_hash;
+    count += 1;
   }
-  return { valid: true, count: result.rows.length };
+  return {
+    valid: unverifiedLegacyRecords === 0,
+    hashChainValid: true,
+    count,
+    unverifiedLegacyRecords,
+    ...(unverifiedLegacyRecords ? { reason: 'legacy_events_without_hash' } : {})
+  };
 }
 
-module.exports = { appendAudit, verifyAuditChain, redact, patientHash };
+module.exports = { appendAudit, verifyAuditChain, redact, patientHash, canonicalJson };

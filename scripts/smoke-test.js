@@ -159,7 +159,7 @@ async function main() {
 
   const blockedModuleRead = await request('/protocolos', { headers: { Cookie: sessionCookie } });
   assertCondition(blockedModuleRead.response.status === 501, `Módulo sem API específica deveria responder 501: HTTP ${blockedModuleRead.response.status}`);
-  assertCondition(blockedModuleRead.body?.codigo === 'MODULE_NOT_IMPLEMENTED', 'Módulo não implementado deveria explicar o bloqueio');
+  assertCondition(blockedModuleRead.body?.codigo === 'WORKFLOW_REQUIRES_VALIDATION', 'Fluxo clínico não validado deve explicar o bloqueio e a dependência externa');
 
   const blockedModuleWrite = await request('/protocolos', {
     method: 'POST',

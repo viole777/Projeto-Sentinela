@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT UNIQUE NOT NULL,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL,
-  token_hash TEXT,
   device_label TEXT,
   ip_hash TEXT,
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -60,6 +59,7 @@ CREATE TABLE IF NOT EXISTS patients (
   cpf TEXT UNIQUE NOT NULL,
   cpf_encrypted TEXT,
   cpf_blind_index CHAR(64),
+  unit_id TEXT,
   cns_encrypted TEXT,
   phone_encrypted TEXT,
   address_encrypted TEXT,
@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   reason TEXT,
   previous_hash TEXT,
   record_hash TEXT NOT NULL DEFAULT '',
+  hash_version INTEGER NOT NULL DEFAULT 0 CHECK (hash_version IN (0,1,2)),
   happened_at TIMESTAMPTZ DEFAULT NOW()
 );
 

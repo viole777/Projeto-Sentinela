@@ -40,6 +40,7 @@ const nav: NavGroup[] = [
     ['Protocolos clínicos','/app/protocolos-clinicos',ClipboardList],
     ['Alergias','/app/alergias',HeartPulse],
     ['Exames laboratoriais','/app/exames-laboratoriais',Activity],
+    ['Resultados laboratoriais','/app/resultados-laboratoriais',FileText],
     ['Imagem e laudos','/app/exames-imagem',FileText],
     ['Cardiologia','/app/cardiologia',HeartPulse],
     ['Resumo clínico com IA','/app/sentinela-ai',BrainCircuit],
@@ -49,6 +50,7 @@ const nav: NavGroup[] = [
     ['Farmácia clínica','/app/farmacia-clinica',Pill],
     ['Medicamentos controlados','/app/controlados',Pill],
     ['Movimentações','/app/movimentacao-estoque',Boxes],
+    ['Itens de estoque','/app/itens-estoque',Boxes],
     ['Validade e perdas','/app/validade-perdas',PackageSearch],
     ['Solicitações de compra','/app/solicitacao-compras',ClipboardList],
   ]},
@@ -97,7 +99,8 @@ export function AppShell() {
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState('');
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
-  const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  const [dark, setDark] = useState(() => localStorage.getItem('sentinela-theme') === 'dark' || document.documentElement.classList.contains('dark'));
+  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
   useEffect(() => {
     let active = true;
     fetch('/me', { credentials: 'include', headers: { Accept: 'application/json' } })
@@ -115,6 +118,7 @@ export function AppShell() {
         sessionStorage.setItem('sentinelaRole', String(me.role || me.tipo || ''));
         sessionStorage.setItem('sentinelaPermissions', JSON.stringify(Array.isArray(me.permissions) ? me.permissions : []));
         sessionStorage.setItem('sentinelaNome', String(me.nome || me.usuario || ''));
+        sessionStorage.setItem('sentinelaUnidade', String(me.unit || me.unidade || ''));
         setPermissionRevision(value => value + 1);
         setAuthReady(true);
       })
@@ -123,6 +127,7 @@ export function AppShell() {
         sessionStorage.removeItem('sentinelaPermissions');
         sessionStorage.removeItem('sentinelaRole');
         sessionStorage.removeItem('sentinelaNome');
+        sessionStorage.removeItem('sentinelaUnidade');
         const status = (error as Error & { status?: number })?.status;
         setAuthError(status === 503
           ? 'O serviço de autenticação ou permissões está indisponível. Tente novamente em instantes.'
@@ -142,6 +147,15 @@ export function AppShell() {
       (!query || label.toLowerCase().includes(query.toLowerCase()) || group.label.toLowerCase().includes(query.toLowerCase()))
     )
   })).filter(group => group.items.length), [query, permissionRevision]);
+
+  async function logout() {
+    try {
+      await fetch('/logout', { method: 'POST', credentials: 'include' });
+    } finally {
+      ['sentinelaRole','sentinelaPermissions','sentinelaNome','sentinelaUnidade'].forEach(key => sessionStorage.removeItem(key));
+      navigate('/login', { replace: true });
+    }
+  }
 
   function toggleDark() {
     const next = !dark;
@@ -186,7 +200,7 @@ export function AppShell() {
         <button className="sent-footer-action sent-collapse-button" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
           {collapsed ? <ChevronRight size={17}/> : <><ChevronLeft size={17}/> Recolher menu</>}
         </button>
-        <button className="sent-footer-action" onClick={() => navigate('/login')}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
+        <button className="sent-footer-action" onClick={() => void logout()}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
       </div>
     </aside>
 

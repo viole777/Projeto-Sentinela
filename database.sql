@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS patients (
   patient_type TEXT,
   perfil JSONB DEFAULT '{}'::jsonb,
   status TEXT DEFAULT 'triagem',
+  version INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -251,8 +252,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   username TEXT NOT NULL,
   role TEXT,
+  unit TEXT,
+  patient_hash TEXT,
   action TEXT NOT NULL,
   details JSONB DEFAULT '{}'::jsonb,
+  resource TEXT,
+  before_data JSONB,
+  after_data JSONB,
+  ip TEXT,
+  user_agent TEXT,
+  request_id TEXT,
+  reason TEXT,
+  previous_hash TEXT,
+  record_hash TEXT NOT NULL DEFAULT '',
   happened_at TIMESTAMPTZ DEFAULT NOW()
 );
 

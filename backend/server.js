@@ -1568,6 +1568,30 @@ app.get("/health", async (req, res) => {
     }
 });
 
+app.get("/api/v1/audit/integrity", requirePermission("audit.read"), async (req, res) => {
+    if (!usingPostgres()) {
+        return res.status(503).json({
+            erro: "Verificação de integridade disponível somente com PostgreSQL.",
+            codigo: "AUDIT_INTEGRITY_UNAVAILABLE"
+        });
+    }
+    try {
+        const { verifyAuditChain } = require("./src/services/transactionalAudit");
+        const result = await verifyAuditChain(getPool());
+        return res.status(result.valid ? 200 : 409).json({
+            code: result.valid ? "AUDIT_CHAIN_VALID" : "AUDIT_CHAIN_BROKEN",
+            valid: result.valid,
+            count: result.count,
+            brokenAt: result.brokenAt
+        });
+    } catch (_) {
+        return res.status(503).json({
+            erro: "Não foi possível verificar a trilha de auditoria.",
+            codigo: "AUDIT_INTEGRITY_UNAVAILABLE"
+        });
+    }
+});
+
 // API clínica versionada: schemas específicos, escopo por unidade e trilha de auditoria append-only.
 app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
     requirePermission,

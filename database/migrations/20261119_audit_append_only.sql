@@ -1,0 +1,23 @@
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS unit TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS patient_hash TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS before_data JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS after_data JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS previous_hash TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS record_hash TEXT NOT NULL DEFAULT '';
+
+CREATE OR REPLACE FUNCTION prevent_audit_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_logs is append-only';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS audit_logs_block_update ON audit_logs;
+CREATE TRIGGER audit_logs_block_update
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();

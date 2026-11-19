@@ -286,10 +286,8 @@ async function hydrate() {
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ");
     current = await readAllFromPostgres();
     hydrated = true;
-    // PostgreSQL conectado mas vazio → importa dados locais uma única vez.
-    if (await importJsonIfPostgresEmpty(current)) {
-      current = await readAllFromPostgres();
-    }
+    // Em produção o PostgreSQL é autônomo: dados locais JSON nunca são
+    // importados automaticamente para o banco de execução.
   } catch (error) {
     hydrated = false;
     console.error('[storage] PostgreSQL indisponível; inicialização interrompida para evitar fallback local em produção:', error.message);

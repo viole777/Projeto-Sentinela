@@ -128,6 +128,14 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 - Foram adicionados testes de contrato e integração HTTP com banco simulado. A aprovação final depende do CI PostgreSQL e do build TypeScript/Vite.
 - As rotas clínicas, assinatura digital, integrações externas e módulos que exigem catálogos oficiais permanecem bloqueados até terem implementação e validação próprias. Consulte `docs/OPERATIONAL_MODULE_APIS.md`.
 
+## Auditoria append-only: incremento de integridade (parcial)
+
+- Foi adicionada a rota `GET /api/v1/audit/integrity`, protegida por `audit.read`, que verifica `audit_logs` em uma transação `REPEATABLE READ` e registra a própria consulta no ledger separado de auditoria clínica.
+- Novos eventos gravados por `appendAudit` usam hash v2 com JSON canônico, evitando falsos negativos causados pela ordenação de chaves em `JSONB`. A verificação também lê eventos de hash v1 para compatibilidade.
+- Eventos históricos sem hash recebem versão 0; permanecem intactos, são contados como não verificáveis e impedem que o endpoint retorne `valid: true`. A cadeia nova inicia um segmento verificável após esses eventos.
+- A migração revoga `UPDATE` e `DELETE` de `PUBLIC` nas tabelas `audit_logs` e `clinical_audit_events`; os triggers append-only existentes permanecem como segunda barreira.
+- **Limite:** `clinical_audit_events` ainda não está incluída na cadeia criptográfica. Eventos v1 cujo conteúdo JSONB não reproduza a serialização original também podem ser apontados como divergência. Break-glass, auditoria de todos os handlers legados e integração dos dois ledgers continuam pendentes.
+
 ## Correções de isolamento e consistência adicionadas
 
 - O resumo do paciente filtra alergias, condições e alertas por unidade; a migração adiciona `unit_id` aos registros legados de condições e alertas, faz backfill a partir do paciente e instala gatilhos para novas gravações legadas.
@@ -144,7 +152,7 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 5. O CI revelou uma declaração duplicada de `sessions.token_hash` em `database.sql`; a coluna duplicada foi removida e um teste de regressão foi adicionado.
 6. Testes estáticos/regressivos verificam a ordem do lock, pseudonimização, atomicidade das operações e transição de ocupação do leito.
 
-**Validação comprovada no head `eb54818`:** Sentinela CI, Frontend v2 build, Dependency Audit e Secret history scan passaram. O Sentinela CI executou verificação de sintaxe do backend, testes unitários, criação do schema e importação de fixtures sintéticas, aplicação/verificação das migrações clínica e operacional, build de navegação, inicialização do servidor e smoke tests contra PostgreSQL real. Isso comprova os gates automatizados existentes, não substitui `npm run typecheck` independente, E2E por papel, SAST/SBOM/DAST, validação clínica ou homologação externa.
+**Validação comprovada no head `5fa2440`:** Sentinela CI, Frontend v2 build, Dependency Audit e Secret history scan passaram. A execução do Sentinela CI incluiu as novas regressões de hash v1/v2, JSONB, registros legados sem hash e endpoint de integridade. O Sentinela CI executou verificação de sintaxe do backend, testes unitários, criação do schema e importação de fixtures sintéticas, aplicação/verificação das migrações clínica e operacional, build de navegação, inicialização do servidor e smoke tests contra PostgreSQL real. Isso comprova os gates automatizados existentes, não substitui `npm run typecheck` independente, E2E por papel, SAST/SBOM/DAST, validação clínica ou homologação externa.
 
 ## Gate final
 

@@ -20,7 +20,7 @@ const advancedRoutes = [
   'agenda-medica','disponibilidade','fila-chamada','transferencias','mapa-leitos','internacoes','alta-hospitalar',
   'evolucao-medica','evolucao-enfermagem','plano-cuidados','sinais-vitais','prescricao-eletronica-avancada','administracao-medicamentos',
   'incidentes','protocolos-clinicos','alergias','exames-laboratoriais','resultados-laboratoriais','exames-imagem','cardiologia',
-  'farmacia-clinica','controlados','movimentacao-estoque','validade-perdas','solicitacao-compras','faturamento-sus','producao-sus',
+  'farmacia-clinica','controlados','itens-estoque','movimentacao-estoque','validade-perdas','solicitacao-compras','faturamento-sus','producao-sus',
   'faturamento-dashboard','glosas','relatorios-producao','profissionais','escalas','troca-plantao','frequencia','notificacao-incidente',
   'indicadores-qualidade','dashboard-gerencial','ccih-infeccao','lgpd-consentimentos','trilha-auditoria','notificacoes','comunicados',
   'encaminhamentos','portal-paciente','configuracao-protocolos','parametros-unidade','modulos','gestao-usuarios',

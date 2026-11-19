@@ -53,18 +53,41 @@ CREATE TRIGGER patient_allergies_immutable
 BEFORE UPDATE OR DELETE ON patient_allergies
 FOR EACH ROW EXECUTE FUNCTION sentinela_reject_patient_allergy_mutation();
 
--- Unit-scoped inventory and append-only stock movement ledger.
-ALTER TABLE inventory ADD COLUMN IF NOT EXISTS unit_id TEXT;
-ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit_id TEXT;
-CREATE INDEX IF NOT EXISTS idx_inventory_unit_name ON inventory(unit_id,name);
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_unit_created ON inventory_movements(unit_id,created_at DESC);
-CREATE OR REPLACE FUNCTION sentinela_reject_inventory_movement_mutation()
+-- Dedicated unit-scoped inventory avoids changing legacy global inventory rows.
+CREATE TABLE IF NOT EXISTS unit_inventory_items (
+  id BIGSERIAL PRIMARY KEY,
+  unit_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Outros',
+  quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  min_stock INTEGER NOT NULL DEFAULT 0 CHECK (min_stock >= 0),
+  high_risk BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(unit_id,name)
+);
+CREATE INDEX IF NOT EXISTS idx_unit_inventory_items_unit_name
+  ON unit_inventory_items(unit_id,name);
+CREATE TABLE IF NOT EXISTS unit_inventory_movements (
+  id BIGSERIAL PRIMARY KEY,
+  inventory_item_id BIGINT NOT NULL REFERENCES unit_inventory_items(id),
+  unit_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('entry','exit','return')),
+  qty INTEGER NOT NULL CHECK (qty > 0),
+  reason TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_unit_inventory_movements_unit_created
+  ON unit_inventory_movements(unit_id,created_at DESC);
+CREATE OR REPLACE FUNCTION sentinela_reject_unit_inventory_movement_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'inventory movements are append-only';
+  RAISE EXCEPTION 'unit inventory movements are append-only';
 END;
 $$;
-DROP TRIGGER IF EXISTS inventory_movements_immutable ON inventory_movements;
-CREATE TRIGGER inventory_movements_immutable
-BEFORE UPDATE OR DELETE ON inventory_movements
-FOR EACH ROW EXECUTE FUNCTION sentinela_reject_inventory_movement_mutation();
+DROP TRIGGER IF EXISTS unit_inventory_movements_immutable ON unit_inventory_movements;
+CREATE TRIGGER unit_inventory_movements_immutable
+BEFORE UPDATE OR DELETE ON unit_inventory_movements
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_unit_inventory_movement_mutation();

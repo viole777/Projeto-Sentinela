@@ -47,6 +47,9 @@ Além das APIs operacionais acima, as telas clínicas abaixo foram ligadas aos e
 | `/api/v1/exam-orders` | Solicitação de exames, imagem e cardiologia |
 | `/api/v1/exam-results` | Resultados laboratoriais |
 | `/api/v1/patient-allergies` | Histórico de alergias |
+| `/api/v1/inventory-items` | Cadastro de itens por unidade |
+| `/api/v1/inventory-movements` | Entradas, saídas e devoluções com saldo transacional |
+| `/api/v1/medication-lots` | Consulta de lotes e validade com ordenação FEFO |
 
 Esses endpoints pertencem ao contrato clínico versionado, com validação de payload e escopo por unidade. As rotas que exigem vínculo CNS/CBO dependem de cadastro profissional ativo. A existência da tela não substitui o cadastro e a validação dos catálogos oficiais.
 

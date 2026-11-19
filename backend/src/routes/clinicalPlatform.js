@@ -446,8 +446,9 @@ router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),asyn
  const cpf=normalizeCpf(req.params.cpf);if(!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
  const client=await getPool().connect();
  try{
+  await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
   const patient=await client.query('SELECT id,name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name FROM patients WHERE cpf=$1 AND unit_id=$2',[cpf,unitOf(req)]);
-  if(!patient.rowCount)return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});
+  if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
   const [allergies,conditions,records,alerts]=await Promise.all([
    client.query('SELECT allergy,reaction,severity,recorded_by,created_at FROM patient_allergies WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
    client.query('SELECT condition,created_at FROM patient_conditions WHERE patient_cpf=$1 AND unit_id=$2 ORDER BY created_at DESC',[cpf,unitOf(req)]),
@@ -455,10 +456,11 @@ router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),asyn
    client.query('SELECT id,level,rule,message,details,happened_at FROM alerts WHERE patient_cpf=$1 AND unit_id=$2 AND resolved=FALSE ORDER BY happened_at DESC LIMIT 20',[cpf,unitOf(req)])
   ]);
   await audit(req,client,'read','patient_summary',patient.rows[0].id,cpf,{recordCount:records.rowCount});
+  await client.query('COMMIT');
   const latestSoap=records.rows.find(row=>row.resource_type==='soap');
   const medications=records.rows.filter(row=>row.resource_type==='prescription');
   return res.json({patient:patient.rows[0],allergies:allergies.rows,activeConditions:conditions.rows,medications,familyHistory:latestSoap?.data?.familyHistory||null,activeAlerts:alerts.rows,recentClinicalRecords:records.rows});
- }catch(e){return next(e);}finally{client.release();}
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
  router.get(`/api/v1/${resourceKey}`,requirePermission(def.permission),async(req,res,next)=>{

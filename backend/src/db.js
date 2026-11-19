@@ -284,6 +284,7 @@ async function hydrate() {
     await syncBuiltInRolePermissions(pool);
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_hash TEXT");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ");
+    await pool.query("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS token_hash TEXT");
     current = await readAllFromPostgres();
     hydrated = true;
     // Em produção o PostgreSQL é autônomo: dados locais JSON nunca são

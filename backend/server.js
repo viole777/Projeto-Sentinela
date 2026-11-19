@@ -57,75 +57,32 @@ const passwordRateLimit = rateLimit({
     message: { erro: "Muitas tentativas de redefinição. Aguarde e tente novamente." }
 });
 
-// Frontend React v2: quando compilado, ele é servido na raiz. As páginas legadas
-// continuam disponíveis como fallback durante a migração gradual.
+// Frontend legado: restauração operacional solicitada pelo projeto.
+// React permanece disponível explicitamente em /app, sem assumir /, /login ou
+// as rotas HTML existentes dos perfis.
 const FRONTEND_V2_DIST = path.join(__dirname, "../frontend-v2/dist");
 const hasFrontendV2 = fs.existsSync(path.join(FRONTEND_V2_DIST, "index.html"));
-if (hasFrontendV2) app.use(express.static(FRONTEND_V2_DIST));
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get(["/tv", "/tv/"], (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/tv.html"));
 });
+app.get(["/login", "/login/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/index.html"));
+});
+app.get(["/primeiro-acesso", "/primeiro-acesso/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/primeiro-acesso.html"));
+});
+app.get(["/recuperar-senha", "/recuperar-senha/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/recuperar-senha.html"));
+});
 app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
 
-// Rotas da SPA React. Mantidas depois das rotas de API para não interceptar endpoints.
-app.get(/^\/(?:login|primeiro-acesso|recuperar-senha|app)(?:\/.*)?$/, (req, res, next) => {
+app.use("/app", express.static(FRONTEND_V2_DIST, { index: false }));
+app.get(/^\/app(?:\/.*)?$/, (req, res, next) => {
     if (!hasFrontendV2) return next();
     res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });
 
-// Browser navigation to legacy module URLs must enter the React shell.
-// API fetches accepting JSON continue to the real handlers below.
-function isHtmlDocumentNavigation(req) {
-    const accept = String(req.get("accept") || "");
-    // Accept: */* é comum em fetch/clients HTTP e não deve ser tratado como
-    // navegação do navegador. Só redirecionamos documentos HTML explícitos.
-    return /(?:^|,)\s*text\/html(?:\s*;|,|$)/i.test(accept)
-        && !/application\/json/i.test(accept);
-}
-
-const LEGACY_PAGE_ROUTES = {
-  "/dashboard": "/app/dashboard", "/pacientes": "/app/pacientes",
-  "/triagem": "/app/triagem", "/atendimentos": "/app/consultas",
-  "/atendimentos-casa": "/app/consultas", "/farmacia/prescricoes": "/app/farmacia",
-  "/estoque": "/app/estoque", "/alertas": "/app/alertas",
-  "/relatorios": "/app/relatorios", "/usuarios": "/app/gestao-usuarios",
-  "/profissionais": "/app/profissionais", "/leitos": "/app/mapa-leitos",
-  "/internacoes": "/app/internacoes", "/exames": "/app/exames-laboratoriais",
-  "/agenda": "/app/agenda-medica", "/enfermagem/evolucoes": "/app/evolucao-enfermagem",
-  "/prescricoes": "/app/prescricao-eletronica-avancada", "/altas": "/app/alta-hospitalar",
-  "/perfis": "/app/gestao-perfis", "/unidades": "/app/unidades-setores",
-  "/sinais-vitais": "/app/sinais-vitais", "/exames/imagem": "/app/exames-imagem",
-  "/cardiologia": "/app/cardiologia", "/evolucoes-medicas": "/app/evolucao-medica",
-  "/enfermagem/plano-cuidados": "/app/plano-cuidados",
-  "/medicamentos/administracao": "/app/administracao-medicamentos",
-  "/incidentes": "/app/incidentes", "/protocolos": "/app/protocolos-clinicos",
-  "/alergias": "/app/alergias", "/farmacia/avaliacoes": "/app/farmacia-clinica",
-  "/farmacia/controlados": "/app/controlados", "/estoque/movimentacoes": "/app/movimentacao-estoque",
-  "/estoque/validade": "/app/validade-perdas", "/compras": "/app/solicitacao-compras",
-  "/faturamento": "/app/faturamento-dashboard", "/faturamento/glosas": "/app/glosas",
-  "/escalas": "/app/escalas", "/escalas/trocas": "/app/troca-plantao",
-  "/frequencia": "/app/frequencia", "/indicadores/qualidade": "/app/indicadores-qualidade",
-  "/relatorios/gerencial": "/app/dashboard-gerencial", "/ccih": "/app/ccih-infeccao",
-  "/notificacoes": "/app/notificacoes", "/comunicados": "/app/comunicados",
-  "/encaminhamentos": "/app/encaminhamentos", "/portal-paciente": "/app/portal-paciente",
-  "/configuracoes/protocolos": "/app/configuracao-protocolos",
-  "/configuracoes/unidades": "/app/parametros-unidade",
-  "/configuracoes/modulos": "/app/modulos", "/fila": "/app/fila-chamada",
-  "/transferencias": "/app/transferencias", "/producao-sus": "/app/producao-sus",
-  "/faturamento/dashboard": "/app/faturamento-dashboard",
-  "/acessos/unidades": "/app/acesso-unidade",
-  "/agenda/disponibilidade": "/app/disponibilidade",
-  "/exames/resultados": "/app/resultados-laboratoriais",
-  "/lgpd/consentimentos": "/app/lgpd-consentimentos",
-  "/safety/regras": "/app/safety-engine"
-};
-app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !isHtmlDocumentNavigation(req) || /application\/json/i.test(req.get("accept") || "")) return next();
-    const target = LEGACY_PAGE_ROUTES[req.path];
-    if (target) return res.redirect(302, target);
-    return next();
-});
 
 
 //uploads
@@ -1625,14 +1582,6 @@ app.use((err, req, res, next) => {
     res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
 });
 
-// Navegação da SPA: servir o React apenas para requisições de documento HTML.
-// Chamadas fetch/API que aceitam JSON continuam recebendo 404 JSON real.
-app.get("/{*splat}", (req, res, next) => {
-    if (!hasFrontendV2 || !req.accepts("html") || /application\/json/i.test(req.get("accept") || "")) return next();
-    const target = LEGACY_PAGE_ROUTES[req.path];
-    if (target) return res.redirect(302, target);
-    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
-});
 app.use((req, res) => {
     res.status(404).json({ erro: "Rota não encontrada", caminho: req.path, metodo: req.method });
 });

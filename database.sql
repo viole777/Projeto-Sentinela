@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT,
+  token TEXT PRIMARY KEY,
   token_hash TEXT UNIQUE NOT NULL,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS patients (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   cpf TEXT UNIQUE NOT NULL,
+  cpf_encrypted TEXT,
+  cpf_blind_index CHAR(64),
+  cns_encrypted TEXT,
+  phone_encrypted TEXT,
+  address_encrypted TEXT,
   patient_type TEXT,
   perfil JSONB DEFAULT '{}'::jsonb,
   status TEXT DEFAULT 'triagem',
@@ -408,6 +413,10 @@ ON CONFLICT (name) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_patients_cpf
 ON patients(cpf);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_cpf_blind_unit
+ON patients(cpf_blind_index, unit_id)
+WHERE cpf_blind_index IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_appointments_patient_cpf
 ON appointments(patient_cpf);

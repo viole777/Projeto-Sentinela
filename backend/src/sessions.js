@@ -214,11 +214,12 @@ class SessionStore {
         );
         const userId = u.rows[0] && u.rows[0].id;
         if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL');
+        const hash = this.hashToken(token);
         await pool.query(
-             `INSERT INTO sessions (token_hash, user_id, expires_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (token_hash) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at, last_seen_at = NOW()`,
-             [this.hashToken(token), userId, new Date(session.expiresAt).toISOString()]
+             `INSERT INTO sessions (token, token_hash, user_id, expires_at)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (token) DO UPDATE SET token_hash = EXCLUDED.token_hash, user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at, last_seen_at = NOW()`,
+             [hash, hash, userId, new Date(session.expiresAt).toISOString()]
         );
     }
 

@@ -2,6 +2,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const { minimizePatientFields } = require('../services/resourceScope');
+const { createKeyProvider, encryptField, blindIndex } = require('../services/dataEncryption');
 
 const RESOURCE_DEFS = Object.freeze({
  'soap-notes':{type:'soap',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode'],allowed:['patientCpf','subjective','objective','assessment','plan','diagnosisSystem','diagnosisCode','diagnosisDescription','familyHistory','medicationsInUse','allergiesReviewed','recordedAt']},
@@ -91,8 +92,8 @@ function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres})
   const cpf=normalizeCpf(b.cpf),cns=String(b.cns||'').replace(/\D/g,'');
   if(!String(b.name||'').trim()||!validCpf(cpf)||(cns&&!CNS_RE.test(cns)))return res.status(400).json({erro:'Nome, CPF válido e CNS com 15 dígitos (quando disponível) são obrigatórios.'});
   if(b.birthDate&&!/^\d{4}-\d{2}-\d{2}$/.test(String(b.birthDate)))return res.status(400).json({erro:'Data de nascimento inválida.'});
-  try{const r=await getPool().query('INSERT INTO patients(name,cpf,cns,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,name,cpf,cns,birth_date,status,created_at',
-   [String(b.name).trim(),cpf,cns||null,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req),'triagem']);
+  try{const keyProvider=createKeyProvider();const cpfEncrypted=await encryptField(cpf,keyProvider);const cnsEncrypted=await encryptField(cns||null,keyProvider);const pepper=process.env.BLIND_INDEX_PEPPER;if(!pepper)return res.status(503).json({erro:'Pepper do índice cego não configurado.',codigo:'BLIND_INDEX_PEPPER_UNAVAILABLE'});const cpfBlind=blindIndex(cpf,pepper);const r=await getPool().query('INSERT INTO patients(name,cpf,cpf_encrypted,cpf_blind_index,cns,cns_encrypted,birth_date,sex_at_birth,gender_identity,race_color,mother_name,municipality_code,cnes_origin,unit_id,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,name,cpf,cns,birth_date,status,created_at',
+    [String(b.name).trim(),cpf,cpfEncrypted,cpfBlind,cns||null,cnsEncrypted,b.birthDate||null,b.sexAtBirth||null,b.genderIdentity||null,b.raceColor||null,b.motherName||null,b.municipalityCode||null,b.cnesOrigin||null,unitOf(req),'triagem']);
    const client=await getPool().connect();try{await audit(req,client,'create','patient_identity',r.rows[0].id,cpf,{source:'patient-registration'});}finally{client.release();}
    return res.status(201).json({patient:r.rows[0]});
   }catch(e){if(e.code==='23505')return res.status(409).json({erro:'CPF ou CNS já cadastrado.',codigo:'PATIENT_IDENTIFIER_CONFLICT'});return next(e);}

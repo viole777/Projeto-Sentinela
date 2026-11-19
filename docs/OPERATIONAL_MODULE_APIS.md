@@ -50,6 +50,7 @@ Além das APIs operacionais acima, as telas clínicas abaixo foram ligadas aos e
 | `/api/v1/inventory-items` | Cadastro de itens por unidade |
 | `/api/v1/inventory-movements` | Entradas, saídas e devoluções com saldo transacional |
 | `/api/v1/medication-lots` | Consulta de lotes e validade com ordenação FEFO |
+| `/api/v1/prescription-validations` | Aprovação/rejeição farmacêutica com justificativa e vínculo profissional |
 
 Esses endpoints pertencem ao contrato clínico versionado, com validação de payload e escopo por unidade. As rotas que exigem vínculo CNS/CBO dependem de cadastro profissional ativo. A existência da tela não substitui o cadastro e a validação dos catálogos oficiais.
 

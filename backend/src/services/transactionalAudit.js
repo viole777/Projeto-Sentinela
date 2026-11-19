@@ -14,7 +14,12 @@ function redact(value) {
 
 function patientHash(patientIdentifier) {
   if (!patientIdentifier) return null;
-  return crypto.createHash('sha256').update(String(patientIdentifier)).digest('hex');
+  const pepper = process.env.AUDIT_HASH_PEPPER;
+  if (!pepper && process.env.NODE_ENV === 'production') {
+    throw new Error('AUDIT_HASH_PEPPER é obrigatório em produção para pseudonimizar identificadores de pacientes.');
+  }
+  const key = pepper || 'sentinela-development-only-audit-pepper';
+  return crypto.createHmac('sha256', key).update(String(patientIdentifier)).digest('hex');
 }
 
 async function appendAudit(client, {

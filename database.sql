@@ -39,9 +39,14 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,
+  token TEXT,
+  token_hash TEXT UNIQUE NOT NULL,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL,
+  token_hash TEXT,
+  device_label TEXT,
+  ip_hash TEXT,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

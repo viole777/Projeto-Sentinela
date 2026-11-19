@@ -17,6 +17,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { getPool, usingPostgres } = require("./config/database");
 
 const FILE = path.join(__dirname, "..", "sessions.json");
@@ -25,10 +26,10 @@ const SHUTDOWN_GRACE_MS = 2000;        // espera máxima pelas gravações ao de
 
 // Mesma consulta do requireAuth antigo: token → usuário → cargo.
 const SELECT_SESSION = `
-    SELECT s.token, s.expires_at, u.username, u.name, u.email, u.theme, u.unit, COALESCE(r.name, u.role) AS role
+    SELECT s.token_hash, s.expires_at, u.username, u.name, u.email, u.theme, u.unit, COALESCE(r.name, u.role) AS role
     FROM sessions s JOIN users u ON u.id = s.user_id
     LEFT JOIN roles r ON r.id = u.role_id
-    WHERE s.token = $1 AND u.active = TRUE LIMIT 1`;
+    WHERE s.token_hash = $1 AND u.active = TRUE LIMIT 1`;
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -47,6 +48,10 @@ class SessionStore {
         if (this.timer.unref) this.timer.unref(); // não segura o processo vivo só por causa do timer
 
         this.bindShutdown();
+    }
+
+    hashToken(token) {
+        return crypto.createHash("sha256").update(String(token)).digest("hex");
     }
 
     // ── leitura ────────────────────────────────────────────────
@@ -70,7 +75,7 @@ class SessionStore {
     async rehydrate(token) {
         const pool = getPool();
         if (!pool) throw new Error("Banco de sessões indisponível");
-        const r = await pool.query(SELECT_SESSION, [token]);
+        const r = await pool.query(SELECT_SESSION, [this.hashToken(token)]);
         const row = r.rows[0];
         if (!row) {
             this.map.delete(token);
@@ -115,8 +120,8 @@ class SessionStore {
         this.map.set(token, session);
         if (usingPostgres()) {
             const operation = this.pgQuery(
-                `UPDATE sessions SET expires_at = $2 WHERE token = $1`,
-                [token, new Date(session.expiresAt).toISOString()]
+                `UPDATE sessions SET expires_at = $2, last_seen_at = NOW() WHERE token_hash = $1`,
+                [this.hashToken(token), new Date(session.expiresAt).toISOString()]
             );
             this.track(operation);
             await operation;
@@ -210,10 +215,10 @@ class SessionStore {
         const userId = u.rows[0] && u.rows[0].id;
         if (!userId) throw new Error('Usuário da sessão não existe no PostgreSQL');
         await pool.query(
-            `INSERT INTO sessions (token, user_id, expires_at)
+             `INSERT INTO sessions (token_hash, user_id, expires_at)
              VALUES ($1, $2, $3)
-             ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at`,
-            [token, userId, new Date(session.expiresAt).toISOString()]
+             ON CONFLICT (token_hash) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at, last_seen_at = NOW()`,
+             [this.hashToken(token), userId, new Date(session.expiresAt).toISOString()]
         );
     }
 
@@ -225,7 +230,7 @@ class SessionStore {
     }
 
     pgDelete(token) {
-        const operation = this.pgQuery(`DELETE FROM sessions WHERE token = $1`, [token]);
+        const operation = this.pgQuery(`DELETE FROM sessions WHERE token_hash = $1`, [this.hashToken(token)]);
         this.track(operation);
         return operation;
     }

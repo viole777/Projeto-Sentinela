@@ -287,7 +287,7 @@ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write
    if(!bed.rowCount||!['free','livre'].includes(String(bed.rows[0].status).toLowerCase())){await client.query('ROLLBACK');return res.status(409).json({erro:'Leito inexistente ou indisponível nesta unidade.',codigo:'BED_NOT_AVAILABLE'});}
    const admission=await client.query('INSERT INTO hospitalizations(patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,unit_id) VALUES($1,$2,$3,$4,$5,COALESCE($6::timestamptz,NOW()),$7) RETURNING id,patient_cpf,patient_name,bed_code,reason,admitted_at',
     [data.patientCpf,patient.rows[0].name,data.bedCode,data.admissionReason,data.attendingProfessional||actor.username,data.admittedAt||null,unitOf(req)]);
-    await client.query('UPDATE beds SET status=$1,patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$2 AND unit_id=$3',['free',h.rows[0].bed_code,unitOf(req)]);
+    await client.query('UPDATE beds SET status=$1,patient_cpf=$2,patient_name=$3,occupied_since=NOW() WHERE code=$4 AND unit_id=$5',['occupied',data.patientCpf,patient.rows[0].name,data.bedCode,unitOf(req)]);
    const record=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',
     ['hospitalization',data.patientCpf,unitOf(req),'admitted',JSON.stringify({...data,hospitalizationId:admission.rows[0].id}),actor.username,actor.role]);
    await audit(req,client,'create','hospitalization',record.rows[0].id,data.patientCpf,{hospitalizationId:admission.rows[0].id,bedCode:data.bedCode});

@@ -53,6 +53,7 @@ Além das APIs operacionais acima, as telas clínicas abaixo foram ligadas aos e
 | `/api/v1/prescription-validations` | Aprovação/rejeição farmacêutica com justificativa e vínculo profissional |
 | `/api/v1/referrals` | Encaminhamentos clínicos por paciente, destino e prioridade |
 | `/api/v1/billing` | Registro de produção SUS com validação de SIGTAP/CBO/CID e competência |
+| `/api/v1/billing-batches` | Agrupamento de registros clínicos em lotes pendentes de validação, sem transmissão automática |
 
 Esses endpoints pertencem ao contrato clínico versionado, com validação de payload e escopo por unidade. As rotas que exigem vínculo CNS/CBO dependem de cadastro profissional ativo. A existência da tela não substitui o cadastro e a validação dos catálogos oficiais.
 

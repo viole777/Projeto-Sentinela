@@ -732,7 +732,7 @@ router.get('/api/v1/audit/integrity',requirePermission('audit.read'),async(req,r
       ledger:'audit_logs',
       ...verification,
       verifiedAt:new Date().toISOString(),
-      scopeNote:'Esta verificação cobre somente audit_logs. clinical_audit_events é append-only, mas ainda não integra esta cadeia de hashes.'
+      scopeNote:'Esta verificação cobre somente audit_logs. Eventos legados sem hash ficam como não verificáveis; clinical_audit_events é append-only, mas ainda não integra esta cadeia de hashes.'
     });
   }catch(error){
     if(client)await client.query('ROLLBACK').catch(()=>{});

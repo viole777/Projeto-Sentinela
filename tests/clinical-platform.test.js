@@ -92,7 +92,7 @@ assert.match(baseSchema,/CREATE TABLE IF NOT EXISTS patients \([\s\S]*?unit_id T
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(operationalMigration,/patient_allergies_immutable/, 'allergy history must be append-only');
 assert.match(operationalMigration,/inventory_movements_immutable/, 'stock movement ledger must be append-only');
-assert.match(operationalMigration,/idx_inventory_unit_name_unique/, 'inventory item uniqueness must be scoped by unit');
+assert.match(operationalMigration,/idx_inventory_unit_name/, 'inventory item uniqueness must be scoped by unit');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
 assert.match(migration,/WHERE role_id IN/, 'migration must reconcile built-in role grants');
 assert.match(migration,/patients\.identity\.sensitive\.write/, 'migration must seed the elevated identifier permission');

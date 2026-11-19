@@ -70,6 +70,7 @@ const operationalMigration=fs.readFileSync(path.join(__dirname,'../database/migr
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
+assert.match(routerSource,/BEGIN ISOLATION LEVEL REPEATABLE READ/, 'patient summary must read a consistent snapshot');
 assert.match(routerSource,/api\/v1\/patient-allergies/, 'allergy history must have a dedicated clinical API');
 assert.match(routerSource,/api\/v1\/inventory-items/, 'inventory items must have a unit-scoped API');
 assert.match(routerSource,/api\/v1\/prescription-validations/, 'pharmacy validation must use a dedicated prescription workflow API');

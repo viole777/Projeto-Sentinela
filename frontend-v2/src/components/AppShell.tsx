@@ -40,6 +40,7 @@ const nav: NavGroup[] = [
     ['Protocolos clínicos','/app/protocolos-clinicos',ClipboardList],
     ['Alergias','/app/alergias',HeartPulse],
     ['Exames laboratoriais','/app/exames-laboratoriais',Activity],
+    ['Resultados laboratoriais','/app/resultados-laboratoriais',FileText],
     ['Imagem e laudos','/app/exames-imagem',FileText],
     ['Cardiologia','/app/cardiologia',HeartPulse],
     ['Resumo clínico com IA','/app/sentinela-ai',BrainCircuit],

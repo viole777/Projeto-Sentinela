@@ -35,7 +35,7 @@ assert.equal(validateResourcePayload('prescriptions',{
  patientCpf:'12345678900',medicationCode:'123',medicationName:'Medicamento',dose:'1 unidade',route:'oral',frequency:'conforme prescrição',quantity:30
 }).ok,true);
 assert.equal(validateResourcePayload('billing',{
- instrument:'AIH',competence:'202611',sigtapCode:'0000000000',cboCode:'225125',cidCode:'I10'
+ patientCpf:'12345678900',instrument:'AIH',competence:'202611',sigtapCode:'0000000000',cboCode:'225125',cidCode:'I10',quantity:1
 }).ok,true);
 assert.equal(validateResourcePayload('billing',{
  instrument:'FAKE',competence:'2026-11',sigtapCode:'x',cboCode:'x',cidCode:'x'

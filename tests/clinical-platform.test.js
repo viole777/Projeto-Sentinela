@@ -74,6 +74,7 @@ assert.match(routerSource,/audit\(req,client,'access_denied','patient_identity'/
 assert.match(routerSource,/audit\(req,client,'update','patient_identity'/, 'successful identity changes must be audited as updates');
 assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO patients[\s\S]*?await audit\(req,client,'create','patient_identity'[\s\S]*?await client\.query\('COMMIT'\)/, 'patient creation and its audit event must share one transaction');
 assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO medication_lots[\s\S]*?await audit\(req,client,'create','medication_lot'[\s\S]*?await client\.query\('COMMIT'\)/, 'medication lot creation and its audit event must share one transaction');
+assert.match(routerSource,/await client\.query\('BEGIN'\);[\s\S]*?INSERT INTO appointments[\s\S]*?await audit\(req,client,'create','appointment'[\s\S]*?await client\.query\('COMMIT'\)/, 'appointment creation and its audit event must share one transaction');
 assert.match(routerSource,/ORDER BY expires_on ASC,id ASC FOR UPDATE/, 'dispensing must lock FEFO lots');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');

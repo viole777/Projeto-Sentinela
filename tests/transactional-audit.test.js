@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const {
   appendAudit,
   verifyAuditChain,
@@ -72,6 +73,7 @@ const {
   assert.ok(lockIndexes.every((index, i) => index < firstSelectIndexes[i]), 'chain lock must precede reading the previous hash');
   assert.equal(verification.valid, true);
   assert.equal(patientHash('00000000000').length, 64);
+  assert.notEqual(patientHash('00000000000'), crypto.createHash('sha256').update('00000000000').digest('hex'), 'patient identifiers must use a keyed HMAC, not a reversible-by-enumeration plain hash');
   assert.deepEqual(redact({ cpf: '00000000000', nome: 'Sintético' }), {
     cpf: '[REDACTADO]',
     nome: 'Sintético'

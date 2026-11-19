@@ -238,6 +238,7 @@ module.exports = function createAdvancedModulesRouter({ requireAuth, requirePerm
       const validation = validateModulePayload(endpoint, req.body);
       if (!validation.ok) return res.status(400).json({ erro: validation.error, campos: validation.missing || [] });
       const data = validation.data;
+      if (data.unidade && data.unidade !== unitOf(req)) return res.status(403).json({ erro: 'O registro só pode ser criado na unidade vinculada à sessão.', codigo: 'UNIT_SCOPE_MISMATCH' });
       const status = String(data.status || 'open').slice(0, 40);
       const client = await getPool().connect();
       try {

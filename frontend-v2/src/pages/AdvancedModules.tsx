@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, AlertCircle, CalendarDays, CheckCircle2, ClipboardList, Filter, Plus, RefreshCw, Search, ShieldCheck, Users, BedDouble, HeartPulse, Pill, FileText, Stethoscope, Building2, Bell, Settings2 } from 'lucide-react';
+import { Activity, AlertCircle, Boxes, CalendarDays, CheckCircle2, ClipboardList, Filter, Plus, RefreshCw, Search, ShieldCheck, Users, BedDouble, HeartPulse, Pill, FileText, Stethoscope, Building2, Bell, Settings2 } from 'lucide-react';
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui';
 
 type FieldDef = { key:string; label:string; type?:string; required?:boolean; options?:string[] };

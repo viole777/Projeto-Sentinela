@@ -110,7 +110,7 @@ function validateModulePayload(endpoint, input) {
   const missing = def.required.filter(field => data[field] === undefined || data[field] === '');
   if (missing.length) return { ok: false, error: 'Campos obrigatórios ausentes: ' + missing.join(', '), missing };
   for (const field of DATE_FIELDS) {
-    if (data[field] !== undefined && !/^\\d{4}-(0[1-9]|1[0-2])(-([0-2]\\d|3[01]))?$/.test(String(data[field]))) {
+    if (data[field] !== undefined && !/^\\d{4}-(0[1-9]|1[0-2])(-([0-2]\\d|3[01]))?(?:T([01]\\d|2[0-3]):[0-5]\\d)?$/.test(String(data[field]))) {
       return { ok: false, error: 'Data ou competência inválida em ' + field + '.' };
     }
   }

@@ -15,12 +15,27 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true
 const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
+const INLINE_CSP_HASHES = { scripts: new Set(), styles: new Set() };
+function collectInlineCspHashes(directory) {
+    for (const name of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (name.isDirectory()) continue;
+        if (!name.name.endsWith(".html")) continue;
+        const source = fs.readFileSync(path.join(directory, name.name), "utf8");
+        for (const match of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
+            if (match[1].trim()) INLINE_CSP_HASHES.scripts.add(`'sha256-${crypto.createHash("sha256").update(match[1]).digest("base64")}'`);
+        }
+        for (const match of source.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/gi)) {
+            if (match[1].trim()) INLINE_CSP_HASHES.styles.add(`'sha256-${crypto.createHash("sha256").update(match[1]).digest("base64")}'`);
+        }
+    }
+}
+collectInlineCspHashes(path.join(__dirname, "../frontend"));
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            scriptSrc: ["'self'", ...INLINE_CSP_HASHES.scripts],
+            styleSrc: ["'self'", ...INLINE_CSP_HASHES.styles, "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:"],
             connectSrc: ["'self'"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -40,6 +55,40 @@ app.use((req, res, next) => {
     next();
 });
 app.use(express.json({ limit: "100kb" }));
+
+const allowedOrigins = new Set(
+    String(process.env.CORS_ALLOWED_ORIGINS || "")
+        .split(",")
+        .map(value => value.trim())
+        .filter(Boolean)
+);
+app.use((req, res, next) => {
+    const origin = req.get("origin");
+    if (origin) {
+        if (!allowedOrigins.size && origin !== `http://localhost:${process.env.PORT || 3000}`) {
+            return res.status(403).json({ erro: "Origem não autorizada.", codigo: "CORS_ORIGIN_DENIED" });
+        }
+        if (allowedOrigins.size && !allowedOrigins.has(origin)) {
+            return res.status(403).json({ erro: "Origem não autorizada.", codigo: "CORS_ORIGIN_DENIED" });
+        }
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    if (req.method === "OPTIONS") {
+        res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept,X-Request-Id");
+        return res.sendStatus(204);
+    }
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && origin) {
+        const host = req.get("host");
+        const hostOrigin = `${req.protocol}://${host}`;
+        if (origin !== hostOrigin && !allowedOrigins.has(origin)) {
+            return res.status(403).json({ erro: "CSRF: origem incompatível.", codigo: "CSRF_ORIGIN_MISMATCH" });
+        }
+    }
+    return next();
+});
 
 const authRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000,

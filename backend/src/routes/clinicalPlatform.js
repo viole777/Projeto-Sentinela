@@ -407,6 +407,37 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
   }catch(e){return next(e);}finally{client.release();}
 });
 
+router.get('/api/v1/patient-allergies',requirePermission('records.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const cpf=req.query.patientCpf?normalizeCpf(req.query.patientCpf):null;
+ if(cpf&&!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});
+ const client=await getPool().connect();
+ try{
+  const result=await client.query(
+   'SELECT pa.id,pa.patient_cpf,pa.allergy,pa.reaction,pa.severity,pa.recorded_by,pa.created_at FROM patient_allergies pa JOIN patients p ON p.cpf=pa.patient_cpf WHERE p.unit_id=$1 AND ($2::text IS NULL OR pa.patient_cpf=$2) ORDER BY pa.id DESC LIMIT 100',
+   [unitOf(req),cpf]
+  );
+  for(const row of result.rows)await audit(req,client,'read','patient_allergy',row.id,row.patient_cpf,{});
+  return res.json({items:result.rows,appendOnly:true});
+ }catch(e){return next(e);}finally{client.release();}
+});
+router.post('/api/v1/patient-allergies',requirePermission('records.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},cpf=normalizeCpf(b.patientCpf),allergy=String(b.allergy||'').trim(),reaction=String(b.reaction||'').trim(),severity=String(b.severity||'').toLowerCase();
+ if(!validCpf(cpf)||!allergy||allergy.length>500||reaction.length>1000||!['mild','moderate','severe','unknown'].includes(severity))return res.status(400).json({erro:'Informe CPF válido, substância, reação de até 1000 caracteres e gravidade permitida.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const patient=await client.query('SELECT id FROM patients WHERE cpf=$1 AND unit_id=$2 FOR SHARE',[cpf,unitOf(req)]);
+  if(!patient.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}
+  const result=await client.query('INSERT INTO patient_allergies(patient_cpf,allergy,unit_id,reaction,severity,recorded_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,patient_cpf,allergy,reaction,severity,recorded_by,created_at',
+   [cpf,allergy,unitOf(req),reaction||null,severity,actorOf(req).username]);
+  await audit(req,client,'create','patient_allergy',result.rows[0].id,cpf,{severity});
+  await client.query('COMMIT');
+  return res.status(201).json({item:result.rows[0],appendOnly:true});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.get('/api/v1/patient-summary/:cpf',requirePermission('records.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const cpf=normalizeCpf(req.params.cpf);if(!validCpf(cpf))return res.status(400).json({erro:'CPF inválido.'});

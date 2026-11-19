@@ -103,6 +103,9 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 - [ ] Downtime read-only e procedimento de contingência.
 - [ ] Migrar todas as páginas legadas para React; remover `frontend/` somente após paridade comprovada.
 - [ ] Remover rotas 501, menus sem função e `PlaceholderPage`; design system acessível, responsivo, i18n e estados completos.
+- [x] Primeira reformulação visual do shell React, identidade cromática, login e dashboard responsivo.
+- [x] APIs operacionais tipadas para incidentes, escalas, trocas, frequência, disponibilidade, compras, notificações, comunicados, indicadores, CCIH e registros de glosa; com PostgreSQL, escopo por unidade, RBAC e auditoria transacional.
+- [ ] Concluir fluxos clínicos e administrativos restantes com domínios próprios; não tratar os registros operacionais implementados como workflows hospitalares completos.
 - [ ] E2E por papel cobrindo recepção → triagem → consulta → prescrição → farmácia → administração → alta → faturamento.
 - [ ] BI separado com dados pseudonimizados; indicadores hospitalares e CCIH/IRAS.
 - [ ] Modelos preditivos somente após governança, avaliação de viés/calibração, monitoramento de drift e validação clínica/regulatória.
@@ -116,6 +119,14 @@ Este documento acompanha o escopo solicitado em `Markdown colado.md`. A PR deve 
 - [ ] SLA, suporte, versionamento, SBOM e inventário de dependências/licenças.
 - [ ] `docs/EXTERNAL_BLOCKERS.md` com responsável, status e evidência de cada dependência externa.
 - [ ] Atualizar a auditoria comercial após cada fase. Manter **NÃO APROVADO para produção** até anexar evidências externas necessárias.
+
+## Entregas de frontend e APIs nesta PR
+
+- A interface React recebeu novo sistema visual em grafite/teal, cards, navegação, login e dashboard responsivo.
+- O backend deixou de usar o bloqueio genérico para 11 grupos de rotas operacionais e passou a expor contratos individuais, validação por allowlist, RBAC, escopo de unidade, paginação por cursor, correções append-only e auditoria na mesma transação.
+- A migração `20261119_operational_modules.sql` cria o armazenamento versionado append-only; o runner de migrações foi atualizado para aplicá-la junto da migração clínica.
+- Foram adicionados testes de contrato e integração HTTP com banco simulado. A aprovação final depende do CI PostgreSQL e do build TypeScript/Vite.
+- As rotas clínicas, assinatura digital, integrações externas e módulos que exigem catálogos oficiais permanecem bloqueados até terem implementação e validação próprias. Consulte `docs/OPERATIONAL_MODULE_APIS.md`.
 
 ## Alterações já iniciadas nesta PR
 

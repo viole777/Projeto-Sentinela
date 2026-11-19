@@ -87,7 +87,7 @@ const EXTERNAL_OR_CLINICAL_ENDPOINTS = Object.freeze([
   '/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/faturamento',
   '/perfis','/unidades','/sinais-vitais','/exames/imagem','/cardiologia',
   '/evolucoes-medicas','/enfermagem/plano-cuidados','/medicamentos/administracao',
-  '/farmacia/avaliacoes','/farmacia/controlados','/estoque/movimentacoes','/estoque/validade',
+  '/farmacia/avaliacoes','/farmacia/controlados','/estoque/movimentacoes','/estoque/validade','/protocolos','/alergias','/encaminhamentos',
   '/indicadores/qualidade','/relatorios/gerencial','/lgpd/consentimentos','/portal-paciente',
   '/configuracoes/protocolos','/fila','/transferencias','/producao-sus',
   '/faturamento/dashboard','/acessos/unidades','/exames/resultados'

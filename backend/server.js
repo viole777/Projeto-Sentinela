@@ -1609,6 +1609,7 @@ app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
 // continuam tendo precedência; estes handlers são registrados antes do 404 da SPA.
 app.use(require("./src/routes/advancedModules")({
     requireAuth,
+    requirePermission,
     usingPostgres,
     getPool,
     readDB,

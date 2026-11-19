@@ -539,6 +539,36 @@ for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
  }
+router.get('/api/v1/prescription-validations',requirePermission('prescriptions.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const result=await client.query("SELECT id,patient_cpf,status,data,created_by,created_at,supersedes_id FROM clinical_records WHERE resource_type='prescription_validation' AND unit_id=$1 ORDER BY id DESC LIMIT 100",[unitOf(req)]);
+  for(const row of result.rows)await audit(req,client,'read','prescription_validation',row.id,row.patient_cpf,{});
+  await client.query('COMMIT');
+  return res.json({items:result.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/prescription-validations',requirePermission('prescriptions.validate'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.body?.prescriptionRecordId),decision=req.body?.decision,reason=String(req.body?.reason||'').trim();
+ if(!Number.isSafeInteger(id)||id<1||!['approved','rejected'].includes(decision))return res.status(400).json({erro:'Informe uma prescrição e decisão approved/rejected.'});
+ if(decision==='rejected'&&!reason)return res.status(400).json({erro:'Justificativa obrigatória para rejeitar a prescrição.'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const original=await client.query("SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 AND NOT EXISTS (SELECT 1 FROM clinical_records child WHERE child.supersedes_id=clinical_records.id AND child.resource_type='prescription') FOR SHARE",[id,unitOf(req)]);
+  if(!original.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição vigente não encontrada nesta unidade.'});}
+  if(!await requireProfessional(req,client)){await client.query('ROLLBACK');return res.status(409).json({erro:'Vínculo profissional CNS/CBO obrigatório.',codigo:'PROFESSIONAL_REGISTRATION_REQUIRED'});}
+  const actor=actorOf(req),result=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role,supersedes_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,patient_cpf,status,data,created_by,created_at,supersedes_id',
+   ['prescription_validation',original.rows[0].patient_cpf,unitOf(req),decision,JSON.stringify({prescriptionRecordId:id,decision,reason:reason.slice(0,1000)}),actor.username,actor.role,id]);
+  await audit(req,client,'create','prescription_validation',result.rows[0].id,original.rows[0].patient_cpf,{prescriptionRecordId:id,decision});
+  await client.query('COMMIT');
+  return res.status(201).json({validation:result.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+
 router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescriptions.validate'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const id=Number(req.params.id),decision=req.body?.decision;

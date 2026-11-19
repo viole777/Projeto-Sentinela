@@ -85,6 +85,7 @@ O CI aplica o schema com fixtures sintéticas, provisiona dados temporários e i
 - [Matriz de autorização](docs/AUTHORIZATION_MATRIX.md)
 - [Escopo da plataforma clínica](docs/CLINICAL_PLATFORM_SCOPE.md)
 - [Critérios de aceite dos PRs](docs/PR_ROADMAP_1_8_ACCEPTANCE.md)
+- [Roadmap mestre de implementação — Fases 0 a 7](docs/MASTER_ROADMAP_0_7.md)
 - [Arquitetura](docs/ARCHITECTURE.md)
 - [Mapa de paridade frontend](docs/FRONTEND_PARITY.md)
 - [Segurança de implantação](docs/DEPLOYMENT_SECURITY.md)

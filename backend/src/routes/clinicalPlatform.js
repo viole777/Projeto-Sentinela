@@ -645,8 +645,14 @@ router.post('/api/v1/inventory-movements',requirePermission('inventory.write'),a
 
 router.get('/api/v1/medication-lots',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
- try{const r=await getPool().query('SELECT id,medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 ORDER BY expires_on ASC,id ASC LIMIT 200',[unitOf(req)]);return res.json({items:r.rows});}
- catch(e){return next(e);}
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const r=await client.query('SELECT id,medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available FROM medication_lots WHERE unit_id=$1 ORDER BY expires_on ASC,id ASC LIMIT 200',[unitOf(req)]);
+  for(const row of r.rows)await audit(req,client,'read','medication_lot',row.id,null,{expiresOn:row.expires_on});
+  await client.query('COMMIT');
+  return res.json({items:r.rows});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
 router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

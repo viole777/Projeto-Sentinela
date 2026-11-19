@@ -72,6 +72,7 @@ assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical r
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');
 assert.match(routerSource,/api\/v1\/patient-allergies/, 'allergy history must have a dedicated clinical API');
 assert.match(routerSource,/api\/v1\/inventory-items/, 'inventory items must have a unit-scoped API');
+assert.match(routerSource,/api\/v1\/prescription-validations/, 'pharmacy validation must use a dedicated prescription workflow API');
 assert.match(routerSource,/api\/v1\/inventory-movements/, 'stock movements must have a dedicated transactional API');
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movements must prevent negative inventory');
 assert.match(routerSource,/SENSITIVE_IDENTIFIER_PERMISSION_REQUIRED/, 'identifier changes must require elevated authorization');

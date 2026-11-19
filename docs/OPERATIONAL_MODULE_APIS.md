@@ -4,7 +4,7 @@
 
 Os módulos abaixo possuem rotas HTTP próprias, permissões RBAC explícitas, validação de payload por lista de campos permitidos, escopo obrigatório pela unidade da sessão, persistência PostgreSQL e auditoria na mesma transação.
 
-A tabela `operational_module_records` é um registro versionado e append-only. Não há `PUT` ou `DELETE`: correções são enviadas para `POST /rota/:id/corrections`, preservando o original. As listagens aceitam `limit` (máximo 100) e `cursor`.
+A tabela `operational_module_records` é um registro versionado e append-only. O estoque usa tabelas dedicadas `unit_inventory_items` e `unit_inventory_movements`; saldos são atualizados na mesma transação que grava cada movimento, e o ledger de movimentos é append-only. Não há `PUT` ou `DELETE`: correções são enviadas para `POST /rota/:id/corrections`, preservando o original. As listagens aceitam `limit` (máximo 100) e `cursor`.
 
 ### Rotas implementadas
 

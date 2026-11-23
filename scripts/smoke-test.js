@@ -159,6 +159,36 @@ async function main() {
   });
   assertCondition(directorLogin.response.ok, `Login da direção de CI falhou: ${JSON.stringify(directorLogin.body)}`);
   const directorCookie = getCookieHeader(directorLogin.response.headers.get('set-cookie'));
+  const billingBatches = await request('/api/v1/billing-batches', { headers: { Cookie: directorCookie } });
+  assertCondition(billingBatches.response.ok && billingBatches.body?.items?.length, 'Direção deve consultar lotes sintéticos de faturamento');
+  const billingBatchId = billingBatches.body.items[0].id;
+  const denialCreate = await request('/api/v1/billing-denials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ batchId: billingBatchId, documentReference: 'CI-DENIAL-001', reason: 'Glosa sintética criada pelo teste de integração.', disputedAmount: 125.5, appealDeadline: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) }),
+  });
+  assertCondition(denialCreate.response.status === 201, `Direção deve registrar glosa: HTTP ${denialCreate.response.status} ${JSON.stringify(denialCreate.body)}`);
+  const denialId = denialCreate.body.item.id;
+  for (const [status, reason] of [['under_review', 'Início de análise sintética.'], ['appeal_submitted', 'Recurso sintético encaminhado.'], ['accepted', 'Deferimento sintético de CI.']]) {
+    const decision = await request('/api/v1/billing-denials/' + denialId + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+      body: JSON.stringify({ status, reason }),
+    });
+    assertCondition(decision.response.ok && decision.body?.item?.status === status, `Transição de glosa para ${status} deve ser persistida e auditada: HTTP ${decision.response.status}`);
+  }
+  const invalidDenialTransition = await request('/api/v1/billing-denials/' + denialId + '/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ status: 'under_review', reason: 'Tentativa inválida após resolução.' }),
+  });
+  assertCondition(invalidDenialTransition.response.status === 409 && invalidDenialTransition.body?.codigo === 'INVALID_BILLING_DENIAL_TRANSITION', 'Glosa resolvida não pode reabrir por transição inválida');
+  const productionReport = await request('/api/v1/reports/production', { headers: { Cookie: directorCookie } });
+  assertCondition(productionReport.response.ok && productionReport.body?.items?.some(item => item.instrument === 'BPA-C' && Number(item.records) >= 1), 'Relatório de produção deve agregar registros sintéticos persistidos');
+  assertCondition(productionReport.body?.officialExportPerformed === false, 'Relatório interno não deve alegar transmissão oficial');
+  const denialReport = productionReport.body.denials?.find(item => item.status === 'accepted');
+  assertCondition(denialReport && Number(denialReport.total) >= 1, 'Relatório deve consolidar glosas por situação');
+
   const purchaseDecision = await request('/api/v1/purchase-requests/' + purchaseId + '/decision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: directorCookie },

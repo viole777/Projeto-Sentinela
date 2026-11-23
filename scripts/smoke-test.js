@@ -166,6 +166,19 @@ async function main() {
   });
   assertCondition(purchaseDecision.response.ok && purchaseDecision.body?.item?.status === 'approved', 'Direção deve aprovar solicitação enviada por outro usuário');
 
+  const purchaseRejectCreate = await request('/api/v1/purchase-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ itemName: 'Segundo material sintético CI', quantity: 2, priority: 'routine', justification: 'Teste automatizado do fluxo de rejeição.' }),
+  });
+  assertCondition(purchaseRejectCreate.response.status === 201, 'Farmácia deve criar segunda solicitação para teste de rejeição');
+  const purchaseReject = await request('/api/v1/purchase-requests/' + purchaseRejectCreate.body.item.id + '/decision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ decision: 'rejected', reason: 'Justificativa sintética de rejeição para CI.' }),
+  });
+  assertCondition(purchaseReject.response.ok && purchaseReject.body?.item?.status === 'rejected', 'Direção deve rejeitar com justificativa obrigatória');
+
   const professionalList = await request('/api/v1/professional-registry', { headers: { Cookie: directorCookie } });
   assertCondition(professionalList.response.ok && professionalList.body?.items?.length, 'Direção deve consultar profissionais ativos da unidade');
   const professionalId = professionalList.body.items[0].id;

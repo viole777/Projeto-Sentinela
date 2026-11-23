@@ -44,7 +44,7 @@ async function main() {
       for (let index = 0; index < statements.length; index++) {
         try { await pool.query(statements[index]); }
         catch (error) {
-          const excerpt = statements[index].slice(0, 320);
+          const excerpt = statements[index].slice(0, 1200);
           throw new Error(`Clinical migration failed at statement ${index + 1}: ${excerpt}. Cause: ${error.message}`);
         }
       }

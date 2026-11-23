@@ -72,6 +72,17 @@ async function main() {
        VALUES ('99999999999', 'Paciente Sintético CI', 'penicilina', 'amarelo', 'aguardando_medico')`
     );
 
+    const billingRecord = await pool.query(
+      `INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role)
+       VALUES('billing',NULL,'ci-unit','recorded',jsonb_build_object('instrument','BPA-C','competence',to_char(CURRENT_DATE,'YYYYMM'),'sigtapCode','CI-SYNTHETIC','cboCode','225125','cidCode','Z00.0','quantity',2),'ci.fixture','ci')
+       RETURNING id`
+    );
+    await pool.query(
+      `INSERT INTO billing_batches(unit_id,instrument,competence,status,record_ids,created_by)
+       VALUES('ci-unit','BPA-C',to_char(CURRENT_DATE,'YYYYMM'),'pending_validation',ARRAY[$1::bigint],'ci.fixture')`,
+      [billingRecord.rows[0].id]
+    );
+
     console.log('Temporary CI test users provisioned.');
   } finally {
     await pool.end();

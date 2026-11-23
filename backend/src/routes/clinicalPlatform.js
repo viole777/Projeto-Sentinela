@@ -388,23 +388,137 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
  });
  router.get('/api/v1/billing-batches',requirePermission('billing.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  try{const r=await getPool().query('SELECT id,instrument,competence,status,record_ids,layout_version,created_by,created_at FROM billing_batches WHERE unit_id=$1 ORDER BY id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
+  try{const r=await getPool().query('SELECT id,instrument,competence,status,record_ids,layout_version,created_by,created_at,validation_summary,validated_by,validated_at,rejection_reason FROM billing_batches WHERE unit_id=$1 ORDER BY id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
   catch(e){return next(e);}
  });
  router.post('/api/v1/billing-batches',requirePermission('billing.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const b=req.body||{};if(!['BPA-C','BPA-I','AIH','APAC'].includes(b.instrument)||!/^\d{6}$/.test(String(b.competence||''))||!Array.isArray(b.recordIds)||!b.recordIds.length||b.recordIds.length>500)return res.status(400).json({erro:'Instrumento, competência AAAAMM e lista de até 500 registros são obrigatórios.'});
+  const b=req.body||{},recordIds=Array.isArray(b.recordIds)?b.recordIds.map(Number):[];if(!['BPA-C','BPA-I','AIH','APAC'].includes(b.instrument)||!/^\d{6}$/.test(String(b.competence||''))||!recordIds.length||recordIds.length>500||recordIds.some(id=>!Number.isSafeInteger(id)||id<1)||new Set(recordIds).size!==recordIds.length)return res.status(400).json({erro:'Instrumento, competência AAAAMM e até 500 IDs positivos e sem duplicidade são obrigatórios.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
-   const records=await client.query('SELECT id FROM clinical_records WHERE id=ANY($1::bigint[]) AND unit_id=$2',[b.recordIds.map(Number),unitOf(req)]);
-   if(records.rowCount!==b.recordIds.length){await client.query('ROLLBACK');return res.status(400).json({erro:'Um ou mais registros não pertencem à unidade ou não existem.'});}
+   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[String(unitOf(req))]);
+   const records=await client.query('SELECT id,resource_type FROM clinical_records WHERE id=ANY($1::bigint[]) AND unit_id=$2',[recordIds,unitOf(req)]);
+   if(records.rowCount!==recordIds.length||records.rows.some(row=>row.resource_type!=='billing')){await client.query('ROLLBACK');return res.status(400).json({erro:'Todos os IDs devem corresponder a registros de faturamento existentes nesta unidade.'});}
+   const alreadyAssigned=await client.query("SELECT id FROM billing_batches WHERE unit_id=$1 AND status<>'rejected' AND record_ids && $2::bigint[] LIMIT 1",[unitOf(req),recordIds]);
+   if(alreadyAssigned.rowCount){await client.query('ROLLBACK');return res.status(409).json({erro:'Um ou mais registros já pertencem a outro lote ativo.',codigo:'BILLING_RECORD_ALREADY_ASSIGNED'});}
    const a=actorOf(req),r=await client.query('INSERT INTO billing_batches(unit_id,instrument,competence,status,record_ids,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,instrument,competence,status,record_ids,created_at',
-    [unitOf(req),b.instrument,String(b.competence),'pending_validation',b.recordIds.map(Number),a.username]);
+    [unitOf(req),b.instrument,String(b.competence),'pending_validation',recordIds,a.username]);
    await audit(req,client,'create','billing_batch',r.rows[0].id,null,{instrument:b.instrument,recordCount:b.recordIds.length});
    await client.query('COMMIT');return res.status(201).json({batch:r.rows[0],exportEnabled:false});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
  });
- router.post('/api/v1/signatures/request',requirePermission('records.sign'),async(req,res,next)=>{
+
+ router.post('/api/v1/billing-batches/:id/validate',requirePermission('billing.validate'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({erro:'Identificador de lote inválido.'});
+  const client=await getPool().connect();
+  try{
+   await client.query('BEGIN');
+   const locked=await client.query('SELECT id,instrument,competence,status,record_ids FROM billing_batches WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+   if(!locked.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Lote não encontrado nesta unidade.'});}
+   const batch=locked.rows[0];
+   if(batch.status!=='pending_validation'){await client.query('ROLLBACK');return res.status(409).json({erro:'Somente lotes pendentes podem ser validados.',codigo:'INVALID_BILLING_BATCH_TRANSITION'});}
+   const ids=Array.isArray(batch.record_ids)?batch.record_ids:[];
+   const records=await client.query('SELECT id,resource_type,data FROM clinical_records WHERE id=ANY($1::bigint[]) AND unit_id=$2 ORDER BY id FOR SHARE',[ids,unitOf(req)]);
+   const issues=[];
+   if(!ids.length)issues.push({code:'EMPTY_BATCH',message:'O lote não possui registros.'});
+   if(records.rowCount!==ids.length)issues.push({code:'MISSING_OR_FOREIGN_RECORD',message:'Há registros ausentes ou fora da unidade.'});
+   for(const row of records.rows){
+    const data=row.data&&typeof row.data==='object'?row.data:{};
+    if(row.resource_type!=='billing')issues.push({code:'INVALID_RESOURCE_TYPE',recordId:row.id,message:'O registro não pertence ao domínio de faturamento.'});
+    if(String(data.instrument||'')!==batch.instrument)issues.push({code:'INSTRUMENT_MISMATCH',recordId:row.id,message:'O instrumento do registro não corresponde ao lote.'});
+    if(String(data.competence||'')!==String(batch.competence))issues.push({code:'COMPETENCE_MISMATCH',recordId:row.id,message:'A competência do registro não corresponde ao lote.'});
+    if(!String(data.sigtapCode||'').trim())issues.push({code:'MISSING_PROCEDURE_CODE',recordId:row.id,message:'Código de procedimento não informado.'});
+    const quantity=Number(data.quantity);
+    if(!Number.isFinite(quantity)||quantity<=0)issues.push({code:'INVALID_QUANTITY',recordId:row.id,message:'Quantidade deve ser numérica e maior que zero.'});
+   }
+   const summary={checkedAt:new Date().toISOString(),recordCount:ids.length,validRecordCount:Math.max(0,records.rowCount-new Set(issues.filter(x=>x.recordId).map(x=>String(x.recordId))).size),issueCount:issues.length,issues};
+   if(issues.length){
+    await client.query('UPDATE billing_batches SET validation_summary=$1::jsonb WHERE id=$2 AND unit_id=$3',[JSON.stringify(summary),id,unitOf(req)]);
+    await audit(req,client,'validate','billing_batch',id,null,{result:'blocked',issueCount:issues.length});
+    await client.query('COMMIT');
+    return res.status(422).json({erro:'Lote reprovado na conferência estrutural. Corrija as inconsistências e gere um novo lote.',codigo:'BILLING_BATCH_VALIDATION_FAILED',validation:summary});
+   }
+   const actor=actorOf(req);
+   const updated=await client.query("UPDATE billing_batches SET status='validated',validation_summary=$1::jsonb,validated_by=$2,validated_at=NOW(),rejection_reason=NULL WHERE id=$3 AND unit_id=$4 RETURNING id,instrument,competence,status,record_ids,validation_summary,validated_by,validated_at",[JSON.stringify(summary),actor.username,id,unitOf(req)]);
+   await audit(req,client,'validate','billing_batch',id,null,{result:'validated',recordCount:ids.length});
+   await client.query('COMMIT');
+   return res.json({batch:updated.rows[0],officialExportPerformed:false});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.post('/api/v1/billing-batches/:id/reject',requirePermission('billing.validate'),async(req,res,next)=>{
+  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+  const id=Number(req.params.id),reason=String(req.body?.reason||'').trim();
+  if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({erro:'Identificador de lote inválido.'});
+  if(reason.length<5||reason.length>2000)return res.status(400).json({erro:'Informe uma justificativa entre 5 e 2000 caracteres.'});
+  const client=await getPool().connect();
+  try{
+   await client.query('BEGIN');
+   const current=await client.query('SELECT id,status FROM billing_batches WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+   if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Lote não encontrado nesta unidade.'});}
+   if(current.rows[0].status!=='pending_validation'){await client.query('ROLLBACK');return res.status(409).json({erro:'Somente lotes pendentes podem ser rejeitados.',codigo:'INVALID_BILLING_BATCH_TRANSITION'});}
+   const updated=await client.query("UPDATE billing_batches SET status='rejected',rejection_reason=$1 WHERE id=$2 AND unit_id=$3 RETURNING id,status,rejection_reason",[reason,id,unitOf(req)]);
+   await audit(req,client,'reject','billing_batch',id,null,{reason});
+   await client.query('COMMIT');
+   return res.json({batch:updated.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+ });
+ router.get('/api/v1/billing-denials',requirePermission('billing.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ try{
+  const r=await getPool().query('SELECT d.id,d.billing_batch_id,b.instrument,b.competence,d.document_reference,d.reason,d.disputed_amount,d.appeal_deadline,d.status,d.status_reason,d.created_by,d.created_at,d.updated_at,d.resolved_at FROM billing_denials d JOIN billing_batches b ON b.id=d.billing_batch_id AND b.unit_id=d.unit_id WHERE d.unit_id=$1 ORDER BY d.created_at DESC LIMIT 200',[unitOf(req)]);
+  return res.json({items:r.rows});
+ }catch(e){return next(e);}
+});
+router.post('/api/v1/billing-denials',requirePermission('billing.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},batchId=Number(b.batchId),documentReference=String(b.documentReference||'').trim(),reason=String(b.reason||'').trim(),amount=Number(b.disputedAmount??0),deadline=b.appealDeadline?String(b.appealDeadline):null;
+ const validDeadline=!deadline||(/^\d{4}-\d{2}-\d{2}$/.test(deadline)&&Number.isFinite(Date.parse(deadline+'T00:00:00Z'))&&new Date(deadline+'T00:00:00Z').toISOString().slice(0,10)===deadline);
+ if(!Number.isSafeInteger(batchId)||batchId<1||documentReference.length<2||documentReference.length>120||reason.length<5||reason.length>2000||!Number.isFinite(amount)||amount<0||amount>999999999999.99||Math.abs(amount*100-Math.round(amount*100))>1e-7||!validDeadline)return res.status(400).json({erro:'Informe lote, documento, motivo, valor com até duas casas decimais e prazo válido (quando houver).'});
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const batch=await client.query('SELECT id FROM billing_batches WHERE id=$1 AND unit_id=$2 FOR SHARE',[batchId,unitOf(req)]);
+  if(!batch.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Lote de faturamento não encontrado nesta unidade.'});}
+  const actor=actorOf(req);
+  const r=await client.query("INSERT INTO billing_denials(unit_id,billing_batch_id,document_reference,reason,disputed_amount,appeal_deadline,status,created_by) VALUES($1,$2,$3,$4,$5,$6,'received',$7) RETURNING id,billing_batch_id,document_reference,reason,disputed_amount,appeal_deadline,status,created_by,created_at",
+   [unitOf(req),batchId,documentReference,reason,amount,deadline,actor.username]);
+  await audit(req,client,'create','billing_denial',r.rows[0].id,null,{billingBatchId:batchId,disputedAmount:amount});
+  await client.query('COMMIT');return res.status(201).json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/billing-denials/:id/status',requirePermission('billing.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.params.id),status=String(req.body?.status||''),reason=String(req.body?.reason||'').trim();
+ if(!Number.isSafeInteger(id)||id<1||!['under_review','appeal_submitted','accepted','rejected'].includes(status)||reason.length<5||reason.length>1000)return res.status(400).json({erro:'Informe situação válida e justificativa de 5 a 1000 caracteres.'});
+ const transitions={received:['under_review'],under_review:['appeal_submitted','accepted','rejected'],appeal_submitted:['accepted','rejected'],accepted:[],rejected:[]};
+ const client=await getPool().connect();
+ try{
+  await client.query('BEGIN');
+  const current=await client.query('SELECT id,status FROM billing_denials WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+  if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Glosa não encontrada nesta unidade.'});}
+  if(!transitions[current.rows[0].status]?.includes(status)){await client.query('ROLLBACK');return res.status(409).json({erro:'Transição de situação não permitida.',codigo:'INVALID_BILLING_DENIAL_TRANSITION'});}
+  const resolved=['accepted','rejected'].includes(status);
+  const r=await client.query('UPDATE billing_denials SET status=$1,status_reason=$2,updated_at=NOW(),resolved_at=CASE WHEN $3 THEN NOW() ELSE NULL END WHERE id=$4 AND unit_id=$5 RETURNING id,billing_batch_id,status,status_reason,updated_at,resolved_at',
+   [status,reason,resolved,id,unitOf(req)]);
+  await audit(req,client,'update','billing_denial',id,null,{from:current.rows[0].status,to:status,reason});
+  await client.query('COMMIT');return res.json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/reports/production',requirePermission('reports.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const from=String(req.query.from||''),to=String(req.query.to||'');
+ if((from&&!/^\d{4}(0[1-9]|1[0-2])$/.test(from))||(to&&!/^\d{4}(0[1-9]|1[0-2])$/.test(to))||(from&&to&&from>to))return res.status(400).json({erro:'Use competência inicial e final no formato AAAAMM.'});
+ try{
+  const [production,batches,denials]=await Promise.all([
+   getPool().query("SELECT COALESCE(data->>'instrument','não informado') AS instrument,data->>'competence' AS competence,COUNT(*)::int AS records,COALESCE(SUM(CASE WHEN data->>'quantity' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (data->>'quantity')::numeric ELSE 0 END),COUNT(*)::numeric) AS quantity FROM clinical_records WHERE unit_id=$1 AND resource_type='billing' AND ($2::text IS NULL OR data->>'competence'>=$2) AND ($3::text IS NULL OR data->>'competence'<=$3) GROUP BY COALESCE(data->>'instrument','não informado'),data->>'competence' ORDER BY data->>'competence' DESC,COALESCE(data->>'instrument','não informado')",[unitOf(req),from||null,to||null]),
+   getPool().query('SELECT status,COUNT(*)::int AS total FROM billing_batches WHERE unit_id=$1 GROUP BY status ORDER BY status',[unitOf(req)]),
+   getPool().query('SELECT status,COUNT(*)::int AS total,COALESCE(SUM(disputed_amount),0) AS disputed_amount FROM billing_denials WHERE unit_id=$1 GROUP BY status ORDER BY status',[unitOf(req)])
+  ]);
+  return res.json({items:production.rows,batches:batches.rows,denials:denials.rows,source:'PostgreSQL',officialExportPerformed:false});
+ }catch(e){return next(e);}
+});
+router.post('/api/v1/signatures/request',requirePermission('records.sign'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
   const provider=req.body?.provider,recordId=Number(req.body?.clinicalRecordId);
   if(!Number.isSafeInteger(recordId)||recordId<1)return res.status(400).json({erro:'Informe o identificador do documento clínico.'});

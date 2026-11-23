@@ -147,3 +147,26 @@ assert.ok(ROLE_PERMISSIONS.farmacia.includes('purchasing.write'), 'pharmacy may 
 assert.ok(!ROLE_PERMISSIONS.farmacia.includes('purchasing.approve'), 'pharmacy cannot approve purchases');
 assert.ok(ROLE_PERMISSIONS.direcao.includes('purchasing.approve'), 'direction may approve purchases');
 assert.ok(ROLE_PERMISSIONS.direcao.includes('professionals.schedule.write'), 'direction may manage staff schedules');
+
+const billingDenialsMigration = require('node:fs').readFileSync(require('node:path').join(__dirname,'../database/migrations/20261123_billing_denials_reports.sql'),'utf8');
+const migrationRunner = require('node:fs').readFileSync(require('node:path').join(__dirname,'../scripts/apply-clinical-platform-migration.js'),'utf8');
+assert.ok(routerSource.includes("router.get('/api/v1/billing-denials'"),'billing denial list must use a dedicated v1 endpoint');
+assert.ok(routerSource.includes("router.post('/api/v1/billing-denials'"),'billing denial creation must use a dedicated v1 endpoint');
+assert.match(routerSource,/INVALID_BILLING_DENIAL_TRANSITION/,'billing denial status transitions must be validated');
+assert.ok(routerSource.includes("router.get('/api/v1/reports/production'"),'production reporting must use a dedicated v1 endpoint');
+assert.match(billingDenialsMigration,/CREATE TABLE IF NOT EXISTS billing_denials/,'billing denials must be persisted in PostgreSQL');
+assert.match(billingDenialsMigration,/billing_denial_batch_unit_fk/,'billing denial references must remain inside the same unit');
+assert.ok(migrationRunner.includes('20261123_billing_denials_reports.sql'),'billing denial migration must run in CI and deployment migration flow');
+assert.ok(migrationRunner.includes("public.billing_denials'"),'migration runner must verify the billing denial table');
+
+const billingWorkflowMigration = require('node:fs').readFileSync(require('node:path').join(__dirname,'../database/migrations/20261123_billing_batch_validation.sql'),'utf8');
+assert.ok(routerSource.includes("router.post('/api/v1/billing-batches/:id/validate'"),'billing batches must have a dedicated validation transition');
+assert.ok(routerSource.includes("router.post('/api/v1/billing-batches/:id/reject'"),'billing batches must have a dedicated rejection transition');
+assert.match(routerSource,/BILLING_BATCH_VALIDATION_FAILED/,'structural billing inconsistencies must block validation');
+assert.match(routerSource,/BILLING_RECORD_ALREADY_ASSIGNED/,'a billing record cannot be included in multiple active batches');
+assert.match(billingWorkflowMigration,/ADD COLUMN IF NOT EXISTS validation_summary/,'batch validation summary must be persisted');
+assert.ok(billingWorkflowMigration.includes("'validate','reject'"),'audit schema must accept dedicated validation and rejection actions');
+assert.ok(billingWorkflowMigration.includes("billing.validate"),'billing validation requires an explicit permission');
+assert.ok(migrationRunner.includes('20261123_billing_batch_validation.sql'),'batch validation migration must run in CI and deployment migration flow');
+
+assert.ok(ROLE_PERMISSIONS.direcao.includes('billing.validate'), 'direction may validate billing batches');

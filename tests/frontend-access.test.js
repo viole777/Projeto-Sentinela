@@ -59,3 +59,12 @@ assert.ok(advanced.includes("'solicitacao-compras':'compras'"), 'purchase naviga
 
 assert.ok(advanced.includes("'rejected',reason"), 'purchase rejection must submit a reason to the backend');
 assert.ok(advanced.includes('Confirmar rejeição'), 'direction UI must expose reason-required rejection');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/billing-denials'"),'glosa management must use a dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/reports/production'"),'production reports must use a dedicated v1 API');
+assert.ok(advanced.includes('updateDenialStatus'),'glosa UI must expose audited status transitions');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/billing-batches'"),'billing UI must use the dedicated v1 batches API');
+assert.ok(advanced.includes('billing.validate'),'batch validation actions must be permission-gated');
+assert.ok(advanced.includes('validateBillingBatch'),'batch validation must be connected to the API');
+assert.ok(advanced.includes('recordIds:form.recordIds.split'),'batch form must parse record IDs into the API payload');

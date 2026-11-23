@@ -133,6 +133,10 @@ async function main() {
   });
   assertCondition(pharmacistLogin.response.ok, `Login de farmácia de CI falhou: ${JSON.stringify(pharmacistLogin.body)}`);
   const pharmacistCookie = getCookieHeader(pharmacistLogin.response.headers.get('set-cookie'));
+  const medicationLots = await request('/api/v1/medication-lots', { headers: { Cookie: pharmacistCookie } });
+  assertCondition(medicationLots.response.ok && Array.isArray(medicationLots.body?.items), `Farmácia deve consultar lotes versionados: HTTP ${medicationLots.response.status}`);
+  const dispensations = await request('/api/v1/dispensations', { headers: { Cookie: pharmacistCookie } });
+  assertCondition(dispensations.response.ok && Array.isArray(dispensations.body?.items), `Farmácia deve consultar histórico de dispensações: HTTP ${dispensations.response.status}`);
   const guardedDispense = await request('/farmacia/dispensar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },

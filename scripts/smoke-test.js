@@ -162,6 +162,28 @@ async function main() {
   const billingBatches = await request('/api/v1/billing-batches', { headers: { Cookie: directorCookie } });
   assertCondition(billingBatches.response.ok && billingBatches.body?.items?.length, 'Direção deve consultar lotes sintéticos de faturamento');
   const billingBatchId = billingBatches.body.items[0].id;
+  const pharmacistCannotValidate = await request('/api/v1/billing-batches/' + billingBatchId + '/validate', { method: 'POST', headers: { Cookie: pharmacistCookie } });
+  assertCondition(pharmacistCannotValidate.response.status === 403, 'Farmácia não deve validar lote de faturamento');
+  const duplicateBatch = await request('/api/v1/billing-batches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ instrument: 'BPA-C', competence: new Date().toISOString().slice(0, 7).replace('-', ''), recordIds: billingBatches.body.items[0].record_ids }),
+  });
+  assertCondition(duplicateBatch.response.status === 409 && duplicateBatch.body?.codigo === 'BILLING_RECORD_ALREADY_ASSIGNED', 'Registros não podem ser reutilizados em outro lote ativo');
+  const batchValidation = await request('/api/v1/billing-batches/' + billingBatchId + '/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({}),
+  });
+  assertCondition(batchValidation.response.ok && batchValidation.body?.batch?.status === 'validated', `Direção deve validar lote estruturalmente consistente: HTTP ${batchValidation.response.status} ${JSON.stringify(batchValidation.body)}`);
+  assertCondition(batchValidation.body?.officialExportPerformed === false, 'Validação interna não deve alegar exportação oficial');
+  const invalidBatchTransition = await request('/api/v1/billing-batches/' + billingBatchId + '/reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ reason: 'Tentativa de rejeição após validação.' }),
+  });
+  assertCondition(invalidBatchTransition.response.status === 409 && invalidBatchTransition.body?.codigo === 'INVALID_BILLING_BATCH_TRANSITION', 'Lote validado não pode ser rejeitado em seguida');
+
   const denialCreate = await request('/api/v1/billing-denials', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: directorCookie },

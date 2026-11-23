@@ -52,3 +52,5 @@ assert.ok(advanced.includes("'notificacao-incidente':'incidentes'"), 'incident n
 assert.ok(advanced.includes("endpoint:'/api/v1/purchase-requests'"), 'purchasing module must use the dedicated v1 API');
 assert.ok(advanced.includes("endpoint:'/api/v1/professional-shifts'"), 'staff schedules must use the dedicated v1 API');
 assert.ok(advanced.includes("'purchasing.approve'"), 'purchase approval action must require a distinct permission');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/professional-registry'") || advanced.includes("fetch('/api/v1/professional-registry'"), 'shift form must load active professionals from the registry');

@@ -139,7 +139,7 @@ async function main() {
     body: JSON.stringify({ consultaId: 999999, revisadoPor: 'usuario-forjado' }),
   });
   assertCondition(guardedDispense.response.status === 400, `Rota legada de dispensação deve orientar o uso da API versionada: HTTP ${guardedDispense.response.status}`);
-  assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
+  assertCondition(guardedDispense.body?.codigo === 'USE_VERSIONED_PRESCRIPTION_DISPENSING', 'Rota legada deve direcionar para o fluxo versionado de dispensação');
 
   const doctorTriageScreen = await request('/triagem', { headers: { Cookie: doctorCookie } });
   assertCondition(doctorTriageScreen.response.status === 403, `Perfil médico não deve consultar a API da triagem: HTTP ${doctorTriageScreen.response.status}`);

@@ -177,13 +177,13 @@ async function main() {
     headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
     body: JSON.stringify({ protocolo: 'registro genérico não deve ser persistido' }),
   });
-  assertCondition(blockedModuleWrite.response.status === 501, `CRUD genérico não deveria aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
+  assertCondition(blockedModuleWrite.response.status === 404, `Rota legada sem implementação não deve aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
 
   const blockedModuleDelete = await request('/protocolos/123', {
     method: 'DELETE',
     headers: { Cookie: sessionCookie },
   });
-  assertCondition(blockedModuleDelete.response.status === 501, `CRUD genérico não deveria permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
+  assertCondition(blockedModuleDelete.response.status === 404, `Rota legada sem implementação não deve permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
 
   const triageLogin = await request('/login', {
     method: 'POST',

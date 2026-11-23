@@ -64,6 +64,8 @@ jobs:
           PGSSL: disable
           TEST_ADMIN_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}-aB9!
           TEST_TRIAGE_PASSWORD: ci-triage-${{ github.run_id }}-${{ github.run_attempt }}-zK7!
+          TEST_DIRECTOR_PASSWORD: ci-director-${{ github.run_id }}-${{ github.run_attempt }}-qP4!
+          TEST_DIRECTOR_PASSWORD: ci-director-${{ github.run_id }}-${{ github.run_attempt }}-qP4!
         run: node scripts/provision-ci-admin.js
 
       - name: Build frontend for browser navigation

@@ -17,13 +17,9 @@ CREATE TABLE IF NOT EXISTS billing_denials (
  created_by TEXT NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
- resolved_at TIMESTAMPTZ
+ resolved_at TIMESTAMPTZ,
+ CONSTRAINT billing_denial_batch_unit_fk FOREIGN KEY (billing_batch_id,unit_id) REFERENCES billing_batches(id,unit_id)
 );
-DO $ BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='billing_denial_batch_unit_fk') THEN
-  ALTER TABLE billing_denials ADD CONSTRAINT billing_denial_batch_unit_fk FOREIGN KEY (billing_batch_id,unit_id) REFERENCES billing_batches(id,unit_id);
- END IF;
-END $;
 
 CREATE INDEX IF NOT EXISTS idx_billing_denials_unit_status_deadline
  ON billing_denials(unit_id,status,appeal_deadline);

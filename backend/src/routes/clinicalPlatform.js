@@ -66,7 +66,7 @@ function validateResourcePayload(key,input){
  if(key==='incidents'&&!['medication','fall','identification','infection','equipment','process','other'].includes(String(data.category)))return{ok:false,error:'Categoria de incidente inválida.'};
  if(key==='incidents'&&!['no_harm','mild','moderate','severe','critical'].includes(String(data.severity)))return{ok:false,error:'Classificação de gravidade inválida.'};
  if(key==='protocols'&&!/^[A-Z0-9][A-Z0-9._-]{1,39}$/.test(String(data.code)))return{ok:false,error:'Código do protocolo inválido.'};
- if(key==='protocols'&&!/^\\d+\\.\\d+(?:\\.\\d+)?$/.test(String(data.version)))return{ok:false,error:'Versão deve seguir o padrão semântico, por exemplo 1.0.'};
+ if(key==='protocols'&&!/^\d+\.\d+(?:\.\d+)?$/.test(String(data.version)))return{ok:false,error:'Versão deve seguir o padrão semântico, por exemplo 1.0.'};
  if(key==='medication-administrations'&&data.outcome!=='administered'&&!String(data.reason||'').trim())return{ok:false,error:'Justificativa obrigatória para recusa, omissão ou adiamento.'};
  for(const k of ['diagnosisSystem','system'])if(data[k])data[k]=String(data[k]).toUpperCase();
  return{ok:true,data};

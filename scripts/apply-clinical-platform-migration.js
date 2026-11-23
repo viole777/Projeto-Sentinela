@@ -8,7 +8,7 @@ function splitSqlStatements(sql) {
   let start = 0, single = false, double = false, lineComment = false, blockComment = false, dollarTag = null;
   for (let i = 0; i < sql.length; i++) {
     const ch = sql[i], next = sql[i + 1];
-    if (lineComment) { if (ch === '\\n') lineComment = false; continue; }
+    if (lineComment) { if (ch.charCodeAt(0) === 10) lineComment = false; continue; }
     if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
     if (dollarTag) { if (sql.startsWith(dollarTag, i)) { i += dollarTag.length - 1; dollarTag = null; } continue; }
     if (single) { if (ch === "'" && next === "'") { i++; continue; } if (ch === "'") single = false; continue; }
@@ -17,13 +17,17 @@ function splitSqlStatements(sql) {
     if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
     if (ch === "'") { single = true; continue; }
     if (ch === '"') { double = true; continue; }
-    if (ch === '$') { const match = sql.slice(i).match(/^\\$[A-Za-z_0-9]*\\$/); if (match) { dollarTag = match[0]; i += dollarTag.length - 1; continue; } }
+    if (ch === '$') {
+      const close = sql.indexOf('$', i + 1);
+      if (close !== -1 && /^[A-Za-z_0-9]*$/.test(sql.slice(i + 1, close))) {
+        dollarTag = sql.slice(i, close + 1); i = close; continue;
+      }
+    }
     if (ch === ';') { const statement = sql.slice(start, i).trim(); if (statement) statements.push(statement); start = i + 1; }
   }
   const tail = sql.slice(start).trim(); if (tail) statements.push(tail);
   return statements;
 }
-
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
   const pool = new Pool({
@@ -40,7 +44,7 @@ async function main() {
       for (let index = 0; index < statements.length; index++) {
         try { await pool.query(statements[index]); }
         catch (error) {
-          const excerpt = statements[index].replace(/\\s+/g, ' ').slice(0, 320);
+          const excerpt = statements[index].slice(0, 320);
           throw new Error(`Clinical migration failed at statement ${index + 1}: ${excerpt}. Cause: ${error.message}`);
         }
       }

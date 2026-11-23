@@ -135,10 +135,10 @@ assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermar
 assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T07:00:00Z',endsAt:'2026-11-25T08:00:00Z'}).ok,false);
 assert.match(routerSource,/PURCHASE_SELF_APPROVAL/, 'purchase request creator cannot approve their own request');
 assert.match(routerSource,/PROFESSIONAL_SHIFT_OVERLAP/, 'overlapping shifts must be rejected');
-assert.match(routerSource,/purchasing\\.approve/, 'purchase decisions require a separate approval permission');
+assert.match(routerSource,/purchasing\.approve/, 'purchase decisions require a separate approval permission');
 assert.match(migration,/CREATE TABLE IF NOT EXISTS purchase_requests/, 'purchase requests must be persisted in PostgreSQL');
 assert.match(migration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'professional shifts must be persisted in PostgreSQL');
-assert.match(migration,/professionals\\.schedule\\.write/, 'schedule writes must be granted explicitly');
+assert.match(migration,/professionals\.schedule\.write/, 'schedule writes must be granted explicitly');
 
 assert.match(routerSource,/router\.get\('\/api\/v1\/professional-registry'/, 'shift UI must be able to list active professional links');
 

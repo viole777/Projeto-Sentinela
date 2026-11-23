@@ -71,6 +71,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const routerSource=fs.readFileSync(path.join(__dirname,'../backend/src/routes/clinicalPlatform.js'),'utf8');
 const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261112_clinical_platform.sql'),'utf8');
+const purchasingMigration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261123_purchasing_professional_shifts.sql'),'utf8');
 const databaseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf8');
 const sessionsTable=databaseSchema.match(/CREATE TABLE IF NOT EXISTS sessions\s*\(([\s\S]*?)\);/i);
 assert.ok(sessionsTable,'sessions table must be declared in the canonical schema');
@@ -136,9 +137,9 @@ assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermar
 assert.match(routerSource,/PURCHASE_SELF_APPROVAL/, 'purchase request creator cannot approve their own request');
 assert.match(routerSource,/PROFESSIONAL_SHIFT_OVERLAP/, 'overlapping shifts must be rejected');
 assert.match(routerSource,/purchasing\.approve/, 'purchase decisions require a separate approval permission');
-assert.match(migration,/CREATE TABLE IF NOT EXISTS purchase_requests/, 'purchase requests must be persisted in PostgreSQL');
-assert.match(migration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'professional shifts must be persisted in PostgreSQL');
-assert.match(migration,/professionals\.schedule\.write/, 'schedule writes must be granted explicitly');
+assert.match(purchasingMigration,/CREATE TABLE IF NOT EXISTS purchase_requests/, 'purchase requests must be persisted in PostgreSQL');
+assert.match(purchasingMigration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'professional shifts must be persisted in PostgreSQL');
+assert.match(purchasingMigration,/professionals\.schedule\.write/, 'schedule writes must be granted explicitly');
 
 assert.match(routerSource,/router\.get\('\/api\/v1\/professional-registry'/, 'shift UI must be able to list active professional links');
 

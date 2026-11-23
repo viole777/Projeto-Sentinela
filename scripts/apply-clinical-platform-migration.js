@@ -3,6 +3,27 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('pg');
 
+function splitSqlStatements(sql) {
+  const statements = [];
+  let start = 0, single = false, double = false, lineComment = false, blockComment = false, dollarTag = null;
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i], next = sql[i + 1];
+    if (lineComment) { if (ch === '\\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
+    if (dollarTag) { if (sql.startsWith(dollarTag, i)) { i += dollarTag.length - 1; dollarTag = null; } continue; }
+    if (single) { if (ch === "'" && next === "'") { i++; continue; } if (ch === "'") single = false; continue; }
+    if (double) { if (ch === '"' && next === '"') { i++; continue; } if (ch === '"') double = false; continue; }
+    if (ch === '-' && next === '-') { lineComment = true; i++; continue; }
+    if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
+    if (ch === "'") { single = true; continue; }
+    if (ch === '"') { double = true; continue; }
+    if (ch === '$') { const match = sql.slice(i).match(/^\\$[A-Za-z_0-9]*\\$/); if (match) { dollarTag = match[0]; i += dollarTag.length - 1; continue; } }
+    if (ch === ';') { const statement = sql.slice(start, i).trim(); if (statement) statements.push(statement); start = i + 1; }
+  }
+  const tail = sql.slice(start).trim(); if (tail) statements.push(tail);
+  return statements;
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
   const pool = new Pool({
@@ -13,12 +34,20 @@ async function main() {
   try {
     const migrationPath = path.join(__dirname, '..', 'database', 'migrations', '20261112_clinical_platform.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
-    try { await pool.query(sql); } catch (error) {
-      const position = Number(error.position || 0);
-      const before = position > 0 ? sql.slice(0, position - 1) : '';
-      const line = position > 0 ? before.split('\\n').length : null;
-      const statement = position > 0 ? before.split(';').pop().trim().slice(-240) : '';
-      throw new Error(`Clinical migration failed${line ? ` near line ${line}` : ''}${statement ? ` near: ${statement}` : ''}: ${error.message}`);
+    const statements = splitSqlStatements(sql).filter(statement => !/^(BEGIN|COMMIT)$/i.test(statement));
+    await pool.query('BEGIN');
+    try {
+      for (let index = 0; index < statements.length; index++) {
+        try { await pool.query(statements[index]); }
+        catch (error) {
+          const excerpt = statements[index].replace(/\\s+/g, ' ').slice(0, 320);
+          throw new Error(`Clinical migration failed at statement ${index + 1}: ${excerpt}. Cause: ${error.message}`);
+        }
+      }
+      await pool.query('COMMIT');
+    } catch (error) {
+      await pool.query('ROLLBACK').catch(() => {});
+      throw error;
     }
     const result = await pool.query(
       "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events"

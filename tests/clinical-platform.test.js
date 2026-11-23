@@ -167,3 +167,5 @@ assert.match(routerSource,/BILLING_RECORD_ALREADY_ASSIGNED/,'a billing record ca
 assert.match(billingWorkflowMigration,/ADD COLUMN IF NOT EXISTS validation_summary/,'batch validation summary must be persisted');
 assert.match(billingWorkflowMigration,/billing\\.validate/,'billing validation requires an explicit permission');
 assert.ok(migrationRunner.includes('20261123_billing_batch_validation.sql'),'batch validation migration must run in CI and deployment migration flow');
+
+assert.ok(ROLE_PERMISSIONS.direcao.includes('billing.validate'), 'direction may validate billing batches');

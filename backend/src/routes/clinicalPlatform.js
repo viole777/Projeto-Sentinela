@@ -73,7 +73,7 @@ function validateResourcePayload(key,input){
 }
 function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres}){
  const router=express.Router();
- const unitOf=req=>String(req.user?.unit||req.user?.unidade||'').trim();
+ const unitOf=req=>String(req.user?.unit||req.user?.unidade||req.user?.setor||'').trim();
  const actorOf=req=>({username:String(req.user?.usuario||req.user?.username||'unknown'),role:String(req.user?.role||req.user?.tipo||'unknown'),unit:unitOf(req)});
  function ensureUnit(req,res){if(!unitOf(req)){res.status(403).json({erro:'Conta sem unidade vinculada. Vincule a conta a uma unidade antes de acessar dados clínicos.',codigo:'UNIT_SCOPE_REQUIRED'});return false;}return true;}
  function unavailable(res){return res.status(503).json({erro:'A plataforma clínica exige PostgreSQL e a migração 20261112_clinical_platform.sql.',codigo:'CLINICAL_PLATFORM_SCHEMA_UNAVAILABLE'});}

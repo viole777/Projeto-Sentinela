@@ -56,3 +56,6 @@ assert.ok(advanced.includes("'purchasing.approve'"), 'purchase approval action m
 assert.ok(advanced.includes("endpoint:'/api/v1/professional-registry'") || advanced.includes("fetch('/api/v1/professional-registry'"), 'shift form must load active professionals from the registry');
 
 assert.ok(advanced.includes("'solicitacao-compras':'compras'"), 'purchase navigation alias must resolve to the implemented purchase module');
+
+assert.ok(advanced.includes("'rejected',reason"), 'purchase rejection must submit a reason to the backend');
+assert.ok(advanced.includes('Confirmar rejeição'), 'direction UI must expose reason-required rejection');

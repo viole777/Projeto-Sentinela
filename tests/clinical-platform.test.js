@@ -108,3 +108,14 @@ console.log('clinical platform schema validation tests passed');
 
 assert.match(routerSource,/router\.get\('\/api\/v1\/dispensations'/, 'dispensation history must have a dedicated read endpoint');
 assert.match(routerSource,/router\.post\('\/api\/v1\/dispensations'/, 'dispensation must have a dedicated workflow endpoint');
+
+assert.ok(RESOURCE_DEFS.incidents, 'incident reporting must have a dedicated resource');
+assert.ok(RESOURCE_DEFS.protocols, 'protocol drafts must have a dedicated resource');
+assert.equal(validateResourcePayload('incidents',{occurredAt:'2026-11-23T10:00',category:'fall',severity:'moderate',description:'Observed event'}).ok,true);
+assert.equal(validateResourcePayload('incidents',{occurredAt:'2026-11-23T10:00',category:'unknown',severity:'moderate',description:'Observed event'}).ok,false);
+assert.equal(validateResourcePayload('protocols',{code:'CLIN-01',name:'Protocol',version:'1.0',content:'Draft'}).ok,true);
+assert.equal(validateResourcePayload('protocols',{code:'CLIN-01',name:'Protocol',version:'approved',content:'Draft'}).ok,false);
+assert.match(routerSource,/stock-movements/, 'stock movements must have dedicated endpoints');
+assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movement must reject negative balances');
+assert.match(migration,/inventory_movements_immutable/, 'inventory ledger must be append-only');
+assert.match(migration,/incident','protocol/, 'clinical record schema must include incident and protocol records');

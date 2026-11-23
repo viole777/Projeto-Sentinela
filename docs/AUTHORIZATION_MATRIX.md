@@ -121,3 +121,11 @@ A matriz de papéis padrão permanece segregada: recepção pode abrir atendimen
 - O papel `farmacia` pode abrir solicitações (`purchasing.write`), mas não aprová-las. O papel `direcao` pode aprovar/rejeitar (`purchasing.approve`).
 - Escalas usam `GET/POST /api/v1/professional-shifts`, vinculam profissional ativo registrado na unidade, limitam plantões a 24 horas e bloqueiam sobreposições sob bloqueio transacional do vínculo profissional.
 - Transições de plantão usam `POST /api/v1/professional-shifts/:id/status`; somente direção recebe `professionals.schedule.write`. Troca de plantão e frequência ainda não estão implementadas.
+
+## Validação interna de lotes de faturamento
+
+- Lotes são criados e consultados em `/api/v1/billing-batches`; os registros vinculados precisam pertencer à unidade e ao domínio de faturamento, e não podem estar em outro lote ativo.
+- Somente `billing.validate` permite validar ou rejeitar lotes. A permissão é concedida ao papel `direcao`; a criação continua sob `billing.write`.
+- `POST /api/v1/billing-batches/:id/validate` confere unidade, tipo de registro, instrumento, competência, código de procedimento e quantidade. As inconsistências são persistidas em `validation_summary`, auditadas e devolvidas como HTTP 422.
+- `POST /api/v1/billing-batches/:id/reject` exige justificativa e só opera sobre lotes pendentes. Transições inválidas retornam HTTP 409.
+- A validação é administrativa/estrutural. Não valida código contra tabela SIGTAP vigente, não aplica regras oficiais AIH/BPA/APAC, não calcula valores, não gera arquivo e não transmite produção.

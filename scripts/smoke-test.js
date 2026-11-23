@@ -144,6 +144,7 @@ async function main() {
   });
   assertCondition(purchaseCreate.response.status === 201, `Farmácia deve criar solicitação de compra: HTTP ${purchaseCreate.response.status} ${JSON.stringify(purchaseCreate.body)}`);
   const purchaseId = purchaseCreate.body?.item?.id;
+  assertCondition(purchaseId, 'Solicitação de compra deve retornar ID');
   const pharmacistCannotApprove = await request('/api/v1/purchase-requests/' + purchaseId + '/decision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
@@ -151,7 +152,6 @@ async function main() {
   });
   assertCondition(pharmacistCannotApprove.response.status === 403, 'Farmácia não deve aprovar a própria solicitação nem outras compras');
 
-  assertCondition(purchaseId, 'Solicitação de compra deve retornar ID');
   const directorLogin = await request('/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

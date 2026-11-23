@@ -587,7 +587,7 @@ router.post('/api/v1/dispensations',requirePermission('prescriptions.dispense'),
 router.get('/api/v1/stock-movements',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));
- try{const r=await getPool().query('SELECT m.id,m.lot_id,l.medication_name,l.batch_number,m.movement_type,m.quantity,m.reason,m.created_by,m.created_at FROM inventory_movements m JOIN medication_lots l ON l.id=m.lot_id AND l.unit_id=m.unit_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT $2',[unitOf(req),limit]);return res.json({items:r.rows,appendOnly:true});}catch(e){return next(e);}
+ try{const r=await getPool().query('SELECT m.id,m.lot_id,l.medication_name,l.batch_number,m.movement_type,m.quantity,m.reason,m.created_by,m.created_at FROM clinical_stock_movements m JOIN medication_lots l ON l.id=m.lot_id AND l.unit_id=m.unit_id WHERE m.unit_id=$1 ORDER BY m.id DESC LIMIT $2',[unitOf(req),limit]);return res.json({items:r.rows,appendOnly:true});}catch(e){return next(e);}
 });
 router.post('/api/v1/stock-movements',requirePermission('inventory.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
@@ -603,7 +603,7 @@ router.post('/api/v1/stock-movements',requirePermission('inventory.write'),async
   if(type==='receipt'){const expiry=await client.query('SELECT expires_on FROM medication_lots WHERE id=$1 AND unit_id=$2',[lotId,unitOf(req)]);if(expiry.rows[0].expires_on<new Date().toISOString().slice(0,10)){await client.query('ROLLBACK');return res.status(409).json({erro:'Não é permitido registrar entrada em lote vencido.',codigo:'EXPIRED_LOT_RECEIPT'});}}
   await client.query('UPDATE medication_lots SET quantity_available=$1 WHERE id=$2 AND unit_id=$3',[next,lotId,unitOf(req)]);
   const actor=actorOf(req);
-  const movement=await client.query('INSERT INTO inventory_movements(lot_id,unit_id,movement_type,quantity,delta,reason,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,lot_id,movement_type,quantity,delta,reason,created_at',[lotId,unitOf(req),type,quantity,delta,reason,actor.username,actor.role]);
+  const movement=await client.query('INSERT INTO clinical_stock_movements(lot_id,unit_id,movement_type,quantity,delta,reason,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,lot_id,movement_type,quantity,delta,reason,created_at',[lotId,unitOf(req),type,quantity,delta,reason,actor.username,actor.role]);
   await audit(req,client,'create','inventory_movement',movement.rows[0].id,null,{lotId,movementType:type,quantity,delta});
   await client.query('COMMIT');return res.status(201).json({item:movement.rows[0],balance:next});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}

@@ -81,11 +81,11 @@ function validatePurchaseRequestPayload(input={}) {
  return{ok:true,data:{itemName,quantity,priority,justification}};
 }
 function validateProfessionalShiftPayload(input={}) {
- const professionalId=Number(input.professionalId),startsAt=new Date(input.startsAt),endsAt=new Date(input.endsAt);
+ const professionalId=Number(input.professionalId),startsRaw=String(input.startsAt||''),endsRaw=String(input.endsAt||''),startsAt=new Date(startsRaw),endsAt=new Date(endsRaw);
  const sector=String(input.sector||'').trim(),notes=String(input.notes||'').trim();
  if(!Number.isSafeInteger(professionalId)||professionalId<1)return{ok:false,error:'Selecione um vínculo profissional válido.'};
  if(!sector||sector.length>120)return{ok:false,error:'Setor é obrigatório e deve ter até 120 caracteres.'};
- if(!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime()))return{ok:false,error:'Informe início e fim válidos com fuso horário.'};
+ if(!/(?:Z|[+-]\\d{2}:\\d{2})$/.test(startsRaw)||!/(?:Z|[+-]\\d{2}:\\d{2})$/.test(endsRaw)||!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime()))return{ok:false,error:'Informe início e fim válidos com fuso horário explícito.'};
  const duration=endsAt.getTime()-startsAt.getTime();
  if(duration<=0||duration>24*60*60*1000)return{ok:false,error:'O plantão deve ter duração positiva de até 24 horas.'};
  if(notes.length>1000)return{ok:false,error:'Observações devem ter até 1000 caracteres.'};

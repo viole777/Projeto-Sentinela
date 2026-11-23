@@ -110,10 +110,9 @@ export function AdvancedModulePage({page}:{page:string}){
   '/configuracoes/modulos':'modules.manage',
   '/acessos/unidades':'units.write'
  };
- const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&(permissions.includes('*')||permissions.includes(permission));}catch{return false;}};
- // ENDPOINTS registered in advancedModules.js deliberately return 501 until
- // a dedicated, validated API exists. Only /exames and /internacoes have
- // concrete handlers registered before that fallback router.
+ const hasPermission=(permission:string)=>{try{const permissions=JSON.parse(sessionStorage.getItem('sentinelaPermissions')||'[]');return Array.isArray(permissions)&&permissions.includes(permission);}catch{return false;}};
+ // Legacy endpoints remain fail-closed. These modules use the dedicated v1
+ // clinical routes with server-side permissions, schemas and audit records.
  const blockedModuleEndpoints=new Set([
   '/agenda','/enfermagem/evolucoes','/prescricoes','/altas','/faturamento',
   '/perfis','/unidades','/sinais-vitais','/exames/imagem','/cardiologia',

@@ -31,3 +31,5 @@ assert.ok(advanced.includes("endpoint:'/api/v1/soap-notes'"), 'medical notes mus
 assert.ok(advanced.includes("endpoint:'/api/v1/care-plans'"), 'care plans must use the validated v1 API');
 assert.equal(advanced.includes("permissions.includes('*')"), false, 'advanced module UI must not grant wildcard permissions');
 console.log('frontend access tests passed');
+
+assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8'),/routes\/advancedModules/, 'legacy 501 catch-all router must not be mounted');

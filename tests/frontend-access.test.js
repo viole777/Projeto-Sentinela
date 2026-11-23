@@ -48,3 +48,7 @@ assert.ok(advanced.includes("endpoint:'/api/v1/protocols'"), 'protocol module mu
 assert.ok(advanced.includes("endpoint:'/api/v1/stock-movements'"), 'stock movement module must use the v1 ledger API');
 
 assert.ok(advanced.includes("'notificacao-incidente':'incidentes'"), 'incident notification route must reuse the dedicated incident API module');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/purchase-requests'"), 'purchasing module must use the dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/professional-shifts'"), 'staff schedules must use the dedicated v1 API');
+assert.ok(advanced.includes("'purchasing.approve'"), 'purchase approval action must require a distinct permission');

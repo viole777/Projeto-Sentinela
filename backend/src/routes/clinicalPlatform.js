@@ -532,9 +532,14 @@ router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async
   return res.status(201).json({lot:r.rows[0]});
  }catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
 });
-router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescriptions.dispense'),async(req,res,next)=>{
+router.get('/api/v1/dispensations',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
- const id=Number(req.params.id),quantity=Number(req.body?.quantity);
+ const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));
+ try{const r=await getPool().query("SELECT id,patient_cpf,status,data,created_at FROM clinical_records WHERE resource_type='dispensation' AND unit_id=$1 ORDER BY id DESC LIMIT $2",[unitOf(req),limit]);return res.json({items:r.rows});}catch(e){return next(e);}
+});
+const dispenseHandler=async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.params.id||req.body?.prescriptionRecordId),quantity=Number(req.body?.quantity);
  if(!Number.isSafeInteger(id)||!Number.isFinite(quantity)||quantity<=0)return res.status(400).json({erro:'Prescrição e quantidade válida são obrigatórias.'});
  const client=await getPool().connect();
  try{await client.query('BEGIN');
@@ -563,7 +568,9 @@ router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescription
   await audit(req,client,'create','dispensation',event.rows[0].id,p.rows[0].patient_cpf,{prescriptionRecordId:id,quantity,lotCount:allocations.length});
   await client.query('COMMIT');return res.status(201).json({dispensation:event.rows[0],allocations,fefo:true});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
-});
+};
+router.post('/api/v1/prescriptions/:id/dispense',requirePermission('prescriptions.dispense'),dispenseHandler);
+router.post('/api/v1/dispensations',requirePermission('prescriptions.dispense'),dispenseHandler);
 
 router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));

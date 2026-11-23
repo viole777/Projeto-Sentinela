@@ -104,3 +104,6 @@ assert.ok(ROLE_PERMISSIONS.admin.includes('integration.manage'));
 assert.ok(!ROLE_PERMISSIONS.admin.includes('clinical.audit.read'),'technical admin must not read patient audit trail');
 
 console.log('clinical platform schema validation tests passed');
+
+assert.match(routerSource,/router\.get\('\/api\/v1\/dispensations'/, 'dispensation history must have a dedicated read endpoint');
+assert.match(routerSource,/router\.post\('\/api\/v1\/dispensations'/, 'dispensation must have a dedicated workflow endpoint');

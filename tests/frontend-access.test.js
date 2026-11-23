@@ -59,3 +59,7 @@ assert.ok(advanced.includes("'solicitacao-compras':'compras'"), 'purchase naviga
 
 assert.ok(advanced.includes("'rejected',reason"), 'purchase rejection must submit a reason to the backend');
 assert.ok(advanced.includes('Confirmar rejeição'), 'direction UI must expose reason-required rejection');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/billing-denials'"),'glosa management must use a dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/reports/production'"),'production reports must use a dedicated v1 API');
+assert.ok(advanced.includes('updateDenialStatus'),'glosa UI must expose audited status transitions');

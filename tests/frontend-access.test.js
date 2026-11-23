@@ -22,12 +22,12 @@ assert.match(shell, /setAuthError\(status === 503/, 'authorization infrastructur
 assert.match(app, /function Protected\(/, 'frontend routes must use a permission guard');
 assert.match(app, /<Protected path=\{routePath\}>/, 'advanced routes must be guarded too');
 
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/nursing-evolutions'/, 'nursing evolutions must use the validated v1 API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/prescriptions'/, 'prescriptions must use the validated v1 API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/bed-map'/, 'bed map must use the dedicated read API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/vital-signs'/, 'vital signs must use the validated v1 API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/exam-orders'/, 'exam orders must use the validated v1 API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/soap-notes'/, 'medical notes must use the validated v1 API');
-assert.match(advanced, /endpoint:'\\/api\\/v1\\/care-plans'/, 'care plans must use the validated v1 API');
-assert.doesNotMatch(advanced, /permissions\\.includes\\('\*'\\)/, 'advanced module UI must not grant wildcard permissions');
+assert.ok(advanced.includes("endpoint:'/api/v1/nursing-evolutions'"), 'nursing evolutions must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/prescriptions'"), 'prescriptions must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/bed-map'"), 'bed map must use the dedicated read API');
+assert.ok(advanced.includes("endpoint:'/api/v1/vital-signs'"), 'vital signs must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/exam-orders'"), 'exam orders must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/soap-notes'"), 'medical notes must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/care-plans'"), 'care plans must use the validated v1 API');
+assert.equal(advanced.includes("permissions.includes('*')"), false, 'advanced module UI must not grant wildcard permissions');
 console.log('frontend access tests passed');

@@ -28,7 +28,7 @@ As alterações abaixo foram reunidas de PRs anteriores e commits de consolidaç
 |---|---|---|
 | Negociação de conteúdo | Navegação HTML exige `Accept: text/html`; requisições de API não devem ser redirecionadas como páginas | Testes precisam ser mantidos em CI |
 | Workflow privilegiado | Removida automação que executava correção de dependências com permissão de escrita no repositório | Revisar todos os workflows e actions pinning |
-| Módulos genéricos | Endpoints genéricos não implementados respondem 501 | Ainda faltam módulos reais, com validação e autorização específicas |
+| Módulos genéricos | Roteador genérico legado removido; módulos migrados usam APIs v1 específicas | Ainda faltam fluxos próprios para módulos remanescentes; não apresentar como funcionais até implementação e testes |
 | Registros de triagem | Exclusão física bloqueada; encerramento preserva histórico | Revisar retenção, correções e trilha de alterações |
 | XSS legado | Valores não confiáveis escapados nas telas clínicas alteradas | Não equivale a varredura completa de XSS no frontend |
 | Armazenamento em produção | Inicialização sem `DATABASE_URL` bloqueada em produção | Persistência atual ainda precisa ser transacional e awaitable |

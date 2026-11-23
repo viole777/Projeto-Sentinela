@@ -413,6 +413,7 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
 });
 router.post('/api/v1/billing-denials',requirePermission('billing.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const b=req.body||{},batchId=Number(b.batchId),documentReference=String(b.documentReference||'').trim(),reason=String(b.reason||'').trim(),amount=Number(b.disputedAmount??0),deadline=b.appealDeadline?String(b.appealDeadline):null;
  const validDeadline=!deadline||(/^\d{4}-\d{2}-\d{2}$/.test(deadline)&&Number.isFinite(Date.parse(deadline+'T00:00:00Z'))&&new Date(deadline+'T00:00:00Z').toISOString().slice(0,10)===deadline);
  if(!Number.isSafeInteger(batchId)||batchId<1||documentReference.length<2||documentReference.length>120||reason.length<5||reason.length>2000||!Number.isFinite(amount)||amount<0||amount>999999999999.99||Math.abs(amount*100-Math.round(amount*100))>1e-7||!validDeadline)return res.status(400).json({erro:'Informe lote, documento, motivo, valor com até duas casas decimais e prazo válido (quando houver).'});
  const client=await getPool().connect();

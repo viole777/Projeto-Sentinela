@@ -393,7 +393,7 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
  });
  router.post('/api/v1/billing-batches',requirePermission('billing.write'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
-  const b=req.body||{},recordIds=Array.isArray(b.recordIds)?b.recordIds.map(Number):[];if(!['BPA-C','BPA-I','AIH','APAC'].includes(b.instrument)||!/^\\d{6}$/.test(String(b.competence||''))||!recordIds.length||recordIds.length>500||recordIds.some(id=>!Number.isSafeInteger(id)||id<1)||new Set(recordIds).size!==recordIds.length)return res.status(400).json({erro:'Instrumento, competência AAAAMM e até 500 IDs positivos e sem duplicidade são obrigatórios.'});
+  const b=req.body||{},recordIds=Array.isArray(b.recordIds)?b.recordIds.map(Number):[];if(!['BPA-C','BPA-I','AIH','APAC'].includes(b.instrument)||!/^\d{6}$/.test(String(b.competence||''))||!recordIds.length||recordIds.length>500||recordIds.some(id=>!Number.isSafeInteger(id)||id<1)||new Set(recordIds).size!==recordIds.length)return res.status(400).json({erro:'Instrumento, competência AAAAMM e até 500 IDs positivos e sem duplicidade são obrigatórios.'});
   const client=await getPool().connect();
   try{await client.query('BEGIN');
    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[String(unitOf(req))]);

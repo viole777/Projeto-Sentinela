@@ -158,3 +158,12 @@ assert.match(billingDenialsMigration,/CREATE TABLE IF NOT EXISTS billing_denials
 assert.match(billingDenialsMigration,/billing_denial_batch_unit_fk/,'billing denial references must remain inside the same unit');
 assert.ok(migrationRunner.includes('20261123_billing_denials_reports.sql'),'billing denial migration must run in CI and deployment migration flow');
 assert.ok(migrationRunner.includes("public.billing_denials'"),'migration runner must verify the billing denial table');
+
+const billingWorkflowMigration = require('node:fs').readFileSync(require('node:path').join(__dirname,'../database/migrations/20261123_billing_batch_validation.sql'),'utf8');
+assert.match(routerSource,/billing-batches\\/:id\\/validate/,'billing batches must have a dedicated validation transition');
+assert.match(routerSource,/billing-batches\\/:id\\/reject/,'billing batches must have a dedicated rejection transition');
+assert.match(routerSource,/BILLING_BATCH_VALIDATION_FAILED/,'structural billing inconsistencies must block validation');
+assert.match(routerSource,/BILLING_RECORD_ALREADY_ASSIGNED/,'a billing record cannot be included in multiple active batches');
+assert.match(billingWorkflowMigration,/ADD COLUMN IF NOT EXISTS validation_summary/,'batch validation summary must be persisted');
+assert.match(billingWorkflowMigration,/billing\\.validate/,'billing validation requires an explicit permission');
+assert.ok(migrationRunner.includes('20261123_billing_batch_validation.sql'),'batch validation migration must run in CI and deployment migration flow');

@@ -33,3 +33,9 @@ assert.equal(advanced.includes("permissions.includes('*')"), false, 'advanced mo
 console.log('frontend access tests passed');
 
 assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8'),/routes\/advancedModules/, 'legacy 501 catch-all router must not be mounted');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/appointments'"), 'scheduling must use the v1 appointments API');
+assert.ok(advanced.includes("endpoint:'/api/v1/hospitalizations'"), 'admissions must use the v1 hospitalization API');
+assert.ok(advanced.includes("endpoint:'/api/v1/discharges'"), 'discharges must use the v1 discharge API');
+assert.ok(advanced.includes("endpoint:'/api/v1/allergies'"), 'allergies must use a dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/medication-administrations'"), 'medication administration must use a dedicated v1 API');

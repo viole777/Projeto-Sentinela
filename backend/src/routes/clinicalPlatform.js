@@ -413,8 +413,8 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
 });
 router.post('/api/v1/billing-denials',requirePermission('billing.write'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
- const b=req.body||{},batchId=Number(b.batchId),documentReference=String(b.documentReference||'').trim(),reason=String(b.reason||'').trim(),amount=Number(b.disputedAmount??0),deadline=b.appealDeadline?String(b.appealDeadline):null;
- if(!Number.isSafeInteger(batchId)||batchId<1||documentReference.length<2||documentReference.length>120||reason.length<5||reason.length>2000||!Number.isFinite(amount)||amount<0||amount>999999999999.99||(deadline&&!/^\d{4}-\d{2}-\d{2}$/.test(deadline)))return res.status(400).json({erro:'Informe lote, documento, motivo, valor não negativo e prazo válido (quando houver).'});
+ const validDeadline=!deadline||(/^\d{4}-\d{2}-\d{2}$/.test(deadline)&&Number.isFinite(Date.parse(deadline+'T00:00:00Z'))&&new Date(deadline+'T00:00:00Z').toISOString().slice(0,10)===deadline);
+ if(!Number.isSafeInteger(batchId)||batchId<1||documentReference.length<2||documentReference.length>120||reason.length<5||reason.length>2000||!Number.isFinite(amount)||amount<0||amount>999999999999.99||Math.abs(amount*100-Math.round(amount*100))>1e-7||!validDeadline)return res.status(400).json({erro:'Informe lote, documento, motivo, valor com até duas casas decimais e prazo válido (quando houver).'});
  const client=await getPool().connect();
  try{
   await client.query('BEGIN');
@@ -448,10 +448,10 @@ router.post('/api/v1/billing-denials/:id/status',requirePermission('billing.writ
 router.get('/api/v1/reports/production',requirePermission('reports.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const from=String(req.query.from||''),to=String(req.query.to||'');
- if((from&&!/^\d{6}$/.test(from))||(to&&!/^\d{6}$/.test(to))||(from&&to&&from>to))return res.status(400).json({erro:'Use competência inicial e final no formato AAAAMM.'});
+ if((from&&!/^\d{4}(0[1-9]|1[0-2])$/.test(from))||(to&&!/^\d{4}(0[1-9]|1[0-2])$/.test(to))||(from&&to&&from>to))return res.status(400).json({erro:'Use competência inicial e final no formato AAAAMM.'});
  try{
   const [production,batches,denials]=await Promise.all([
-   getPool().query("SELECT COALESCE(data->>'instrument','não informado') AS instrument,data->>'competence' AS competence,COUNT(*)::int AS records,COALESCE(SUM(NULLIF(data->>'quantity','')::numeric),COUNT(*)::numeric) AS quantity FROM clinical_records WHERE unit_id=$1 AND resource_type='billing' AND ($2::text IS NULL OR data->>'competence'>=$2) AND ($3::text IS NULL OR data->>'competence'<=$3) GROUP BY data->>'instrument',data->>'competence' ORDER BY data->>'competence' DESC,data->>'instrument'",[unitOf(req),from||null,to||null]),
+   getPool().query("SELECT COALESCE(data->>'instrument','não informado') AS instrument,data->>'competence' AS competence,COUNT(*)::int AS records,COALESCE(SUM(CASE WHEN data->>'quantity' ~ '^[0-9]+(\\.[0-9]+)? AS quantity FROM clinical_records WHERE unit_id=$1 AND resource_type='billing' AND ($2::text IS NULL OR data->>'competence'>=$2) AND ($3::text IS NULL OR data->>'competence'<=$3) GROUP BY COALESCE(data->>'instrument','não informado'),data->>'competence' ORDER BY data->>'competence' DESC,COALESCE(data->>'instrument','não informado')",[unitOf(req),from||null,to||null]), THEN (data->>'quantity')::numeric ELSE 0 END),COUNT(*)::numeric) AS quantity FROM clinical_records WHERE unit_id=$1 AND resource_type='billing' AND ($2::text IS NULL OR data->>'competence'>=$2) AND ($3::text IS NULL OR data->>'competence'<=$3) GROUP BY data->>'instrument',data->>'competence' ORDER BY data->>'competence' DESC,data->>'instrument'",[unitOf(req),from||null,to||null]),
    getPool().query('SELECT status,COUNT(*)::int AS total FROM billing_batches WHERE unit_id=$1 GROUP BY status ORDER BY status',[unitOf(req)]),
    getPool().query('SELECT status,COUNT(*)::int AS total,COALESCE(SUM(disputed_amount),0) AS disputed_amount FROM billing_denials WHERE unit_id=$1 GROUP BY status ORDER BY status',[unitOf(req)])
   ]);

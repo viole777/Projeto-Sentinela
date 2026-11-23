@@ -58,7 +58,7 @@ const ROLE_PERMISSIONS = {
   farmacia: [
     "dashboard.read", "patients.read", "prescriptions.read",
     "prescriptions.dispense", "inventory.read", "inventory.write",
-    "alerts.read", "medications.read", "purchasing.read", "reports.read", "files.read", "clinical.catalogs.read"
+    "alerts.read", "medications.read", "purchasing.read", "purchasing.write", "reports.read", "files.read", "clinical.catalogs.read"
   ],
   atendimento: [
     "dashboard.read", "patients.read", "patients.write", "patients.identity.read", "patients.identity.write",
@@ -78,7 +78,7 @@ const ROLE_PERMISSIONS = {
   direcao: [
     "dashboard.read", "reports.read", "audit.read", "clinical.audit.read", "billing.read",
     "alerts.read", "alerts.resolve", "inventory.read",
-    "users.read", "professionals.read", "roles.read", "units.read", "beds.manage", "billing.write"
+    "users.read", "professionals.read", "professionals.schedule.write", "purchasing.approve", "roles.read", "units.read", "beds.manage", "billing.write"
   ]
 };
 

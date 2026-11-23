@@ -46,3 +46,5 @@ assert.ok(advanced.includes("endpoint:'/api/v1/dispensations'"), 'pharmacy dispe
 assert.ok(advanced.includes("endpoint:'/api/v1/incidents'"), 'incident module must use the v1 incident API');
 assert.ok(advanced.includes("endpoint:'/api/v1/protocols'"), 'protocol module must use the v1 protocol API');
 assert.ok(advanced.includes("endpoint:'/api/v1/stock-movements'"), 'stock movement module must use the v1 ledger API');
+
+assert.ok(advanced.includes("'notificacao-incidente':'incidentes'"), 'incident notification route must reuse the dedicated incident API module');

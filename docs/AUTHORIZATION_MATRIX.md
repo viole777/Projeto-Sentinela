@@ -104,3 +104,11 @@ A matriz de papéis padrão permanece segregada: recepção pode abrir atendimen
 - A tela de dispensação usa `/api/v1/dispensations`; o backend exige prescrição vigente e aprovada, confere saldo prescrito e executa baixa FEFO com bloqueio transacional dos lotes, evento de dispensação e auditoria.
 - O histórico de dispensações é consultado em `/api/v1/dispensations` e permanece limitado à unidade da sessão.
 - Perdas, ajustes e transferências de estoque ainda exigem endpoints próprios e não devem ser simulados pelo cadastro de lotes.
+
+
+## Incidentes, protocolos e estoque
+
+- Incidentes são registrados em `/api/v1/incidents` como eventos append-only, com categoria e gravidade controladas. O registro inicial não equivale à investigação ou encerramento.
+- Protocolos são cadastrados em `/api/v1/protocols` como minutas versionadas; a criação não aprova nem publica conteúdo clínico.
+- Entradas, perdas e ajustes de estoque são registrados em `/api/v1/stock-movements`. O saldo do lote é atualizado sob bloqueio transacional e cada movimentação gera evento imutável e auditoria na mesma transação.
+- Transferências entre unidades, inventário físico e aprovação/publicação formal de protocolos permanecem fora desta etapa.

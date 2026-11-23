@@ -71,6 +71,26 @@ function validateResourcePayload(key,input){
  for(const k of ['diagnosisSystem','system'])if(data[k])data[k]=String(data[k]).toUpperCase();
  return{ok:true,data};
 }
+function validatePurchaseRequestPayload(input={}) {
+ const itemName=String(input.itemName||'').trim(),quantity=Number(input.quantity),priority=String(input.priority||'');
+ const justification=String(input.justification||'').trim();
+ if(itemName.length<2||itemName.length>200)return{ok:false,error:'Informe um item com 2 a 200 caracteres.'};
+ if(!Number.isFinite(quantity)||quantity<=0||quantity>99999999999.999||Math.abs(quantity*1000-Math.round(quantity*1000))>1e-8)return{ok:false,error:'Quantidade deve ser positiva e ter no máximo três casas decimais.'};
+ if(!['routine','urgent','critical'].includes(priority))return{ok:false,error:'Prioridade inválida.'};
+ if(justification.length<5||justification.length>2000)return{ok:false,error:'Justificativa deve conter de 5 a 2000 caracteres.'};
+ return{ok:true,data:{itemName,quantity,priority,justification}};
+}
+function validateProfessionalShiftPayload(input={}) {
+ const professionalId=Number(input.professionalId),startsAt=new Date(input.startsAt),endsAt=new Date(input.endsAt);
+ const sector=String(input.sector||'').trim(),notes=String(input.notes||'').trim();
+ if(!Number.isSafeInteger(professionalId)||professionalId<1)return{ok:false,error:'Selecione um vínculo profissional válido.'};
+ if(!sector||sector.length>120)return{ok:false,error:'Setor é obrigatório e deve ter até 120 caracteres.'};
+ if(!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime()))return{ok:false,error:'Informe início e fim válidos com fuso horário.'};
+ const duration=endsAt.getTime()-startsAt.getTime();
+ if(duration<=0||duration>24*60*60*1000)return{ok:false,error:'O plantão deve ter duração positiva de até 24 horas.'};
+ if(notes.length>1000)return{ok:false,error:'Observações devem ter até 1000 caracteres.'};
+ return{ok:true,data:{professionalId,sector,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString(),notes}};
+}
 function createClinicalPlatformRouter({requirePermission,getPool,usingPostgres}){
  const router=express.Router();
  const unitOf=req=>String(req.user?.unit||req.user?.unidade||req.user?.setor||'').trim();
@@ -608,10 +628,80 @@ router.post('/api/v1/stock-movements',requirePermission('inventory.write'),async
   await client.query('COMMIT');return res.status(201).json({item:movement.rows[0],balance:next});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
 });
+
+router.get('/api/v1/purchase-requests',requirePermission('purchasing.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ try{const r=await getPool().query('SELECT id,item_name,quantity,priority,justification,status,requested_by,decision_by,decision_reason,created_at,decided_at FROM purchase_requests WHERE unit_id=$1 ORDER BY id DESC LIMIT 100',[unitOf(req)]);return res.json({items:r.rows});}
+ catch(e){return next(e);}
+});
+router.post('/api/v1/purchase-requests',requirePermission('purchasing.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const v=validatePurchaseRequestPayload(req.body||{});if(!v.ok)return res.status(400).json({erro:v.error});
+ const actor=actorOf(req),client=await getPool().connect();
+ try{await client.query('BEGIN');
+  const r=await client.query("INSERT INTO purchase_requests(unit_id,item_name,quantity,priority,justification,status,requested_by,requested_by_role) VALUES($1,$2,$3,$4,$5,'submitted',$6,$7) RETURNING id,item_name,quantity,priority,justification,status,requested_by,created_at",
+   [unitOf(req),v.data.itemName,v.data.quantity,v.data.priority,v.data.justification,actor.username,actor.role]);
+  await audit(req,client,'create','purchase_request',r.rows[0].id,null,{priority:v.data.priority,quantity:v.data.quantity});
+  await client.query('COMMIT');return res.status(201).json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/purchase-requests/:id/decision',requirePermission('purchasing.approve'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.params.id),decision=String(req.body?.decision||''),reason=String(req.body?.reason||'').trim();
+ if(!Number.isSafeInteger(id)||id<1||!['approved','rejected'].includes(decision)||(decision==='rejected'&&(reason.length<5||reason.length>1000)))return res.status(400).json({erro:'Informe solicitação válida, decisão approved/rejected e justificativa de 5 a 1000 caracteres para rejeição.'});
+ const actor=actorOf(req),client=await getPool().connect();
+ try{await client.query('BEGIN');
+  const current=await client.query('SELECT id,status,requested_by FROM purchase_requests WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+  if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Solicitação não encontrada nesta unidade.'});}
+  if(current.rows[0].status!=='submitted'){await client.query('ROLLBACK');return res.status(409).json({erro:'Somente solicitações enviadas podem receber decisão.',codigo:'PURCHASE_REQUEST_NOT_PENDING'});}
+  if(current.rows[0].requested_by===actor.username){await client.query('ROLLBACK');return res.status(409).json({erro:'Quem solicitou não pode aprovar ou rejeitar a própria solicitação.',codigo:'PURCHASE_SELF_APPROVAL'});}
+  const r=await client.query('UPDATE purchase_requests SET status=$1,decision_by=$2,decision_reason=$3,decided_at=NOW() WHERE id=$4 AND unit_id=$5 RETURNING id,item_name,quantity,priority,status,requested_by,decision_by,decision_reason,created_at,decided_at',
+   [decision,actor.username,reason||null,id,unitOf(req)]);
+  await audit(req,client,'update','purchase_request',id,null,{decision,reason:reason||null});
+  await client.query('COMMIT');return res.json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/professional-shifts',requirePermission('professionals.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ try{const r=await getPool().query('SELECT s.id,s.professional_id,u.name AS professional_name,u.username AS professional_username,pr.cns,pr.cbo,s.sector,s.starts_at,s.ends_at,s.status,s.notes,s.created_by,s.created_at FROM professional_shifts s JOIN professional_registry pr ON pr.id=s.professional_id AND pr.unit_id=s.unit_id JOIN users u ON u.id=pr.user_id WHERE s.unit_id=$1 ORDER BY s.starts_at DESC LIMIT 200',[unitOf(req)]);return res.json({items:r.rows});}
+ catch(e){return next(e);}
+});
+router.post('/api/v1/professional-shifts',requirePermission('professionals.schedule.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const v=validateProfessionalShiftPayload(req.body||{});if(!v.ok)return res.status(400).json({erro:v.error});
+ const actor=actorOf(req),client=await getPool().connect();
+ try{await client.query('BEGIN');
+  const professional=await client.query('SELECT id FROM professional_registry WHERE id=$1 AND unit_id=$2 AND active=TRUE FOR UPDATE',[v.data.professionalId,unitOf(req)]);
+  if(!professional.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Vínculo profissional ativo não encontrado nesta unidade.'});}
+  const overlap=await client.query("SELECT id FROM professional_shifts WHERE professional_id=$1 AND unit_id=$2 AND status IN ('planned','confirmed','coverage_needed') AND starts_at<$4::timestamptz AND ends_at>$3::timestamptz LIMIT 1",
+   [v.data.professionalId,unitOf(req),v.data.startsAt,v.data.endsAt]);
+  if(overlap.rowCount){await client.query('ROLLBACK');return res.status(409).json({erro:'O profissional já possui um plantão sobreposto neste período.',codigo:'PROFESSIONAL_SHIFT_OVERLAP'});}
+  const r=await client.query("INSERT INTO professional_shifts(unit_id,professional_id,sector,starts_at,ends_at,status,notes,created_by) VALUES($1,$2,$3,$4,$5,'planned',$6,$7) RETURNING id,professional_id,sector,starts_at,ends_at,status,notes,created_by,created_at",
+   [unitOf(req),v.data.professionalId,v.data.sector,v.data.startsAt,v.data.endsAt,v.data.notes||null,actor.username]);
+  await audit(req,client,'create','professional_shift',r.rows[0].id,null,{professionalId:v.data.professionalId,startsAt:v.data.startsAt,endsAt:v.data.endsAt});
+  await client.query('COMMIT');return res.status(201).json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.post('/api/v1/professional-shifts/:id/status',requirePermission('professionals.schedule.write'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const id=Number(req.params.id),status=String(req.body?.status||''),reason=String(req.body?.reason||'').trim();
+ if(!Number.isSafeInteger(id)||id<1||!['confirmed','coverage_needed','cancelled','completed'].includes(status)||(status==='cancelled'&&(reason.length<5||reason.length>1000)))return res.status(400).json({erro:'Status inválido; cancelamento exige justificativa de 5 a 1000 caracteres.'});
+ const actor=actorOf(req),client=await getPool().connect();
+ try{await client.query('BEGIN');
+  const current=await client.query('SELECT id,status FROM professional_shifts WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
+  if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Plantão não encontrado nesta unidade.'});}
+  const transitions={planned:['confirmed','coverage_needed','cancelled'],confirmed:['coverage_needed','cancelled','completed'],coverage_needed:['confirmed','cancelled'],completed:[],cancelled:[]};
+  if(!transitions[current.rows[0].status]?.includes(status)){await client.query('ROLLBACK');return res.status(409).json({erro:'Transição de status não permitida.',codigo:'INVALID_SHIFT_TRANSITION'});}
+  const r=await client.query('UPDATE professional_shifts SET status=$1,updated_at=NOW(),status_reason=$2 WHERE id=$3 AND unit_id=$4 RETURNING id,professional_id,sector,starts_at,ends_at,status,status_reason,updated_at',
+   [status,reason||null,id,unitOf(req)]);
+  await audit(req,client,'update','professional_shift',id,null,{from:current.rows[0].status,to:status,reason:reason||null});
+  await client.query('COMMIT');return res.json({item:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
 router.get('/api/v1/clinical-audit',requirePermission('clinical.audit.read'),async(req,res,next)=>{
   if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limit,10)||50));
   try{const r=await getPool().query('SELECT id,actor_username,actor_role,action,resource_type,resource_id,patient_ref_hash,request_id,happened_at,metadata FROM clinical_audit_events WHERE unit_id=$1 ORDER BY id DESC LIMIT $2',[unitOf(req),limit]);return res.json({items:r.rows,appendOnly:true});}catch(e){return next(e);}
  });
  return router;
 }
-module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf,classifyIdentityChanges};
+module.exports={createClinicalPlatformRouter,RESOURCE_DEFS,validateResourcePayload,normalizeCpf,classifyIdentityChanges,validatePurchaseRequestPayload,validateProfessionalShiftPayload};

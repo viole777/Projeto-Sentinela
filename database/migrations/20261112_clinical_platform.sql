@@ -214,9 +214,10 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
  created_by TEXT NOT NULL,
  created_by_role TEXT NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
- CHECK ((movement_type='receipt' AND delta=quantity) OR (movement_type='loss' AND delta=-quantity) OR movement_type='adjustment')
+ CHECK ((movement_type='receipt' AND delta=quantity) OR (movement_type='loss' AND delta=-quantity) OR (movement_type='adjustment' AND ABS(delta)=quantity))
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_unit_created ON inventory_movements(unit_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_protocol_version_unique ON clinical_records(unit_id,(data->>'code'),(data->>'version')) WHERE resource_type='protocol' AND supersedes_id IS NULL;
 CREATE OR REPLACE FUNCTION sentinela_reject_inventory_movement_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $inventory$
 BEGIN

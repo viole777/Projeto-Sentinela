@@ -39,3 +39,6 @@ assert.ok(advanced.includes("endpoint:'/api/v1/hospitalizations'"), 'admissions 
 assert.ok(advanced.includes("endpoint:'/api/v1/discharges'"), 'discharges must use the v1 discharge API');
 assert.ok(advanced.includes("endpoint:'/api/v1/allergies'"), 'allergies must use a dedicated v1 API');
 assert.ok(advanced.includes("endpoint:'/api/v1/medication-administrations'"), 'medication administration must use a dedicated v1 API');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/medication-lots'"), 'stock lot screens must use the validated medication lots API');
+assert.ok(advanced.includes("endpoint:'/api/v1/dispensations'"), 'pharmacy dispensing must use the dedicated v1 workflow');

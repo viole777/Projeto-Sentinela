@@ -89,7 +89,8 @@ assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'medication administrati
 assert.match(routerSource,/status=\$1,patient_cpf=\$2,patient_name=\$3,occupied_since=NOW\(\)/, 'admission must atomically mark the selected bed as occupied');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');
-assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not pretend a digital signature is implemented');
+assert.match(routerSource,/SIGNATURE_ADAPTER_UNAVAILABLE/, 'the API must not pretend a digital signature is implemented');
+assert.doesNotMatch(routerSource,/status\(501\)/, 'the clinical platform must not emit HTTP 501');
 assert.match(routerSource,/OFFICIAL_CATALOG_NOT_LOADED/, 'missing official catalogs must fail explicitly');
 assert.match(migration,/clinical_records_immutable/, 'clinical records must be append-only');
 assert.match(migration,/clinical_audit_no_update/, 'clinical audit must be append-only');
@@ -104,3 +105,6 @@ assert.ok(ROLE_PERMISSIONS.admin.includes('integration.manage'));
 assert.ok(!ROLE_PERMISSIONS.admin.includes('clinical.audit.read'),'technical admin must not read patient audit trail');
 
 console.log('clinical platform schema validation tests passed');
+
+assert.match(routerSource,/router\.get\('\/api\/v1\/dispensations'/, 'dispensation history must have a dedicated read endpoint');
+assert.match(routerSource,/router\.post\('\/api\/v1\/dispensations'/, 'dispensation must have a dedicated workflow endpoint');

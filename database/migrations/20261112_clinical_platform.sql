@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS clinical_records (
   supersedes_id BIGINT REFERENCES clinical_records(id),
   CONSTRAINT clinical_records_data_object CHECK (jsonb_typeof(data) = 'object')
 );
+ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS unit_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_clinical_records_patient_type_created
   ON clinical_records(patient_cpf, resource_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clinical_records_unit_type_created

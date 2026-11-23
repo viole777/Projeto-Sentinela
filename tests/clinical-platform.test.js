@@ -119,3 +119,7 @@ assert.match(routerSource,/stock-movements/, 'stock movements must have dedicate
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movement must reject negative balances');
 assert.match(migration,/inventory_movements_immutable/, 'inventory ledger must be append-only');
 assert.match(migration,/incident','protocol/, 'clinical record schema must include incident and protocol records');
+
+assert.match(routerSource,/EXPIRED_LOT_RECEIPT/, 'expired lots must not accept new stock receipts');
+assert.match(migration,/idx_protocol_version_unique/, 'protocol versions must be unique per unit');
+assert.match(migration,/ABS\(delta\)=quantity/, 'stock adjustment delta must match the recorded quantity');

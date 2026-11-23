@@ -3,7 +3,13 @@ const assert = require('node:assert/strict');
 const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges } = require('../backend/src/routes/clinicalPlatform');
 const { ROLE_PERMISSIONS } = require('../backend/src/db');
 
-assert.ok(Object.keys(RESOURCE_DEFS).length >= 15, 'all clinical domains must have explicit resource definitions');
+assert.ok(Object.keys(RESOURCE_DEFS).length >= 17, 'all clinical domains must have explicit resource definitions');
+assert.ok(RESOURCE_DEFS.allergies, 'allergy records must have a dedicated resource definition');
+assert.ok(RESOURCE_DEFS['medication-administrations'], 'medication administration must have a dedicated resource definition');
+assert.equal(validateResourcePayload('allergies',{patientCpf:'12345678900',substance:'Substância',reaction:'Reação',severity:'severe',recordedAt:'2026-11-23'}).ok,true);
+assert.equal(validateResourcePayload('allergies',{patientCpf:'12345678900',substance:'Substância',reaction:'Reação',severity:'extreme',recordedAt:'2026-11-23'}).ok,false);
+assert.equal(validateResourcePayload('medication-administrations',{patientCpf:'12345678900',prescriptionRecordId:12,administeredAt:'2026-11-23T10:00',outcome:'administered'}).ok,true);
+assert.equal(validateResourcePayload('medication-administrations',{patientCpf:'12345678900',prescriptionRecordId:12,administeredAt:'2026-11-23T10:00',outcome:'refused'}).ok,false,'non-administered medication outcomes require a reason');
 assert.equal(normalizeCpf('123.456.789-00'),'12345678900');
 assert.deepEqual(classifyIdentityChanges(
  {name:'Paciente Atualizado',birthDate:'2000-01-01'},
@@ -78,6 +84,9 @@ assert.match(routerSource,/CPF_CHANGE_REQUIRES_RELATIONAL_REKEY/, 'CPF changes m
 assert.match(routerSource,/audit\(req,client,'access_denied','patient_identity'/, 'denied sensitive identity changes must be audited');
 assert.match(routerSource,/audit\(req,client,'update','patient_identity'/, 'successful identity changes must be audited as updates');
 assert.match(routerSource,/ORDER BY expires_on ASC,id ASC FOR UPDATE/, 'dispensing must lock FEFO lots');
+assert.match(routerSource,/medication_administration/, 'medication administration must be persisted as a clinical record');
+assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'medication administration must require an approved prescription');
+assert.match(routerSource,/status=\$1,patient_cpf=\$2,patient_name=\$3,occupied_since=NOW\(\)/, 'admission must atomically mark the selected bed as occupied');
 assert.match(routerSource,/PRESCRIPTION_NOT_VALIDATED/, 'dispensing must require the latest professional validation');
 assert.match(routerSource,/ORDER BY id DESC LIMIT 1/, 'validation decision must be resolved from the latest event');
 assert.match(routerSource,/SIGNATURE_ADAPTER_NOT_IMPLEMENTED/, 'the API must not pretend a digital signature is implemented');

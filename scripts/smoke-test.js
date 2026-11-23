@@ -138,8 +138,8 @@ async function main() {
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
     body: JSON.stringify({ consultaId: 999999, revisadoPor: 'usuario-forjado' }),
   });
-  assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
-  assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
+  assertCondition(guardedDispense.response.status === 400, `Rota legada de dispensação deve orientar o uso da API versionada: HTTP ${guardedDispense.response.status}`);
+  assertCondition(guardedDispense.body?.codigo === 'USE_VERSIONED_PRESCRIPTION_DISPENSING', 'Rota legada deve direcionar para o fluxo versionado de dispensação');
 
   const doctorTriageScreen = await request('/triagem', { headers: { Cookie: doctorCookie } });
   assertCondition(doctorTriageScreen.response.status === 403, `Perfil médico não deve consultar a API da triagem: HTTP ${doctorTriageScreen.response.status}`);
@@ -170,21 +170,20 @@ async function main() {
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
 
   const blockedModuleRead = await request('/protocolos', { headers: { Cookie: sessionCookie } });
-  assertCondition(blockedModuleRead.response.status === 501, `Módulo sem API específica deveria responder 501: HTTP ${blockedModuleRead.response.status}`);
-  assertCondition(blockedModuleRead.body?.codigo === 'MODULE_NOT_IMPLEMENTED', 'Módulo não implementado deveria explicar o bloqueio');
+  assertCondition(blockedModuleRead.response.status === 404, `Rota legada não montada deve responder 404: HTTP ${blockedModuleRead.response.status}`);
 
   const blockedModuleWrite = await request('/protocolos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
     body: JSON.stringify({ protocolo: 'registro genérico não deve ser persistido' }),
   });
-  assertCondition(blockedModuleWrite.response.status === 501, `CRUD genérico não deveria aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
+  assertCondition(blockedModuleWrite.response.status === 404, `Rota legada sem implementação não deve aceitar gravação: HTTP ${blockedModuleWrite.response.status}`);
 
   const blockedModuleDelete = await request('/protocolos/123', {
     method: 'DELETE',
     headers: { Cookie: sessionCookie },
   });
-  assertCondition(blockedModuleDelete.response.status === 501, `CRUD genérico não deveria permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
+  assertCondition(blockedModuleDelete.response.status === 404, `Rota legada sem implementação não deve permitir exclusão física: HTTP ${blockedModuleDelete.response.status}`);
 
   const triageLogin = await request('/login', {
     method: 'POST',

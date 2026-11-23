@@ -31,3 +31,11 @@ assert.ok(advanced.includes("endpoint:'/api/v1/soap-notes'"), 'medical notes mus
 assert.ok(advanced.includes("endpoint:'/api/v1/care-plans'"), 'care plans must use the validated v1 API');
 assert.equal(advanced.includes("permissions.includes('*')"), false, 'advanced module UI must not grant wildcard permissions');
 console.log('frontend access tests passed');
+
+assert.doesNotMatch(fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8'),/routes\/advancedModules/, 'legacy 501 catch-all router must not be mounted');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/appointments'"), 'scheduling must use the v1 appointments API');
+assert.ok(advanced.includes("endpoint:'/api/v1/hospitalizations'"), 'admissions must use the v1 hospitalization API');
+assert.ok(advanced.includes("endpoint:'/api/v1/discharges'"), 'discharges must use the v1 discharge API');
+assert.ok(advanced.includes("endpoint:'/api/v1/allergies'"), 'allergies must use a dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/medication-administrations'"), 'medication administration must use a dedicated v1 API');

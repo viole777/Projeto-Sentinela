@@ -59,7 +59,7 @@ O middleware `backend/src/middleware/auth.js` fornece:
 - `requireAuth()`: valida a sessão e, quando solicitado, restringe papéis sem permitir que um curinga contorne a lista.
 - `requirePermission("dominio.acao")`: consulta a matriz efetiva no servidor e nega acesso quando a permissão não existe ou a fonte de autorização está indisponível.
 
-As rotas de negócio do `backend/server.js` usam permissões específicas. O roteador de módulos ainda não implementados continua falhando fechado com HTTP 501 e não deve ser tratado como funcionalidade disponível.
+As rotas de negócio do `backend/server.js` usam permissões específicas. Rotas legadas sem implementação não são montadas; os módulos ativos devem apontar para APIs versionadas com validação e autorização próprias.
 
 ## Testes
 

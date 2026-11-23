@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS patients (
   cpf TEXT UNIQUE NOT NULL,
   cpf_encrypted TEXT,
   cpf_blind_index CHAR(64),
+  unit_id TEXT,
   cns_encrypted TEXT,
   phone_encrypted TEXT,
   address_encrypted TEXT,

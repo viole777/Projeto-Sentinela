@@ -21,7 +21,9 @@ const RESOURCE_DEFS = Object.freeze({
  billing:{type:'billing',permission:'billing.read',write:'billing.write',professional:false,required:['instrument','competence','sigtapCode','cboCode','cidCode'],allowed:['patientCpf','instrument','competence','sigtapCode','cboCode','cidCode','quantity','professionalCns','cnes','authorizationNumber']},
  'nursing-evolutions':{type:'nursing_evolution',permission:'records.read',write:'nursing.write',professional:true,required:['patientCpf','assessment','interventions','recordedAt'],allowed:['patientCpf','assessment','interventions','response','carePlan','recordedAt']},
  'exam-results':{type:'exam_result',permission:'exams.read',write:'exams.results.write',professional:true,required:['patientCpf','examRecordId','result','releasedAt'],allowed:['patientCpf','examRecordId','result','releasedAt','reportingProfessional']},
- 'care-plans':{type:'care_plan',permission:'records.read',write:'careplans.write',professional:true,required:['patientCpf','goals','interventions','reviewAt'],allowed:['patientCpf','goals','interventions','reviewAt','responsibleTeam']}
+ 'care-plans':{type:'care_plan',permission:'records.read',write:'careplans.write',professional:true,required:['patientCpf','goals','interventions','reviewAt'],allowed:['patientCpf','goals','interventions','reviewAt','responsibleTeam']},
+ 'allergies':{type:'allergy',permission:'records.read',write:'records.write',professional:true,required:['patientCpf','substance','reaction','severity','recordedAt'],allowed:['patientCpf','substance','reaction','severity','recordedAt','notes']},
+ 'medication-administrations':{type:'medication_administration',permission:'prescriptions.read',write:'prescriptions.dispense',professional:true,required:['patientCpf','prescriptionRecordId','administeredAt','outcome'],allowed:['patientCpf','prescriptionRecordId','administeredAt','outcome','reason','doseGiven']}
 });
 const CPF_RE=/^\d{11}$/, CNS_RE=/^\d{15}$/, CBO_RE=/^\d{6}$/;
 const DATE_RE=/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
@@ -56,6 +58,10 @@ function validateResourcePayload(key,input){
  if(key==='prescriptions'&&Number(data.quantity)<=0)return{ok:false,error:'Quantidade prescrita deve ser maior que zero.'};
  if(key==='vital-signs'&&!['systolic','diastolic','temperatureC','heartRate','respiratoryRate','oxygenSaturation','glucose','weightKg','heightCm'].some(k=>data[k]!==undefined))return{ok:false,error:'Informe ao menos uma medida observada.'};
  if(data.kind&&!['prenatal','puericulture'].includes(data.kind))return{ok:false,error:'Tipo deve ser prenatal ou puericulture.'};
+ if(key==='allergies'&&!['mild','moderate','severe','unknown'].includes(String(data.severity).toLowerCase()))return{ok:false,error:'Gravidade da alergia inválida.'};
+ if(key==='medication-administrations'&&(!Number.isSafeInteger(Number(data.prescriptionRecordId))||Number(data.prescriptionRecordId)<1))return{ok:false,error:'ID de prescrição inválido.'};
+ if(key==='medication-administrations'&&!['administered','refused','omitted','delayed'].includes(String(data.outcome)))return{ok:false,error:'Resultado da administração inválido.'};
+ if(key==='medication-administrations'&&data.outcome!=='administered'&&!String(data.reason||'').trim())return{ok:false,error:'Justificativa obrigatória para recusa, omissão ou adiamento.'};
  for(const k of ['diagnosisSystem','system'])if(data[k])data[k]=String(data[k]).toUpperCase();
  return{ok:true,data};
 }
@@ -269,7 +275,7 @@ router.post('/api/v1/hospitalizations',requirePermission('hospitalizations.write
    if(!bed.rowCount||!['free','livre'].includes(String(bed.rows[0].status).toLowerCase())){await client.query('ROLLBACK');return res.status(409).json({erro:'Leito inexistente ou indisponível nesta unidade.',codigo:'BED_NOT_AVAILABLE'});}
    const admission=await client.query('INSERT INTO hospitalizations(patient_cpf,patient_name,bed_code,reason,doctor,admitted_at,unit_id) VALUES($1,$2,$3,$4,$5,COALESCE($6::timestamptz,NOW()),$7) RETURNING id,patient_cpf,patient_name,bed_code,reason,admitted_at',
     [data.patientCpf,patient.rows[0].name,data.bedCode,data.admissionReason,data.attendingProfessional||actor.username,data.admittedAt||null,unitOf(req)]);
-    await client.query('UPDATE beds SET status=$1,patient_cpf=NULL,patient_name=NULL,occupied_since=NULL WHERE code=$2 AND unit_id=$3',['free',h.rows[0].bed_code,unitOf(req)]);
+    await client.query('UPDATE beds SET status=$1,patient_cpf=$2,patient_name=$3,occupied_since=NOW() WHERE code=$4 AND unit_id=$5',['occupied',data.patientCpf,patient.rows[0].name,data.bedCode,unitOf(req)]);
    const record=await client.query('INSERT INTO clinical_records(resource_type,patient_cpf,unit_id,status,data,created_by,created_by_role) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at',
     ['hospitalization',data.patientCpf,unitOf(req),'admitted',JSON.stringify({...data,hospitalizationId:admission.rows[0].id}),actor.username,actor.role]);
    await audit(req,client,'create','hospitalization',record.rows[0].id,data.patientCpf,{hospitalizationId:admission.rows[0].id,bedCode:data.bedCode});
@@ -460,6 +466,12 @@ for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
   const actor=actorOf(req),client=await getPool().connect();
   try{await client.query('BEGIN');
    if(data.patientCpf){const p=await client.query('SELECT cpf FROM patients WHERE cpf=$1 AND unit_id=$2',[data.patientCpf,unitOf(req)]);if(!p.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Paciente não encontrado nesta unidade.'});}}
+   if(def.type==='medication_administration'){
+    const prescription=await client.query("SELECT id,patient_cpf FROM clinical_records WHERE id=$1 AND resource_type='prescription' AND unit_id=$2 FOR UPDATE",[Number(data.prescriptionRecordId),unitOf(req)]);
+    if(!prescription.rowCount||prescription.rows[0].patient_cpf!==data.patientCpf){await client.query('ROLLBACK');return res.status(404).json({erro:'Prescrição não encontrada para este paciente e unidade.'});}
+    const validation=await client.query("SELECT status FROM clinical_records WHERE resource_type='prescription_validation' AND supersedes_id=$1 ORDER BY id DESC LIMIT 1",[Number(data.prescriptionRecordId)]);
+    if(!validation.rowCount||validation.rows[0].status!=='approved'){await client.query('ROLLBACK');return res.status(409).json({erro:'Administração exige prescrição validada por profissional.',codigo:'PRESCRIPTION_NOT_VALIDATED'});}
+   }
    const catalogChecks=[];
    if(def.type==='soap')catalogChecks.push([data.diagnosisSystem==='CID-10'?'CID10':'CIAP2',data.diagnosisCode]);
    if(def.type==='diagnosis')catalogChecks.push([data.system==='CID-10'?'CID10':'CIAP2',data.code]);

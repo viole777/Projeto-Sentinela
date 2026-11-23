@@ -117,7 +117,7 @@ assert.equal(validateResourcePayload('protocols',{code:'CLIN-01',name:'Protocol'
 assert.equal(validateResourcePayload('protocols',{code:'CLIN-01',name:'Protocol',version:'approved',content:'Draft'}).ok,false);
 assert.match(routerSource,/stock-movements/, 'stock movements must have dedicated endpoints');
 assert.match(routerSource,/INSUFFICIENT_STOCK/, 'stock movement must reject negative balances');
-assert.match(migration,/inventory_movements_immutable/, 'inventory ledger must be append-only');
+assert.match(migration,/clinical_stock_movements_immutable/, 'inventory ledger must be append-only');
 assert.match(migration,/incident','protocol/, 'clinical record schema must include incident and protocol records');
 
 assert.match(routerSource,/EXPIRED_LOT_RECEIPT/, 'expired lots must not accept new stock receipts');

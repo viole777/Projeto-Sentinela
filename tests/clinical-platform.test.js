@@ -69,7 +69,7 @@ const databaseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf
 const sessionsTable=databaseSchema.match(/CREATE TABLE IF NOT EXISTS sessions\s*\(([\s\S]*?)\);/i);
 assert.ok(sessionsTable,'sessions table must be declared in the canonical schema');
 assert.equal((sessionsTable[1].match(/\btoken_hash\b/g)||[]).length,1,'sessions table must define token_hash exactly once');
-assert.match(databaseSchema,/CREATE TABLE IF NOT EXISTS patients\\s*\\([\\s\\S]*?unit_id TEXT/, 'canonical patient schema must include unit scoping before indexes are created');
+assert.match(databaseSchema,/CREATE TABLE IF NOT EXISTS patients\s*\([\s\S]*?unit_id TEXT/, 'canonical patient schema must include unit scoping before indexes are created');
 const server=fs.readFileSync(path.join(__dirname,'../backend/server.js'),'utf8');
 assert.match(routerSource,/WHERE resource_type=\$1 AND unit_id=\$2/, 'clinical record lists must be unit-scoped');
 assert.match(routerSource,/patient-summary\/:cpf/, 'patient summary must have a dedicated route');

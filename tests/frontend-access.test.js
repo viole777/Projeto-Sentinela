@@ -67,4 +67,4 @@ assert.ok(advanced.includes('updateDenialStatus'),'glosa UI must expose audited 
 assert.ok(advanced.includes("endpoint:'/api/v1/billing-batches'"),'billing UI must use the dedicated v1 batches API');
 assert.ok(advanced.includes('billing.validate'),'batch validation actions must be permission-gated');
 assert.ok(advanced.includes('validateBillingBatch'),'batch validation must be connected to the API');
-assert.ok(advanced.includes('recordIds:form.recordIds'),'batch form must parse record IDs into the API payload');
+assert.ok(advanced.includes('recordIds:form.recordIds.split'),'batch form must parse record IDs into the API payload');

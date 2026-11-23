@@ -507,7 +507,7 @@ for(const [resourceKey,def] of Object.entries(RESOURCE_DEFS)){
     [def.type,data.patientCpf||null,actor.unit,req.user?.sector||req.user?.setor||null,status,JSON.stringify(data),actor.username,actor.role]);
    await audit(req,client,'create',def.type,r.rows[0].id,data.patientCpf,{status});
    await client.query('COMMIT');return res.status(201).json({item:r.rows[0],validation:'schema-validated',externalIntegration:'not-performed'});
-  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});if(def.type==='protocol'&&e.code==='23505')return res.status(409).json({erro:'Esta versão do protocolo já está cadastrada nesta unidade.',codigo:'PROTOCOL_VERSION_EXISTS'});return next(e);}finally{client.release();}
  });
  }
 router.post('/api/v1/prescriptions/:id/validation',requirePermission('prescriptions.validate'),async(req,res,next)=>{

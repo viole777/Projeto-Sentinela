@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges } = require('../backend/src/routes/clinicalPlatform');
+const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges, validatePurchaseRequestPayload, validateProfessionalShiftPayload } = require('../backend/src/routes/clinicalPlatform');
 const { ROLE_PERMISSIONS } = require('../backend/src/db');
 
 assert.ok(Object.keys(RESOURCE_DEFS).length >= 17, 'all clinical domains must have explicit resource definitions');
@@ -126,3 +126,16 @@ assert.match(migration,/ABS\(delta\)=quantity/, 'stock adjustment delta must mat
 
 const sessionSource=fs.readFileSync(path.join(__dirname,'../backend/src/sessions.js'),'utf8');
 assert.match(sessionSource,/unit: row\.unit/, 'rehydrated sessions must expose the unit scope consumed by clinical APIs');
+
+assert.equal(validatePurchaseRequestPayload({itemName:'Luvas nitrílicas',quantity:10,priority:'urgent',justification:'Reposição necessária para o setor'}).ok,true);
+assert.equal(validatePurchaseRequestPayload({itemName:'X',quantity:0,priority:'urgent',justification:'abc'}).ok,false);
+assert.equal(validatePurchaseRequestPayload({itemName:'Material',quantity:1,priority:'critical',justification:'Motivo suficiente'}).ok,true);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T07:00:00-03:00',endsAt:'2026-11-24T19:00:00-03:00'}).ok,true);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T19:00:00Z',endsAt:'2026-11-24T07:00:00Z'}).ok,false);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T07:00:00Z',endsAt:'2026-11-25T08:00:00Z'}).ok,false);
+assert.match(routerSource,/PURCHASE_SELF_APPROVAL/, 'purchase request creator cannot approve their own request');
+assert.match(routerSource,/PROFESSIONAL_SHIFT_OVERLAP/, 'overlapping shifts must be rejected');
+assert.match(routerSource,/purchasing\\.approve/, 'purchase decisions require a separate approval permission');
+assert.match(migration,/CREATE TABLE IF NOT EXISTS purchase_requests/, 'purchase requests must be persisted in PostgreSQL');
+assert.match(migration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'professional shifts must be persisted in PostgreSQL');
+assert.match(migration,/professionals\\.schedule\\.write/, 'schedule writes must be granted explicitly');

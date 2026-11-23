@@ -54,3 +54,5 @@ assert.ok(advanced.includes("endpoint:'/api/v1/professional-shifts'"), 'staff sc
 assert.ok(advanced.includes("'purchasing.approve'"), 'purchase approval action must require a distinct permission');
 
 assert.ok(advanced.includes("endpoint:'/api/v1/professional-registry'") || advanced.includes("fetch('/api/v1/professional-registry'"), 'shift form must load active professionals from the registry');
+
+assert.ok(advanced.includes("'solicitacao-compras':'compras'"), 'purchase navigation alias must resolve to the implemented purchase module');

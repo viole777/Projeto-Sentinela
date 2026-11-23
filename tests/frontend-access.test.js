@@ -42,3 +42,7 @@ assert.ok(advanced.includes("endpoint:'/api/v1/medication-administrations'"), 'm
 
 assert.ok(advanced.includes("endpoint:'/api/v1/medication-lots'"), 'stock lot screens must use the validated medication lots API');
 assert.ok(advanced.includes("endpoint:'/api/v1/dispensations'"), 'pharmacy dispensing must use the dedicated v1 workflow');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/incidents'"), 'incident module must use the v1 incident API');
+assert.ok(advanced.includes("endpoint:'/api/v1/protocols'"), 'protocol module must use the v1 protocol API');
+assert.ok(advanced.includes("endpoint:'/api/v1/stock-movements'"), 'stock movement module must use the v1 ledger API');

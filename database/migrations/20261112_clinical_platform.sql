@@ -286,6 +286,7 @@ CREATE TABLE IF NOT EXISTS billing_batches (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
 -- Permission catalog additions are harmless until the role matrix below grants them.
 INSERT INTO roles(name) VALUES ('supervisor_cadastro') ON CONFLICT(name) DO NOTHING;
 INSERT INTO permissions(name) VALUES

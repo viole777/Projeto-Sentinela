@@ -137,6 +137,73 @@ async function main() {
   assertCondition(medicationLots.response.ok && Array.isArray(medicationLots.body?.items), `Farmácia deve consultar lotes versionados: HTTP ${medicationLots.response.status}`);
   const dispensations = await request('/api/v1/dispensations', { headers: { Cookie: pharmacistCookie } });
   assertCondition(dispensations.response.ok && Array.isArray(dispensations.body?.items), `Farmácia deve consultar histórico de dispensações: HTTP ${dispensations.response.status}`);
+  const purchaseCreate = await request('/api/v1/purchase-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ itemName: 'Material sintético CI', quantity: 12, priority: 'urgent', justification: 'Teste automatizado de solicitação de compra.' }),
+  });
+  assertCondition(purchaseCreate.response.status === 201, `Farmácia deve criar solicitação de compra: HTTP ${purchaseCreate.response.status} ${JSON.stringify(purchaseCreate.body)}`);
+  const purchaseId = purchaseCreate.body?.item?.id;
+  assertCondition(purchaseId, 'Solicitação de compra deve retornar ID');
+  const pharmacistCannotApprove = await request('/api/v1/purchase-requests/' + purchaseId + '/decision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ decision: 'approved' }),
+  });
+  assertCondition(pharmacistCannotApprove.response.status === 403, 'Farmácia não deve aprovar a própria solicitação nem outras compras');
+
+  const directorLogin = await request('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'ci.direcao', senha: process.env.TEST_DIRECTOR_PASSWORD }),
+  });
+  assertCondition(directorLogin.response.ok, `Login da direção de CI falhou: ${JSON.stringify(directorLogin.body)}`);
+  const directorCookie = getCookieHeader(directorLogin.response.headers.get('set-cookie'));
+  const purchaseDecision = await request('/api/v1/purchase-requests/' + purchaseId + '/decision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ decision: 'approved' }),
+  });
+  assertCondition(purchaseDecision.response.ok && purchaseDecision.body?.item?.status === 'approved', 'Direção deve aprovar solicitação enviada por outro usuário');
+
+  const purchaseRejectCreate = await request('/api/v1/purchase-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
+    body: JSON.stringify({ itemName: 'Segundo material sintético CI', quantity: 2, priority: 'routine', justification: 'Teste automatizado do fluxo de rejeição.' }),
+  });
+  assertCondition(purchaseRejectCreate.response.status === 201, 'Farmácia deve criar segunda solicitação para teste de rejeição');
+  const purchaseReject = await request('/api/v1/purchase-requests/' + purchaseRejectCreate.body.item.id + '/decision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ decision: 'rejected', reason: 'Justificativa sintética de rejeição para CI.' }),
+  });
+  assertCondition(purchaseReject.response.ok && purchaseReject.body?.item?.status === 'rejected', 'Direção deve rejeitar com justificativa obrigatória');
+
+  const professionalList = await request('/api/v1/professional-registry', { headers: { Cookie: directorCookie } });
+  assertCondition(professionalList.response.ok && professionalList.body?.items?.length, 'Direção deve consultar profissionais ativos da unidade');
+  const professionalId = professionalList.body.items[0].id;
+  const shiftStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const shiftEnd = new Date(shiftStart.getTime() + 8 * 60 * 60 * 1000);
+  const shiftPayload = { professionalId, sector: 'Enfermaria CI', startsAt: shiftStart.toISOString(), endsAt: shiftEnd.toISOString(), notes: 'Registro sintético de CI' };
+  const shiftCreate = await request('/api/v1/professional-shifts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify(shiftPayload),
+  });
+  assertCondition(shiftCreate.response.status === 201, `Direção deve criar escala: HTTP ${shiftCreate.response.status} ${JSON.stringify(shiftCreate.body)}`);
+  const shiftOverlap = await request('/api/v1/professional-shifts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify(shiftPayload),
+  });
+  assertCondition(shiftOverlap.response.status === 409 && shiftOverlap.body?.codigo === 'PROFESSIONAL_SHIFT_OVERLAP', 'Plantões sobrepostos devem ser bloqueados');
+  const shiftDecision = await request('/api/v1/professional-shifts/' + shiftCreate.body.item.id + '/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
+    body: JSON.stringify({ status: 'confirmed' }),
+  });
+  assertCondition(shiftDecision.response.ok && shiftDecision.body?.item?.status === 'confirmed', 'Direção deve confirmar plantão com auditoria');
+
   const guardedDispense = await request('/farmacia/dispensar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },

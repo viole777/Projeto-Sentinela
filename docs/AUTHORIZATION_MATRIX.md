@@ -112,3 +112,12 @@ A matriz de papéis padrão permanece segregada: recepção pode abrir atendimen
 - Protocolos são cadastrados em `/api/v1/protocols` como minutas versionadas; a criação não aprova nem publica conteúdo clínico.
 - Entradas, perdas e ajustes de estoque são registrados em `/api/v1/stock-movements`. O saldo do lote é atualizado sob bloqueio transacional e cada movimentação gera evento imutável e auditoria na mesma transação.
 - Transferências entre unidades, inventário físico e aprovação/publicação formal de protocolos permanecem fora desta etapa.
+
+
+## Compras e escalas profissionais
+
+- Solicitações de compras usam `GET/POST /api/v1/purchase-requests`; o backend fixa a unidade e o solicitante a partir da sessão, valida item/quantidade/prioridade/justificativa e grava auditoria.
+- Decisões usam `POST /api/v1/purchase-requests/:id/decision`. Somente `purchasing.approve` pode decidir; quem solicitou não pode aprovar nem rejeitar a própria solicitação. Rejeição exige justificativa.
+- O papel `farmacia` pode abrir solicitações (`purchasing.write`), mas não aprová-las. O papel `direcao` pode aprovar/rejeitar (`purchasing.approve`).
+- Escalas usam `GET/POST /api/v1/professional-shifts`, vinculam profissional ativo registrado na unidade, limitam plantões a 24 horas e bloqueiam sobreposições sob bloqueio transacional do vínculo profissional.
+- Transições de plantão usam `POST /api/v1/professional-shifts/:id/status`; somente direção recebe `professionals.schedule.write`. Troca de plantão e frequência ainda não estão implementadas.

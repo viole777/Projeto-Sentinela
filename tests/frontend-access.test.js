@@ -48,3 +48,14 @@ assert.ok(advanced.includes("endpoint:'/api/v1/protocols'"), 'protocol module mu
 assert.ok(advanced.includes("endpoint:'/api/v1/stock-movements'"), 'stock movement module must use the v1 ledger API');
 
 assert.ok(advanced.includes("'notificacao-incidente':'incidentes'"), 'incident notification route must reuse the dedicated incident API module');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/purchase-requests'"), 'purchasing module must use the dedicated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/professional-shifts'"), 'staff schedules must use the dedicated v1 API');
+assert.ok(advanced.includes("'purchasing.approve'"), 'purchase approval action must require a distinct permission');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/professional-registry'") || advanced.includes("fetch('/api/v1/professional-registry'"), 'shift form must load active professionals from the registry');
+
+assert.ok(advanced.includes("'solicitacao-compras':'compras'"), 'purchase navigation alias must resolve to the implemented purchase module');
+
+assert.ok(advanced.includes("'rejected',reason"), 'purchase rejection must submit a reason to the backend');
+assert.ok(advanced.includes('Confirmar rejeição'), 'direction UI must expose reason-required rejection');

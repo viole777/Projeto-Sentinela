@@ -6,7 +6,8 @@ const { Pool } = require('pg');
 async function main() {
   const password = process.env.TEST_ADMIN_PASSWORD;
   const databaseUrl = process.env.DATABASE_URL;
-  if (!password || password.length < 16 || !databaseUrl) {
+  const directorPassword = process.env.TEST_DIRECTOR_PASSWORD;
+  if (!password || password.length < 16 || !directorPassword || directorPassword.length < 16 || !databaseUrl) {
     throw new Error('CI admin provisioning requires DATABASE_URL and a strong TEST_ADMIN_PASSWORD.');
   }
 
@@ -21,7 +22,8 @@ async function main() {
       { username: 'admin', name: 'CI Test Administrator', role: 'admin', unit: 'ci-unit', password },
       { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', unit: 'ci-unit', password: process.env.TEST_TRIAGE_PASSWORD },
       { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', unit: 'ci-unit', password: process.env.TEST_DOCTOR_PASSWORD || password },
-      { username: 'ci.farmacia', name: 'CI Test Pharmacist', role: 'farmacia', unit: 'ci-unit', password: process.env.TEST_PHARMACY_PASSWORD || password }
+      { username: 'ci.farmacia', name: 'CI Test Pharmacist', role: 'farmacia', unit: 'ci-unit', password: process.env.TEST_PHARMACY_PASSWORD || password },
+      { username: 'ci.direcao', name: 'CI Test Director', role: 'direcao', unit: 'ci-unit', password: directorPassword }
     ];
 
     for (const user of users) {
@@ -51,6 +53,14 @@ async function main() {
         throw new Error(`Could not provision CI user ${user.username}: role seed may be missing.`);
       }
     }
+
+    const doctor = await pool.query("SELECT id FROM users WHERE username='ci.medico'");
+    await pool.query(
+      `INSERT INTO professional_registry(user_id,cns,cbo,unit_id,cnes,active)
+       VALUES($1,'123456789012345','225125','ci-unit','1234567',TRUE)
+       ON CONFLICT(user_id) DO UPDATE SET cns=EXCLUDED.cns,cbo=EXCLUDED.cbo,unit_id=EXCLUDED.unit_id,cnes=EXCLUDED.cnes,active=TRUE`,
+      [doctor.rows[0].id]
+    );
 
     await pool.query(
       `INSERT INTO patients (cpf, name, perfil, status, unit_id)

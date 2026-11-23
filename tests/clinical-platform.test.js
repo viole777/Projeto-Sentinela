@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges } = require('../backend/src/routes/clinicalPlatform');
+const { RESOURCE_DEFS, validateResourcePayload, normalizeCpf, classifyIdentityChanges, validatePurchaseRequestPayload, validateProfessionalShiftPayload } = require('../backend/src/routes/clinicalPlatform');
 const { ROLE_PERMISSIONS } = require('../backend/src/db');
 
 assert.ok(Object.keys(RESOURCE_DEFS).length >= 17, 'all clinical domains must have explicit resource definitions');
@@ -71,6 +71,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const routerSource=fs.readFileSync(path.join(__dirname,'../backend/src/routes/clinicalPlatform.js'),'utf8');
 const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261112_clinical_platform.sql'),'utf8');
+const purchasingMigration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261123_purchasing_professional_shifts.sql'),'utf8');
 const databaseSchema=fs.readFileSync(path.join(__dirname,'../database.sql'),'utf8');
 const sessionsTable=databaseSchema.match(/CREATE TABLE IF NOT EXISTS sessions\s*\(([\s\S]*?)\);/i);
 assert.ok(sessionsTable,'sessions table must be declared in the canonical schema');
@@ -126,3 +127,23 @@ assert.match(migration,/ABS\(delta\)=quantity/, 'stock adjustment delta must mat
 
 const sessionSource=fs.readFileSync(path.join(__dirname,'../backend/src/sessions.js'),'utf8');
 assert.match(sessionSource,/unit: row\.unit/, 'rehydrated sessions must expose the unit scope consumed by clinical APIs');
+
+assert.equal(validatePurchaseRequestPayload({itemName:'Luvas nitrílicas',quantity:10,priority:'urgent',justification:'Reposição necessária para o setor'}).ok,true);
+assert.equal(validatePurchaseRequestPayload({itemName:'X',quantity:0,priority:'urgent',justification:'abc'}).ok,false);
+assert.equal(validatePurchaseRequestPayload({itemName:'Material',quantity:1,priority:'critical',justification:'Motivo suficiente'}).ok,true);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T07:00:00-03:00',endsAt:'2026-11-24T19:00:00-03:00'}).ok,true);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T19:00:00Z',endsAt:'2026-11-24T07:00:00Z'}).ok,false);
+assert.equal(validateProfessionalShiftPayload({professionalId:3,sector:'Enfermaria',startsAt:'2026-11-24T07:00:00Z',endsAt:'2026-11-25T08:00:00Z'}).ok,false);
+assert.match(routerSource,/PURCHASE_SELF_APPROVAL/, 'purchase request creator cannot approve their own request');
+assert.match(routerSource,/PROFESSIONAL_SHIFT_OVERLAP/, 'overlapping shifts must be rejected');
+assert.match(routerSource,/purchasing\.approve/, 'purchase decisions require a separate approval permission');
+assert.match(purchasingMigration,/CREATE TABLE IF NOT EXISTS purchase_requests/, 'purchase requests must be persisted in PostgreSQL');
+assert.match(purchasingMigration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'professional shifts must be persisted in PostgreSQL');
+assert.match(purchasingMigration,/professionals\.schedule\.write/, 'schedule writes must be granted explicitly');
+
+assert.match(routerSource,/router\.get\('\/api\/v1\/professional-registry'/, 'shift UI must be able to list active professional links');
+
+assert.ok(ROLE_PERMISSIONS.farmacia.includes('purchasing.write'), 'pharmacy may request purchases');
+assert.ok(!ROLE_PERMISSIONS.farmacia.includes('purchasing.approve'), 'pharmacy cannot approve purchases');
+assert.ok(ROLE_PERMISSIONS.direcao.includes('purchasing.approve'), 'direction may approve purchases');
+assert.ok(ROLE_PERMISSIONS.direcao.includes('professionals.schedule.write'), 'direction may manage staff schedules');

@@ -432,7 +432,7 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
     const quantity=Number(data.quantity);
     if(!Number.isFinite(quantity)||quantity<=0)issues.push({code:'INVALID_QUANTITY',recordId:row.id,message:'Quantidade deve ser numérica e maior que zero.'});
    }
-   const summary={checkedAt:new Date().toISOString(),recordCount:ids.length,validRecordCount:Math.max(0,records.rowCount-issues.filter(x=>x.recordId).length),issueCount:issues.length,issues};
+   const summary={checkedAt:new Date().toISOString(),recordCount:ids.length,validRecordCount:Math.max(0,records.rowCount-new Set(issues.filter(x=>x.recordId).map(x=>String(x.recordId))).size),issueCount:issues.length,issues};
    if(issues.length){
     await client.query('UPDATE billing_batches SET validation_summary=$1::jsonb WHERE id=$2 AND unit_id=$3',[JSON.stringify(summary),id,unitOf(req)]);
     await audit(req,client,'validate','billing_batch',id,null,{result:'blocked',issueCount:issues.length});

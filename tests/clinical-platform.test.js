@@ -155,5 +155,6 @@ assert.ok(routerSource.includes("router.post('/api/v1/billing-denials'"),'billin
 assert.match(routerSource,/INVALID_BILLING_DENIAL_TRANSITION/,'billing denial status transitions must be validated');
 assert.ok(routerSource.includes("router.get('/api/v1/reports/production'"),'production reporting must use a dedicated v1 endpoint');
 assert.match(billingDenialsMigration,/CREATE TABLE IF NOT EXISTS billing_denials/,'billing denials must be persisted in PostgreSQL');
+assert.match(billingDenialsMigration,/billing_denial_batch_unit_fk/,'billing denial references must remain inside the same unit');
 assert.ok(migrationRunner.includes('20261123_billing_denials_reports.sql'),'billing denial migration must run in CI and deployment migration flow');
 assert.ok(migrationRunner.includes("public.billing_denials'"),'migration runner must verify the billing denial table');

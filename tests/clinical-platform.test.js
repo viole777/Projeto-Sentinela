@@ -150,10 +150,10 @@ assert.ok(ROLE_PERMISSIONS.direcao.includes('professionals.schedule.write'), 'di
 
 const billingDenialsMigration = require('node:fs').readFileSync(require('node:path').join(__dirname,'../database/migrations/20261123_billing_denials_reports.sql'),'utf8');
 const migrationRunner = require('node:fs').readFileSync(require('node:path').join(__dirname,'../scripts/apply-clinical-platform-migration.js'),'utf8');
-assert.match(routerSource,/router\\.get\\('\\/api\\/v1\\/billing-denials'/,'billing denial list must use a dedicated v1 endpoint');
-assert.match(routerSource,/router\\.post\\('\\/api\\/v1\\/billing-denials'/,'billing denial creation must use a dedicated v1 endpoint');
+assert.ok(routerSource.includes("router.get('/api/v1/billing-denials'"),'billing denial list must use a dedicated v1 endpoint');
+assert.ok(routerSource.includes("router.post('/api/v1/billing-denials'"),'billing denial creation must use a dedicated v1 endpoint');
 assert.match(routerSource,/INVALID_BILLING_DENIAL_TRANSITION/,'billing denial status transitions must be validated');
-assert.match(routerSource,/router\\.get\\('\\/api\\/v1\\/reports\\/production'/,'production reporting must use a dedicated v1 endpoint');
+assert.ok(routerSource.includes("router.get('/api/v1/reports/production'"),'production reporting must use a dedicated v1 endpoint');
 assert.match(billingDenialsMigration,/CREATE TABLE IF NOT EXISTS billing_denials/,'billing denials must be persisted in PostgreSQL');
-assert.match(migrationRunner,/20261123_billing_denials_reports\\.sql/,'billing denial migration must run in CI and deployment migration flow');
-assert.match(migrationRunner,/public\\.billing_denials/,'migration runner must verify the billing denial table');
+assert.ok(migrationRunner.includes('20261123_billing_denials_reports.sql'),'billing denial migration must run in CI and deployment migration flow');
+assert.ok(migrationRunner.includes("public.billing_denials'"),'migration runner must verify the billing denial table');

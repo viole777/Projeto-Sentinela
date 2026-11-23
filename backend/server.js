@@ -1299,12 +1299,9 @@ app.get("/farmacia/prescricoes", requirePermission("prescriptions.read"), (req, 
 });
 
 app.post("/farmacia/dispensar", requirePermission("prescriptions.dispense"), (req, res) => {
-    // The current data model stores medication as free text and has no
-    // prescription-item, batch/expiry, FEFO or transactional stock ledger.
-    // Do not claim a medicine was dispensed until those safeguards exist.
-    return res.status(501).json({
-        erro: "Dispensação temporariamente bloqueada até existir prescrição estruturada e baixa transacional por lote/validade.",
-        codigo: "DISPENSING_REQUIRES_STRUCTURED_ITEMS"
+    return res.status(400).json({
+        erro: "Esta rota legada não aceita dispensação. Use a API versionada de prescrição e lote para validar, dispensar e registrar a baixa transacional.",
+        codigo: "USE_VERSIONED_PRESCRIPTION_DISPENSING"
     });
 });
 

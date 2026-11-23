@@ -654,12 +654,19 @@ router.post('/api/v1/purchase-requests/:id/decision',requirePermission('purchasi
   const current=await client.query('SELECT id,status,requested_by FROM purchase_requests WHERE id=$1 AND unit_id=$2 FOR UPDATE',[id,unitOf(req)]);
   if(!current.rowCount){await client.query('ROLLBACK');return res.status(404).json({erro:'Solicitação não encontrada nesta unidade.'});}
   if(current.rows[0].status!=='submitted'){await client.query('ROLLBACK');return res.status(409).json({erro:'Somente solicitações enviadas podem receber decisão.',codigo:'PURCHASE_REQUEST_NOT_PENDING'});}
-  if(current.rows[0].requested_by===actor.username){await client.query('ROLLBACK');return res.status(409).json({erro:'Quem solicitou não pode aprovar ou rejeitar a própria solicitação.',codigo:'PURCHASE_SELF_APPROVAL'});}
+  if(current.rows[0].requested_by===actor.username){await client.query('ROLLBACK');await audit(req,client,'access_denied','purchase_request',id,null,{reason:'self_approval_prevented'}).catch(()=>{});return res.status(409).json({erro:'Quem solicitou não pode aprovar ou rejeitar a própria solicitação.',codigo:'PURCHASE_SELF_APPROVAL'});}
   const r=await client.query('UPDATE purchase_requests SET status=$1,decision_by=$2,decision_reason=$3,decided_at=NOW() WHERE id=$4 AND unit_id=$5 RETURNING id,item_name,quantity,priority,status,requested_by,decision_by,decision_reason,created_at,decided_at',
    [decision,actor.username,reason||null,id,unitOf(req)]);
   await audit(req,client,'update','purchase_request',id,null,{decision,reason:reason||null});
   await client.query('COMMIT');return res.json({item:r.rows[0]});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return next(e);}finally{client.release();}
+});
+router.get('/api/v1/professional-registry',requirePermission('professionals.read'),async(req,res,next)=>{
+ if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
+ const client=await getPool().connect();
+ try{const r=await client.query('SELECT pr.id,pr.cns,pr.cbo,u.name AS professional_name,u.username AS professional_username FROM professional_registry pr JOIN users u ON u.id=pr.user_id WHERE pr.unit_id=$1 AND pr.active=TRUE ORDER BY u.name LIMIT 200',[unitOf(req)]);
+  await audit(req,client,'read','professional_registry',null,null,{count:r.rowCount});return res.json({items:r.rows});
+ }catch(e){return next(e);}finally{client.release();}
 });
 router.get('/api/v1/professional-shifts',requirePermission('professionals.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

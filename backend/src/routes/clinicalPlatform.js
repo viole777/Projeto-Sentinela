@@ -391,7 +391,7 @@ router.get('/api/v1/medication-interactions',requirePermission('prescriptions.re
    await audit(req,client,'sign_request','signature_request',recordId,record.rows[0].patient_cpf,{provider});
    const status=await client.query('SELECT enabled,endpoint_configured,credentials_configured,homologated FROM external_integration_registry WHERE provider=$1',[provider]);
    if(!status.rowCount||!status.rows[0].enabled||!status.rows[0].endpoint_configured||!status.rows[0].credentials_configured||!status.rows[0].homologated)return res.status(503).json({erro:'Provedor de assinatura não está configurado e homologado. Nenhum documento foi assinado.',codigo:'SIGNATURE_PROVIDER_NOT_READY'});
-   return res.status(501).json({erro:'O provedor está marcado como homologado, mas o adaptador de assinatura ainda não foi implementado. Nenhuma assinatura foi criada.',codigo:'SIGNATURE_ADAPTER_NOT_IMPLEMENTED'});
+   return res.status(409).json({erro:'O provedor está configurado, mas a integração técnica de assinatura ainda não está disponível. Nenhuma assinatura foi criada.',codigo:'SIGNATURE_ADAPTER_UNAVAILABLE'});
   }catch(e){return next(e);}finally{client.release();}
 });
 
@@ -525,12 +525,14 @@ router.post('/api/v1/medication-lots',requirePermission('inventory.write'),async
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);
  const b=req.body||{};
  if(!String(b.medicationCode||'').trim()||!String(b.medicationName||'').trim()||!String(b.batchNumber||'').trim()||!DATE_RE.test(String(b.expiresOn||''))||!Number.isFinite(Number(b.quantity))||Number(b.quantity)<=0)return res.status(400).json({erro:'Código RENAME, medicamento, lote, validade e quantidade positiva são obrigatórios.'});
- try{const state=await officialCodeState(getPool(),'RENAME',String(b.medicationCode));if(!state.loaded)return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});if(!state.valid)return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});
-  const r=await getPool().query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
+ const state=await officialCodeState(getPool(),'RENAME',String(b.medicationCode));if(!state.loaded)return res.status(503).json({erro:'Catálogo RENAME oficial ainda não foi importado.',codigo:'OFFICIAL_CATALOG_NOT_LOADED'});if(!state.valid)return res.status(400).json({erro:'Código de medicamento não encontrado na RENAME vigente.'});
+ const client=await getPool().connect();
+ try{await client.query('BEGIN');
+  const r=await client.query('INSERT INTO medication_lots(medication_code,medication_name,batch_number,manufacturer,expires_on,quantity_available,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,medication_code,medication_name,batch_number,expires_on,quantity_available',
    [String(b.medicationCode),state.label,String(b.batchNumber).trim(),b.manufacturer||null,String(b.expiresOn).slice(0,10),Number(b.quantity),unitOf(req)]);
-  const client=await getPool().connect();try{await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});}finally{client.release();}
-  return res.status(201).json({lot:r.rows[0]});
- }catch(e){if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}
+  await audit(req,client,'create','medication_lot',r.rows[0].id,null,{medicationCode:b.medicationCode,batchNumber:b.batchNumber});
+  await client.query('COMMIT');return res.status(201).json({lot:r.rows[0]});
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});if(e.code==='23505')return res.status(409).json({erro:'Lote já cadastrado nesta unidade.'});return next(e);}finally{client.release();}
 });
 router.get('/api/v1/dispensations',requirePermission('inventory.read'),async(req,res,next)=>{
  if(!ensureUnit(req,res))return;if(!usingPostgres())return unavailable(res);

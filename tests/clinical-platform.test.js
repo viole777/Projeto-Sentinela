@@ -141,3 +141,8 @@ assert.match(migration,/CREATE TABLE IF NOT EXISTS professional_shifts/, 'profes
 assert.match(migration,/professionals\\.schedule\\.write/, 'schedule writes must be granted explicitly');
 
 assert.match(routerSource,/router\.get\('\/api\/v1\/professional-registry'/, 'shift UI must be able to list active professional links');
+
+assert.ok(ROLE_PERMISSIONS.farmacia.includes('purchasing.write'), 'pharmacy may request purchases');
+assert.ok(!ROLE_PERMISSIONS.farmacia.includes('purchasing.approve'), 'pharmacy cannot approve purchases');
+assert.ok(ROLE_PERMISSIONS.direcao.includes('purchasing.approve'), 'direction may approve purchases');
+assert.ok(ROLE_PERMISSIONS.direcao.includes('professionals.schedule.write'), 'direction may manage staff schedules');

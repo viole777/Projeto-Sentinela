@@ -138,7 +138,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
     body: JSON.stringify({ consultaId: 999999, revisadoPor: 'usuario-forjado' }),
   });
-  assertCondition(guardedDispense.response.status === 501, `Dispensação sem controle de lote/validade deve ficar bloqueada: HTTP ${guardedDispense.response.status}`);
+  assertCondition(guardedDispense.response.status === 400, `Rota legada de dispensação deve orientar o uso da API versionada: HTTP ${guardedDispense.response.status}`);
   assertCondition(guardedDispense.body?.codigo === 'DISPENSING_REQUIRES_STRUCTURED_ITEMS', 'Bloqueio de dispensação deve explicar salvaguardas ausentes');
 
   const doctorTriageScreen = await request('/triagem', { headers: { Cookie: doctorCookie } });
@@ -170,8 +170,7 @@ async function main() {
   assertCondition(adminSafetyRules.response.ok, `Admin deveria acessar Safety Engine: HTTP ${adminSafetyRules.response.status}`);
 
   const blockedModuleRead = await request('/protocolos', { headers: { Cookie: sessionCookie } });
-  assertCondition(blockedModuleRead.response.status === 501, `Módulo sem API específica deveria responder 501: HTTP ${blockedModuleRead.response.status}`);
-  assertCondition(blockedModuleRead.body?.codigo === 'MODULE_NOT_IMPLEMENTED', 'Módulo não implementado deveria explicar o bloqueio');
+  assertCondition(blockedModuleRead.response.status === 404, `Rota legada não montada deve responder 404: HTTP ${blockedModuleRead.response.status}`);
 
   const blockedModuleWrite = await request('/protocolos', {
     method: 'POST',

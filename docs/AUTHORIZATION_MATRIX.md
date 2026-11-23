@@ -96,3 +96,11 @@ Foram criadas áreas operacionais conectadas aos endpoints existentes:
 Ao persistir uma consulta, a triagem vinculada passa ao estado `atendida`; a triagem não é excluída. Uma segunda tentativa de registrar consulta para a mesma triagem é recusada com HTTP 409.
 
 A matriz de papéis padrão permanece segregada: recepção pode abrir atendimentos, triagem pode registrar avaliações e o perfil médico pode registrar consultas. Esses fluxos ainda são protótipos operacionais e não substituem validação clínica, escopo por paciente/unidade, transações e auditoria durável.
+
+
+## Integração de estoque e dispensação — etapa seguinte
+
+- O cadastro e a consulta de lotes usam `/api/v1/medication-lots`, com validação do catálogo RENAME, validade, saldo e escopo por unidade.
+- A tela de dispensação usa `/api/v1/dispensations`; o backend exige prescrição vigente e aprovada, confere saldo prescrito e executa baixa FEFO com bloqueio transacional dos lotes, evento de dispensação e auditoria.
+- O histórico de dispensações é consultado em `/api/v1/dispensations` e permanece limitado à unidade da sessão.
+- Perdas, ajustes e transferências de estoque ainda exigem endpoints próprios e não devem ser simulados pelo cadastro de lotes.

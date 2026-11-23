@@ -18,10 +18,10 @@ async function main() {
 
   try {
     const users = [
-      { username: 'admin', name: 'CI Test Administrator', role: 'admin', password },
-      { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', password: process.env.TEST_TRIAGE_PASSWORD },
-      { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', password: process.env.TEST_DOCTOR_PASSWORD || password },
-      { username: 'ci.farmacia', name: 'CI Test Pharmacist', role: 'farmacia', password: process.env.TEST_PHARMACY_PASSWORD || password }
+      { username: 'admin', name: 'CI Test Administrator', role: 'admin', unit: 'ci-unit', password },
+      { username: 'ci.triagem', name: 'CI Test Triage', role: 'triagem', unit: 'ci-unit', password: process.env.TEST_TRIAGE_PASSWORD },
+      { username: 'ci.medico', name: 'CI Test Physician', role: 'medico', unit: 'ci-unit', password: process.env.TEST_DOCTOR_PASSWORD || password },
+      { username: 'ci.farmacia', name: 'CI Test Pharmacist', role: 'farmacia', unit: 'ci-unit', password: process.env.TEST_PHARMACY_PASSWORD || password }
     ];
 
     for (const user of users) {
@@ -34,17 +34,18 @@ async function main() {
       const passwordHash = `scrypt${String.fromCharCode(36)}${salt}${String.fromCharCode(36)}${hash}`;
 
       const result = await pool.query(
-        `INSERT INTO users (username, name, password_hash, role_id, role, active, must_change_password)
-         SELECT $1, $2, $3, r.id, $4, TRUE, FALSE
+        `INSERT INTO users (username, name, password_hash, role_id, role, unit, active, must_change_password)
+         SELECT $1, $2, $3, r.id, $4, $5, TRUE, FALSE
          FROM roles r WHERE r.name = $4
          ON CONFLICT (username) DO UPDATE SET
            password_hash = EXCLUDED.password_hash,
            role_id = EXCLUDED.role_id,
            role = EXCLUDED.role,
+           unit = EXCLUDED.unit,
            active = TRUE,
            must_change_password = FALSE
          RETURNING id`,
-        [user.username, user.name, passwordHash, user.role]
+        [user.username, user.name, passwordHash, user.role, user.unit]
       );
       if (!result.rows.length) {
         throw new Error(`Could not provision CI user ${user.username}: role seed may be missing.`);
@@ -52,9 +53,9 @@ async function main() {
     }
 
     await pool.query(
-      `INSERT INTO patients (cpf, name, perfil, status)
-       VALUES ('99999999999', 'Paciente Sintético CI', '{"alergias":"penicilina"}'::jsonb, 'triagem')
-       ON CONFLICT (cpf) DO UPDATE SET name = EXCLUDED.name, perfil = EXCLUDED.perfil, status = EXCLUDED.status`
+      `INSERT INTO patients (cpf, name, perfil, status, unit_id)
+       VALUES ('99999999999', 'Paciente Sintético CI', '{"alergias":"penicilina"}'::jsonb, 'triagem', 'ci-unit')
+       ON CONFLICT (cpf) DO UPDATE SET name = EXCLUDED.name, perfil = EXCLUDED.perfil, status = EXCLUDED.status, unit_id = EXCLUDED.unit_id`
     );
     await pool.query(
       `INSERT INTO triage (patient_cpf, patient_name, allergy, risk, status)

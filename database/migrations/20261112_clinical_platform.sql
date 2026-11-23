@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS clinical_records (
   supersedes_id BIGINT REFERENCES clinical_records(id),
   CONSTRAINT clinical_records_data_object CHECK (jsonb_typeof(data) = 'object')
 );
+ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS unit_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_clinical_records_patient_type_created
   ON clinical_records(patient_cpf, resource_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clinical_records_unit_type_created
@@ -194,6 +195,39 @@ CREATE TABLE IF NOT EXISTS medication_lots (
   UNIQUE(medication_name, batch_number, unit_id)
 );
 CREATE INDEX IF NOT EXISTS idx_medication_lots_fefo ON medication_lots(unit_id, expires_on, medication_name);
+
+ALTER TABLE clinical_records DROP CONSTRAINT IF EXISTS clinical_records_resource_type_check;
+ALTER TABLE clinical_records ADD CONSTRAINT clinical_records_resource_type_check CHECK (resource_type IN (
+ 'soap','vitals','diagnosis','prescription','exam_order','document','hospitalization','discharge',
+ 'maternal_child','chronic_care','immunization','referral','notification','dispensation','billing',
+ 'patient_identity','signature_request','nursing_evolution','care_plan','prescription_validation',
+ 'exam_result','allergy','medication_administration','incident','protocol'
+));
+
+CREATE TABLE IF NOT EXISTS clinical_stock_movements (
+ id BIGSERIAL PRIMARY KEY,
+ lot_id BIGINT NOT NULL REFERENCES medication_lots(id),
+ unit_id TEXT NOT NULL,
+ movement_type TEXT NOT NULL CHECK (movement_type IN ('receipt','loss','adjustment')),
+ quantity NUMERIC(14,3) NOT NULL CHECK (quantity > 0),
+ delta NUMERIC(14,3) NOT NULL CHECK (delta <> 0),
+ reason TEXT NOT NULL,
+ created_by TEXT NOT NULL,
+ created_by_role TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ CHECK ((movement_type='receipt' AND delta=quantity) OR (movement_type='loss' AND delta=-quantity) OR (movement_type='adjustment' AND ABS(delta)=quantity))
+);
+CREATE INDEX IF NOT EXISTS idx_clinical_stock_movements_unit_created ON clinical_stock_movements(unit_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_protocol_version_unique ON clinical_records(unit_id,(data->>'code'),(data->>'version')) WHERE resource_type='protocol' AND supersedes_id IS NULL;
+CREATE OR REPLACE FUNCTION sentinela_reject_clinical_stock_movement_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $inventory$
+BEGIN
+ RAISE EXCEPTION 'inventory movements are append-only; record a compensating movement';
+END;
+$inventory$;
+DROP TRIGGER IF EXISTS clinical_stock_movements_immutable ON clinical_stock_movements;
+CREATE TRIGGER clinical_stock_movements_immutable BEFORE UPDATE OR DELETE ON clinical_stock_movements
+FOR EACH ROW EXECUTE FUNCTION sentinela_reject_clinical_stock_movement_mutation();
 
 CREATE TABLE IF NOT EXISTS medication_interaction_catalog (
   id BIGSERIAL PRIMARY KEY,

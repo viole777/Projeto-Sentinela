@@ -89,7 +89,7 @@ class SessionStore {
         const session = {
             usuario: row.username, nome: row.name, email: row.email,
             tipo: row.role, role: row.role, theme: row.theme || "light",
-            setor: row.unit || null, expiresAt
+            unit: row.unit || null, setor: row.unit || null, expiresAt
         };
         this.map.set(token, session);
         return session;

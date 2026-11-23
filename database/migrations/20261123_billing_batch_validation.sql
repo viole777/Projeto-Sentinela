@@ -18,3 +18,9 @@ SELECT r.id,p.id
 FROM roles r
 JOIN permissions p ON r.name='direcao' AND p.name='billing.validate'
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE clinical_audit_events
+  DROP CONSTRAINT IF EXISTS clinical_audit_events_action_check;
+ALTER TABLE clinical_audit_events
+  ADD CONSTRAINT clinical_audit_events_action_check
+  CHECK (action IN ('create','read','update','export','sign_request','access_denied','validate','reject'));

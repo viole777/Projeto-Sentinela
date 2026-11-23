@@ -36,7 +36,7 @@ async function main() {
     max: 1
   });
   try {
-    const migrationPaths = ['20261112_clinical_platform.sql', '20261123_purchasing_professional_shifts.sql'].map(file => path.join(__dirname, '..', 'database', 'migrations', file));
+    const migrationPaths = ['20261112_clinical_platform.sql', '20261123_purchasing_professional_shifts.sql', '20261123_billing_denials_reports.sql'].map(file => path.join(__dirname, '..', 'database', 'migrations', file));
     const statements = migrationPaths.flatMap(migrationPath => splitSqlStatements(fs.readFileSync(migrationPath, 'utf8'))).filter(statement => !/^(BEGIN|COMMIT)$/i.test(statement));
     await pool.query('BEGIN');
     try {
@@ -53,9 +53,9 @@ async function main() {
       throw error;
     }
     const result = await pool.query(
-      "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events, to_regclass('public.purchase_requests') AS purchase_requests, to_regclass('public.professional_shifts') AS professional_shifts"
+      "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events, to_regclass('public.purchase_requests') AS purchase_requests, to_regclass('public.professional_shifts') AS professional_shifts, to_regclass('public.billing_denials') AS billing_denials"
     );
-    if (!result.rows[0]?.clinical_records || !result.rows[0]?.clinical_audit_events || !result.rows[0]?.purchase_requests || !result.rows[0]?.professional_shifts) {
+    if (!result.rows[0]?.clinical_records || !result.rows[0]?.clinical_audit_events || !result.rows[0]?.purchase_requests || !result.rows[0]?.professional_shifts || !result.rows[0]?.billing_denials) {
       throw new Error('Clinical platform migration verification failed');
     }
     process.stdout.write('Clinical platform migrations applied and verified.\\n');

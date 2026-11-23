@@ -78,7 +78,7 @@ const ROLE_PERMISSIONS = {
   direcao: [
     "dashboard.read", "reports.read", "audit.read", "clinical.audit.read", "billing.read",
     "alerts.read", "alerts.resolve", "inventory.read",
-    "users.read", "professionals.read", "professionals.schedule.write", "purchasing.approve", "roles.read", "units.read", "beds.manage", "billing.write"
+    "users.read", "professionals.read", "professionals.schedule.write", "purchasing.approve", "roles.read", "units.read", "beds.manage", "billing.write", "billing.validate"
   ]
 };
 

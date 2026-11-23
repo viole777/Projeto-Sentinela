@@ -1605,15 +1605,8 @@ app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
     usingPostgres
 }));
 
-// APIs CRUD para módulos avançados ainda sem rota própria. As rotas já existentes
-// continuam tendo precedência; estes handlers são registrados antes do 404 da SPA.
-app.use(require("./src/routes/advancedModules")({
-    requireAuth,
-    usingPostgres,
-    getPool,
-    readDB,
-    writeDB
-}));
+// Módulos sem API própria não recebem CRUD genérico. A interface deve usar
+// somente endpoints versionados e validados; rotas legadas não são montadas.
 
 app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);

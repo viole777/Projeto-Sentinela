@@ -6,6 +6,7 @@ const root = path.join(__dirname, '..');
 const access = fs.readFileSync(path.join(root, 'frontend-v2/src/access.ts'), 'utf8');
 const shell = fs.readFileSync(path.join(root, 'frontend-v2/src/components/AppShell.tsx'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'frontend-v2/src/App.tsx'), 'utf8');
+const advanced = fs.readFileSync(path.join(root, 'frontend-v2/src/pages/AdvancedModules.tsx'), 'utf8');
 
 const menuPaths = [...shell.matchAll(/\['[^']+','(\/app\/[^']+)'/g)].map(match => match[1]);
 const mappedPaths = new Set([...access.matchAll(/'((?:\/app\/)\w[\w-]*)':\s*'[^']+'/g)].map(match => match[1]));
@@ -20,4 +21,13 @@ assert.match(shell, /authReady\s*\?\s*<Outlet\/>/, 'protected pages must wait fo
 assert.match(shell, /setAuthError\(status === 503/, 'authorization infrastructure failures must not be presented as an ordinary login failure');
 assert.match(app, /function Protected\(/, 'frontend routes must use a permission guard');
 assert.match(app, /<Protected path=\{routePath\}>/, 'advanced routes must be guarded too');
+
+assert.ok(advanced.includes("endpoint:'/api/v1/nursing-evolutions'"), 'nursing evolutions must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/prescriptions'"), 'prescriptions must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/bed-map'"), 'bed map must use the dedicated read API');
+assert.ok(advanced.includes("endpoint:'/api/v1/vital-signs'"), 'vital signs must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/exam-orders'"), 'exam orders must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/soap-notes'"), 'medical notes must use the validated v1 API');
+assert.ok(advanced.includes("endpoint:'/api/v1/care-plans'"), 'care plans must use the validated v1 API');
+assert.equal(advanced.includes("permissions.includes('*')"), false, 'advanced module UI must not grant wildcard permissions');
 console.log('frontend access tests passed');

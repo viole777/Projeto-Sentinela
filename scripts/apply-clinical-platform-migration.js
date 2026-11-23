@@ -13,7 +13,13 @@ async function main() {
   try {
     const migrationPath = path.join(__dirname, '..', 'database', 'migrations', '20261112_clinical_platform.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
-    await pool.query(sql);
+    try { await pool.query(sql); } catch (error) {
+      const position = Number(error.position || 0);
+      const before = position > 0 ? sql.slice(0, position - 1) : '';
+      const line = position > 0 ? before.split('\\n').length : null;
+      const statement = position > 0 ? before.split(';').pop().trim().slice(-240) : '';
+      throw new Error(`Clinical migration failed${line ? ` near line ${line}` : ''}${statement ? ` near: ${statement}` : ''}: ${error.message}`);
+    }
     const result = await pool.query(
       "SELECT to_regclass('public.clinical_records') AS clinical_records, to_regclass('public.clinical_audit_events') AS clinical_audit_events"
     );

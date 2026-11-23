@@ -123,3 +123,6 @@ assert.match(migration,/incident','protocol/, 'clinical record schema must inclu
 assert.match(routerSource,/EXPIRED_LOT_RECEIPT/, 'expired lots must not accept new stock receipts');
 assert.match(migration,/idx_protocol_version_unique/, 'protocol versions must be unique per unit');
 assert.match(migration,/ABS\(delta\)=quantity/, 'stock adjustment delta must match the recorded quantity');
+
+const sessionSource=fs.readFileSync(path.join(__dirname,'../backend/src/sessions.js'),'utf8');
+assert.match(sessionSource,/unit: row\.unit/, 'rehydrated sessions must expose the unit scope consumed by clinical APIs');

@@ -1,6 +1,9 @@
 -- Billing denial tracking and production reporting.
 -- This migration stores administrative tracking only; it does not transmit or certify official SUS/TISS files.
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_batches_id_unit
+ ON billing_batches(id,unit_id);
+
 CREATE TABLE IF NOT EXISTS billing_denials (
  id BIGSERIAL PRIMARY KEY,
  unit_id TEXT NOT NULL,
@@ -16,6 +19,12 @@ CREATE TABLE IF NOT EXISTS billing_denials (
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  resolved_at TIMESTAMPTZ
 );
+DO $ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='billing_denial_batch_unit_fk') THEN
+  ALTER TABLE billing_denials ADD CONSTRAINT billing_denial_batch_unit_fk FOREIGN KEY (billing_batch_id,unit_id) REFERENCES billing_batches(id,unit_id);
+ END IF;
+END $;
+
 CREATE INDEX IF NOT EXISTS idx_billing_denials_unit_status_deadline
  ON billing_denials(unit_id,status,appeal_deadline);
 CREATE INDEX IF NOT EXISTS idx_billing_denials_batch

@@ -142,7 +142,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json', Cookie: pharmacistCookie },
     body: JSON.stringify({ itemName: 'Material sintético CI', quantity: 12, priority: 'urgent', justification: 'Teste automatizado de solicitação de compra.' }),
   });
-  assertCondition(purchaseCreate.response.status === 201, \`Farmácia deve criar solicitação de compra: HTTP \${purchaseCreate.response.status} \${JSON.stringify(purchaseCreate.body)}\`);
+  assertCondition(purchaseCreate.response.status === 201, `Farmácia deve criar solicitação de compra: HTTP \${purchaseCreate.response.status} \${JSON.stringify(purchaseCreate.body)}`);
   const purchaseId = purchaseCreate.body?.item?.id;
   assertCondition(purchaseId, 'Solicitação de compra deve retornar ID');
   const directorLogin = await request('/login', {
@@ -150,7 +150,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ usuario: 'ci.direcao', senha: process.env.TEST_DIRECTOR_PASSWORD }),
   });
-  assertCondition(directorLogin.response.ok, \`Login da direção de CI falhou: \${JSON.stringify(directorLogin.body)}\`);
+  assertCondition(directorLogin.response.ok, `Login da direção de CI falhou: \${JSON.stringify(directorLogin.body)}`);
   const directorCookie = getCookieHeader(directorLogin.response.headers.get('set-cookie'));
   const purchaseDecision = await request('/api/v1/purchase-requests/' + purchaseId + '/decision', {
     method: 'POST',
@@ -170,7 +170,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json', Cookie: directorCookie },
     body: JSON.stringify(shiftPayload),
   });
-  assertCondition(shiftCreate.response.status === 201, \`Direção deve criar escala: HTTP \${shiftCreate.response.status} \${JSON.stringify(shiftCreate.body)}\`);
+  assertCondition(shiftCreate.response.status === 201, `Direção deve criar escala: HTTP \${shiftCreate.response.status} \${JSON.stringify(shiftCreate.body)}`);
   const shiftOverlap = await request('/api/v1/professional-shifts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: directorCookie },

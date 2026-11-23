@@ -165,6 +165,7 @@ assert.ok(routerSource.includes("router.post('/api/v1/billing-batches/:id/reject
 assert.match(routerSource,/BILLING_BATCH_VALIDATION_FAILED/,'structural billing inconsistencies must block validation');
 assert.match(routerSource,/BILLING_RECORD_ALREADY_ASSIGNED/,'a billing record cannot be included in multiple active batches');
 assert.match(billingWorkflowMigration,/ADD COLUMN IF NOT EXISTS validation_summary/,'batch validation summary must be persisted');
+assert.match(billingWorkflowMigration,/clinical_audit_events_action_check[\\s\\S]*'validate','reject'/,'audit schema must accept dedicated validation and rejection actions');
 assert.ok(billingWorkflowMigration.includes("billing.validate"),'billing validation requires an explicit permission');
 assert.ok(migrationRunner.includes('20261123_billing_batch_validation.sql'),'batch validation migration must run in CI and deployment migration flow');
 

@@ -64,13 +64,17 @@ const allowedOrigins = new Set(
 );
 app.use((req, res, next) => {
     const origin = req.get("origin");
+    const requestOrigin = `${req.protocol}://${req.get("host")}`;
+    const isSameOrigin = Boolean(origin && origin === requestOrigin);
+    const isExplicitlyAllowed = Boolean(origin && allowedOrigins.has(origin));
+
+    // Requisições same-origin são permitidas sem exigir duplicação do próprio
+    // domínio em CORS_ALLOWED_ORIGINS. Origens externas continuam em allowlist.
+    if (origin && !isSameOrigin && !isExplicitlyAllowed) {
+        return res.status(403).json({ erro: "Origem não autorizada.", codigo: "CORS_ORIGIN_DENIED" });
+    }
+
     if (origin) {
-        if (!allowedOrigins.size && origin !== `http://localhost:${process.env.PORT || 3000}`) {
-            return res.status(403).json({ erro: "Origem não autorizada.", codigo: "CORS_ORIGIN_DENIED" });
-        }
-        if (allowedOrigins.size && !allowedOrigins.has(origin)) {
-            return res.status(403).json({ erro: "Origem não autorizada.", codigo: "CORS_ORIGIN_DENIED" });
-        }
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Vary", "Origin");
         res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -80,12 +84,8 @@ app.use((req, res, next) => {
         res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept,X-Request-Id");
         return res.sendStatus(204);
     }
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && origin) {
-        const host = req.get("host");
-        const hostOrigin = `${req.protocol}://${host}`;
-        if (origin !== hostOrigin && !allowedOrigins.has(origin)) {
-            return res.status(403).json({ erro: "CSRF: origem incompatível.", codigo: "CSRF_ORIGIN_MISMATCH" });
-        }
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && origin && !isSameOrigin && !isExplicitlyAllowed) {
+        return res.status(403).json({ erro: "CSRF: origem incompatível.", codigo: "CSRF_ORIGIN_MISMATCH" });
     }
     return next();
 });

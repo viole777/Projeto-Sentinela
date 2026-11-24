@@ -97,7 +97,14 @@ export function AppShell() {
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState('');
   const [openGroups, setOpenGroups] = useState<string[]>(['Visão geral','Fluxo do paciente','Assistência clínica','Qualidade e segurança']);
-  const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  const [dark, setDark] = useState(() => {
+    const savedTheme = localStorage.getItem('sentinela-theme');
+    return savedTheme ? savedTheme === 'dark' : document.documentElement.classList.contains('dark');
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+  }, [dark]);
+
   useEffect(() => {
     let active = true;
     fetch('/me', { credentials: 'include', headers: { Accept: 'application/json' } })
@@ -146,8 +153,25 @@ export function AppShell() {
   function toggleDark() {
     const next = !dark;
     setDark(next);
-    document.documentElement.classList.toggle('dark', next);
     localStorage.setItem('sentinela-theme', next ? 'dark' : 'light');
+  }
+
+  async function logout() {
+    setAuthError('');
+    try {
+      const response = await fetch('/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error('O servidor não confirmou o encerramento da sessão.');
+      sessionStorage.removeItem('sentinelaPermissions');
+      sessionStorage.removeItem('sentinelaRole');
+      sessionStorage.removeItem('sentinelaNome');
+      navigate('/login', { replace: true });
+    } catch {
+      setAuthError('Não foi possível encerrar a sessão com segurança. Verifique a conexão e tente novamente.');
+    }
   }
 
   const activeLabel = nav.flatMap(group => group.items).find(([, path]) => path === location.pathname)?.[0] ?? 'Área clínica';
@@ -186,7 +210,7 @@ export function AppShell() {
         <button className="sent-footer-action sent-collapse-button" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expandir menu' : 'Recolher menu'}>
           {collapsed ? <ChevronRight size={17}/> : <><ChevronLeft size={17}/> Recolher menu</>}
         </button>
-        <button className="sent-footer-action" onClick={() => navigate('/login')}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
+        <button className="sent-footer-action" onClick={() => void logout()}><LogOut size={17}/>{!collapsed && 'Sair do sistema'}</button>
       </div>
     </aside>
 

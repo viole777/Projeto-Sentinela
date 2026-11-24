@@ -83,7 +83,7 @@ export function Login({ mode: initial = 'login' }: { mode?: Mode }) {
           {message && <div role="status" aria-live="polite" className={`rounded-md border p-3 text-sm ${/não foi possível|inválid|expirad|erro/i.test(message) ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200' : 'border-blue-200 bg-amber-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-amber-100'}`}>{message}</div>}
           <Button type="submit" className="w-full" loading={loading}>{mode === 'login' ? 'Entrar no sistema' : mode === 'first' ? 'Ativar acesso' : mode === 'recover' ? 'Solicitar recuperação' : 'Redefinir senha'}<ArrowRight size={16}/></Button>
         </form>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t pt-5 text-center text-xs muted" style={{ borderColor: 'var(--border)' }}>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-5 text-center text-xs muted">
           {mode !== 'login' && <button className="font-semibold text-copper-700 hover:underline dark:text-amber-300" onClick={() => { setMode('login'); setMessage(''); }}>Voltar ao login</button>}
           {mode === 'login' && <>Primeiro acesso? <button className="font-semibold text-copper-700 hover:underline dark:text-amber-300" onClick={() => { setMode('first'); setMessage(''); }}>Ativar conta</button></>}
           {mode === 'recover' && <button className="font-semibold text-copper-700 hover:underline dark:text-amber-300" onClick={() => { setMode('reset'); setMessage(''); }}>Inserir token de recuperação</button>}

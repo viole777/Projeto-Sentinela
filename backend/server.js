@@ -111,18 +111,26 @@ const passwordRateLimit = rateLimit({
 // as rotas HTML existentes dos perfis.
 const FRONTEND_V2_DIST = path.join(__dirname, "../frontend-v2/dist");
 const hasFrontendV2 = fs.existsSync(path.join(FRONTEND_V2_DIST, "index.html"));
-app.use(express.static(path.join(__dirname, "../frontend")));
+// Os arquivos compilados do frontend React são servidos na raiz para que
+// /login, /assets e /brand usem a mesma aplicação e o mesmo design system.
+app.use(express.static(FRONTEND_V2_DIST, { index: false }));
+// Páginas legadas continuam disponíveis por seus caminhos próprios, mas não
+// podem capturar "/" nem substituir o login React.
+app.use(express.static(path.join(__dirname, "../frontend"), { index: false }));
 app.get(["/tv", "/tv/"], (req, res) => {
     res.sendFile(path.join(__dirname, "../frontend/tv.html"));
 });
-app.get(["/login", "/login/"], (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend/index.html"));
+app.get(["/", "/login", "/login/"], (req, res, next) => {
+    if (!hasFrontendV2) return res.sendFile(path.join(__dirname, "../frontend/index.html"));
+    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });
-app.get(["/primeiro-acesso", "/primeiro-acesso/"], (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend/primeiro-acesso.html"));
+app.get(["/primeiro-acesso", "/primeiro-acesso/"], (req, res, next) => {
+    if (!hasFrontendV2) return res.sendFile(path.join(__dirname, "../frontend/primeiro-acesso.html"));
+    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });
-app.get(["/recuperar-senha", "/recuperar-senha/"], (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend/recuperar-senha.html"));
+app.get(["/recuperar-senha", "/recuperar-senha/"], (req, res, next) => {
+    if (!hasFrontendV2) return res.sendFile(path.join(__dirname, "../frontend/recuperar-senha.html"));
+    return res.sendFile(path.join(FRONTEND_V2_DIST, "index.html"));
 });
 app.use("/screenshots", express.static(path.join(__dirname, "../docs/screenshots")));
 

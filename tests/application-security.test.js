@@ -28,6 +28,6 @@ assert.ok(inlineHashes > 0);
 console.log('application CSP and CORS source checks passed');
 
 // Same-origin Render requests must not depend on CORS_ALLOWED_ORIGINS.
-assert.match(serverSource, /const requestOrigin = `\\$\{req\.protocol\}:\\/\\/\\$\{req\.get\("host"\)\}`/);
+assert.ok(serverSource.includes('const requestOrigin = `${req.protocol}://${req.get("host")}`;'));
 assert.match(serverSource, /origin && !isSameOrigin && !isExplicitlyAllowed/);
 assert.match(serverSource, /allowedOrigins\.has\(origin\)/);

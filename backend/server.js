@@ -149,6 +149,21 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
 const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
 
+// Health check operacional: o processo e o PostgreSQL precisam estar disponíveis.
+app.get("/health", async (req, res) => {
+    const startedAt = Date.now();
+    if (!usingPostgres()) {
+        return res.status(503).json({ status: "unhealthy", database: "not_configured", latencyMs: Date.now() - startedAt });
+    }
+    try {
+        await getPool().query("SELECT 1");
+        return res.status(200).json({ status: "ok", database: "connected", latencyMs: Date.now() - startedAt });
+    } catch (error) {
+        console.error("[health] database check failed:", error.message);
+        return res.status(503).json({ status: "unhealthy", database: "unavailable", latencyMs: Date.now() - startedAt });
+    }
+});
+
 // Sessões: cache em memória + persistência durável no PostgreSQL em produção,
 // backend/sessions.json no dev sem DATABASE_URL. Mesma API do Map —
 // get/set/delete continuam funcionando em todo o arquivo.
@@ -1613,27 +1628,48 @@ app.use(require("./src/routes/clinicalPlatform").createClinicalPlatformRouter({
 // Módulos sem API própria não recebem CRUD genérico. A interface deve usar
 // somente endpoints versionados e validados; rotas legadas não são montadas.
 
-app.use((err, req, res, next) => {
-    if (res.headersSent) return next(err);
-    // Upload inválido ou acima do limite é erro de entrada (400), não falha 500.
-    if (err instanceof multer.MulterError) {
-        const tooLarge = err.code === "LIMIT_FILE_SIZE";
-        return res.status(400).json({
-            erro: tooLarge ? "A imagem excede o limite de 5 MB." : "Não foi possível processar o arquivo enviado."
-        });
-    }
-    if (typeof err?.message === "string" && err.message.startsWith("Arquivo inválido:")) {
-        return res.status(400).json({ erro: err.message });
-    }
-    console.error("Unhandled error:", err && err.message ? err.message : err);
-    res.status(err && err.statusCode ? err.statusCode : 500).json({ erro: "Erro interno do servidor" });
-});
-
 app.use((req, res) => {
     res.status(404).json({ erro: "Rota não encontrada", caminho: req.path, metodo: req.method });
 });
 
+// Handler global: converte falhas de rotas/middleware em JSON seguro.
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    if (err instanceof multer.MulterError) {
+        const tooLarge = err.code === "LIMIT_FILE_SIZE";
+        return res.status(400).json({
+            erro: tooLarge ? "A imagem excede o limite de 5 MB." : "Não foi possível processar o arquivo enviado.",
+            codigo: tooLarge ? "UPLOAD_TOO_LARGE" : "UPLOAD_INVALID"
+        });
+    }
+    if (typeof err?.message === "string" && err.message.startsWith("Arquivo inválido:")) {
+        return res.status(400).json({ erro: err.message, codigo: "UPLOAD_INVALID" });
+    }
+    const status = Number(err?.statusCode || err?.status || 500);
+    const safeStatus = [400, 504].includes(status) ? status : 500;
+    console.error("[http-error]", { method: req.method, path: req.path, status: safeStatus, message: err?.message || "unknown" });
+    return res.status(safeStatus).json({
+        erro: safeStatus === 504 ? "Serviço externo excedeu o tempo limite." : safeStatus === 400 ? "Requisição inválida." : "Erro interno do servidor.",
+        codigo: err?.code || (safeStatus === 504 ? "UPSTREAM_TIMEOUT" : safeStatus === 400 ? "BAD_REQUEST" : "INTERNAL_ERROR")
+    });
+});
+
+function validateEnvironment() {
+    const missing = [];
+    if (process.env.NODE_ENV === "production" && !String(process.env.DATABASE_URL || "").trim()) {
+        missing.push("DATABASE_URL");
+    }
+    if (missing.length) throw new Error(`Variáveis de ambiente críticas ausentes: ${missing.join(", ")}`);
+}
+
 function startServer() {
+    try {
+        validateEnvironment();
+    } catch (error) {
+        console.error("[boot] environment validation failed:", error.message);
+        process.exit(1);
+        return;
+    }
     if (!process.env.GEMINI_API_KEY) {
         console.warn("Gemini API key não configurada. Configure GEMINI_API_KEY no ambiente. A integração de IA usará apenas o resumo local.");
     }
@@ -1641,9 +1677,26 @@ function startServer() {
     const PORT = process.env.PORT || 3000;
     hydrate()
         .then(() => {
-            app.listen(PORT, () => {
+            const server = app.listen(PORT, () => {
                 console.log(`Porta ${PORT} · storage=${store.backend()}`);
             });
+            server.keepAliveTimeout = 65000;
+            server.headersTimeout = 66000;
+
+            let shuttingDown = false;
+            const gracefulShutdown = (reason, error) => {
+                if (shuttingDown) return;
+                shuttingDown = true;
+                console.error(`[process] ${reason}; shutdown gracioso iniciado`, error?.message || "");
+                server.close(() => process.exit(error ? 1 : 0));
+                setTimeout(() => process.exit(1), 10000).unref();
+            };
+            process.on("unhandledRejection", (reason) => {
+                console.error("[process] unhandledRejection:", reason?.message || reason);
+            });
+            process.on("uncaughtException", (error) => gracefulShutdown("uncaughtException", error));
+            process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+            process.on("SIGINT", () => gracefulShutdown("SIGINT"));
         })
         .catch((err) => {
             console.error("Falha ao preparar o armazenamento:", err.message);

@@ -991,7 +991,16 @@ async function syncSafetyRules(pool, rules) {
   }
 }
 
+// Probe curto usado pelo health check para distinguir servidor vivo de banco acessível.
+async function checkDatabaseConnection() {
+  const pool = getPool();
+  if (!pool) throw new Error('PostgreSQL não configurado.');
+  await pool.query('SELECT 1');
+  return true;
+}
+
 module.exports = {
+  checkDatabaseConnection,
   readDB,
   writeDB,
   readAllSync,

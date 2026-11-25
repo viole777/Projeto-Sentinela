@@ -1691,9 +1691,7 @@ function startServer() {
                 server.close(() => process.exit(error ? 1 : 0));
                 setTimeout(() => process.exit(1), 10000).unref();
             };
-            process.on("unhandledRejection", (reason) => {
-                console.error("[process] unhandledRejection:", reason?.message || reason);
-            });
+            process.on("unhandledRejection", (reason) => gracefulShutdown("unhandledRejection", reason instanceof Error ? reason : new Error(String(reason))));
             process.on("uncaughtException", (error) => gracefulShutdown("uncaughtException", error));
             process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
             process.on("SIGINT", () => gracefulShutdown("SIGINT"));

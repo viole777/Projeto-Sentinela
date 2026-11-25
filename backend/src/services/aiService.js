@@ -531,6 +531,9 @@ async function resumoIA(
     );
 
 
+    const controller = new AbortController();
+    const aiTimeout = setTimeout(() => controller.abort(), 25000);
+
     try {
 
         const response =
@@ -547,7 +550,7 @@ async function resumoIA(
                             `Bearer ${apiKey}`
                     },
 
-                    signal: AbortSignal.timeout(15000),
+                    signal: controller.signal,
                     body: JSON.stringify({
 
                         model,
@@ -615,6 +618,7 @@ Retorne SOMENTE JSON válido, sem Markdown ou texto fora do JSON:
 
         const rawText =
             await response.text();
+        clearTimeout(aiTimeout);
 
 
         if (!response.ok) {
@@ -748,9 +752,17 @@ Retorne SOMENTE JSON válido, sem Markdown ou texto fora do JSON:
 
     } catch (error) {
 
+        clearTimeout(aiTimeout);
+        if (error?.name === "AbortError" || controller.signal.aborted) {
+            const timeoutError = new Error("A chamada à IA excedeu 25 segundos.");
+            timeoutError.statusCode = 504;
+            timeoutError.code = "AI_REQUEST_TIMEOUT";
+            throw timeoutError;
+        }
+
         console.error(
             "[Sentinela AI] Falha ao chamar Gemini:",
-            error
+            error?.message || error
         );
 
         return {

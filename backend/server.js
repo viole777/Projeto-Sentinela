@@ -147,7 +147,7 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // camada de persistência unificada (JSON em dev / PostgreSQL em produção)
-const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate } = require("./src/db");
+const { readDB, writeDB, ROLE_PERMISSIONS, store, usingPostgres, getPool, hydrate, checkDatabaseConnection } = require("./src/db");
 
 // Health check operacional: o processo e o PostgreSQL precisam estar disponíveis.
 app.get("/health", async (req, res) => {
@@ -156,7 +156,7 @@ app.get("/health", async (req, res) => {
         return res.status(503).json({ status: "unhealthy", database: "not_configured", latencyMs: Date.now() - startedAt });
     }
     try {
-        await getPool().query("SELECT 1");
+        await checkDatabaseConnection();
         return res.status(200).json({ status: "ok", database: "connected", latencyMs: Date.now() - startedAt });
     } catch (error) {
         console.error("[health] database check failed:", error.message);

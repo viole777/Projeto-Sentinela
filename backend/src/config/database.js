@@ -17,7 +17,13 @@ function getPool() {
       : { rejectUnauthorized: sslMode !== 'insecure' };
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl
+      ssl,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    });
+    pool.on('error', (error) => {
+      console.error('[postgres pool] idle client error:', error.message);
     });
   }
   return pool;

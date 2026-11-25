@@ -357,7 +357,14 @@ app.post("/login", authRateLimit, async (req, res) => {
     // requirePermission revalida no PostgreSQL a cada requisição protegida.
     try {
         await sessions.persist(token, session);
-    } catch (_) {
+    } catch (sessionError) {
+        // Log técnico sanitizado: não inclui token, senha, cookie, nem parâmetros SQL.
+        console.error("[login] session persistence failed", {
+            code: sessionError?.code || "UNKNOWN",
+            constraint: sessionError?.constraint || null,
+            table: sessionError?.table || null,
+            message: String(sessionError?.message || "unknown").slice(0, 300)
+        });
         return res.status(503).json({
             erro: "Não foi possível criar a sessão com segurança. Tente novamente.",
             codigo: "SESSION_PERSISTENCE_UNAVAILABLE"
